@@ -399,6 +399,8 @@ file-by-file list). Summary of what's critical:
 
 ---
 
+> 🔒 **Pre-launch gate is ON** (since 2026-10-12). While the storefront project has the env var `SITE_ACCESS_PASSWORD`, every visitor sees the founder's letter (`server/coming-soon-page.ts`, HTTP 503 + noindex, `robots.txt` disallows all). The team password unlocks the shop for 30 days via a signed cookie (`server/site-access.ts`). **To launch:** delete `SITE_ACCESS_PASSWORD` from the storefront Vercel project and redeploy. Changing its value logs everyone out. Never write the password in this file.
+
 ## Phase 9 — Domains and Cloudflare (new Cloudflare account)
 
 - [ ] 9.1 The user adds the Sera Khabar domain to the **new** Cloudflare account and
