@@ -29,7 +29,7 @@
 |---|---|---|
 | 0 | Code copied to Sera Khabar GitHub | ✅ Done (2026-10-12) |
 | 1 | Local setup and account checks | ✅ Done (2026-10-12) |
-| 2 | Collect decisions from the user | 🟡 In progress (2.1–2.5 done) |
+| 2 | Collect decisions from the user | 🟡 In progress (2.1–2.8 done) |
 | 3 | Create the Sera Khabar Supabase project and database | ⬜ Not started |
 | 4 | Rebrand the Merchant Suite code | ⬜ Not started |
 | 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
@@ -53,10 +53,13 @@
 | Supabase | project `ldiktvcavyabivpxfwpn` | new account and new project — ref: `xnuiaxygeoydtopvcmli` |
 | Vercel | Mango Lover's account | new account — team `serakhabarofficial-6832` (`team_d5c0Y4idD8xCTKpDyV5WgLmk`) |
 | Cloudflare | Mango Lover's account | new account — `serakhabarofficial@gmail.com` |
-| Admin (Suite) domain | `admin.mangolover.com.bd` | `admin.<domain>` (domain not bought yet; Phase 9) |
-| Storefront domain | `www.mangolover.com.bd` | `www.<domain>` (domain not bought yet; Phase 9) |
+| Admin (Suite) domain | `admin.mangolover.com.bd` | `admin.serakhabar.com` |
+| Storefront domain | `www.mangolover.com.bd` | `www.serakhabar.com` — domain already owned (registrar Cloudflare, expires 2027-11-29) but in a different Cloudflare account; currently runs the old WordPress/WooCommerce shop. User will move it later (Phase 9). |
 | Storefront handle | `mangoloverbd` | `serakhabar` |
-| Order number prefix | `ML-` | `SK-` |
+| Order number prefix | `ML-` | `SK-` (first order `SK-1001`) |
+| Contact | — | phone `01310-980289`, WhatsApp `+8801303103540`, email `serakhabar518@gmail.com`, Rajshahi |
+| Facebook page | `WeAreMangoLover` | `https://www.facebook.com/profile.php?id=100068711778004` |
+| Courier | — | Steadfast only |
 | Workspace id (`org_id`) | `3cd26e57-85ef-4970-94a4-cd99c0f1b554` | `________` (created in Phase 6) |
 
 Origin of the code: Suite copied from Mango Lover commit `39c1899`, storefront from
@@ -149,10 +152,10 @@ Ask in simple English, one small group at a time. Write the answers into the
       `admin.serakhabar.com`). Is the domain already bought? At which registrar?
 - [x] 2.5 (Full logo `brand-assets/Sera Khabar Leaf Logo.webp`, 1774×887; leaf mark already in Suite `public/brand/sera-khabar-mark.webp`; colours green `#015128`, orange `#FD8300`.) **Logo and branding**: logo files (SVG/PNG), favicon, brand colors, OG
       share image. Ask the user to put them in `$BASE/brand-assets/`.
-- [ ] 2.6 **What they sell**: product types. Mango Lover's storefront has
+- [x] 2.6 (Rajshahi seasonal foods, from the old serakhabar.com: mangoes — Katimon, Fazli, Gourmoti, Haribhanga, Gobindovog, BARI-11 — in 6/10/12/20/22/24 kg boxes; aam-shotto/achar; kumro bori; khejur gur combos and patali; taler gur. Most items seasonal/out of stock.) **What they sell**: product types. Mango Lover's storefront has
       Mango-Lover-specific product pages and landing pages that must be removed or replaced (Phase 7).
-- [ ] 2.7 **Courier**: Steadfast, Pathao, or both.
-- [ ] 2.8 **Social**: Facebook page URL; whether Instagram and/or WhatsApp Business are used.
+- [x] 2.7 (Steadfast) **Courier**: Steadfast, Pathao, or both.
+- [x] 2.8 (Facebook page above; WhatsApp +8801303103540; Instagram unknown) **Social**: Facebook page URL; whether Instagram and/or WhatsApp Business are used.
 - [ ] 2.9 **Analytics**: Google Tag Manager / GA4 IDs (or none for now); PostHog (optional).
 - [ ] 2.10 **AI provider**: OpenAI (simplest), OpenRouter, or another compatible provider.
 - [ ] 2.11 **Shopify**: used or not (usually not; products are added in the Suite).
