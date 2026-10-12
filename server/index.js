@@ -1628,7 +1628,7 @@ async function getNextManualOrderNumber(orgId) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.rpc("next_ml_order_number");
   if (error) throw error;
-  if (typeof data !== "string" || !/^ML-\d+$/.test(data)) {
+  if (typeof data !== "string" || !/^SK-\d+$/.test(data)) {
     throw new Error("Invalid order number returned by allocator");
   }
   return data;
@@ -14836,7 +14836,7 @@ app.get("/api/order-protection/attempts", async (req, res) => {
     if (!["all", "allow", "hold", "block"].includes(decision) || !Number.isInteger(limit) || limit < 1 || limit > 100 || (before !== null && (typeof before !== "string" || !Number.isFinite(Date.parse(before))))) return res.status(400).json({ error: "Invalid attempt filters" });
     const search = typeof req.query.q === "string" ? req.query.q.slice(0, 100) : null;
     const attempts = await listRiskAttempts(supabase, { orgId, decision, limit, before, search });
-    // Show the human order number (ML-…) on each row.
+    // Show the human order number (SK-…) on each row.
     const orderIds = [...new Set(attempts.map((row) => row.order_id).filter(Boolean))];
     const orderNumbers = new Map();
     if (orderIds.length) {

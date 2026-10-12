@@ -10,9 +10,9 @@ describe("Mango Lover order-number migration", () => {
 
   it("creates the atomic ML order allocator and uniqueness guard", () => {
     expect(sql).toMatch(/create sequence if not exists public\.orders_order_number_seq/i);
-    expect(sql).toMatch(/start with 150000/i);
+    expect(sql).toMatch(/start with 1001/i);
     expect(sql).toMatch(/create or replace function public\.next_ml_order_number\(\)/i);
-    expect(sql).toContain("'ML-' || nextval('public.orders_order_number_seq')::text");
+    expect(sql).toContain("'SK-' || nextval('public.orders_order_number_seq')::text");
     expect(sql).toMatch(/set search_path = ''/i);
     expect(sql).toMatch(/revoke all on function public\.next_ml_order_number/i);
     expect(sql).toMatch(/grant execute on function public\.next_ml_order_number.*service_role/i);

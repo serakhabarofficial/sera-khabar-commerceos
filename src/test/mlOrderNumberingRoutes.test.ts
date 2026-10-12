@@ -18,7 +18,7 @@ describe("canonical ML order-number routes", () => {
 
     expect(helper).toContain('async function getNextManualOrderNumber(orgId)');
     expect(helper).toContain('.rpc("next_ml_order_number")');
-    expect(helper).toContain("/^ML-\\d+$/.test(data)");
+    expect(helper).toContain("/^SK-\\d+$/.test(data)");
   });
 
   it("forces the canonical number in every order creation path", () => {

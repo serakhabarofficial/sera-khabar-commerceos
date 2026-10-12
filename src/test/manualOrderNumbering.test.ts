@@ -8,7 +8,7 @@ describe("manual order numbering", () => {
   it("uses the atomic canonical order-number allocator", () => {
     expect(source).toContain("async function getNextManualOrderNumber(orgId)");
     expect(source).toContain('.rpc("next_ml_order_number")');
-    expect(source).toContain("/^ML-\\d+$/.test(data)");
+    expect(source).toContain("/^SK-\\d+$/.test(data)");
   });
 
   it("creates manual orders with canonical ML-<seq> numbers", () => {

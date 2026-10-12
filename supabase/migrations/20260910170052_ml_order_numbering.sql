@@ -1,6 +1,6 @@
 create sequence if not exists public.orders_order_number_seq
   as bigint
-  start with 150000
+  start with 1001
   increment by 1
   minvalue 1
   no maxvalue
@@ -9,25 +9,25 @@ create sequence if not exists public.orders_order_number_seq
 select setval(
   'public.orders_order_number_seq',
   greatest(
-    150000,
+    1001,
     coalesce(
       (
-        select max((substring(order_number from '^ML-([0-9]+)$'))::bigint)
+        select max((substring(order_number from '^SK-([0-9]+)$'))::bigint)
         from public.orders
-        where order_number ~ '^ML-[0-9]+$'
+        where order_number ~ '^SK-[0-9]+$'
       ),
-      150000
+      1001
     )
   ),
   case
     when coalesce(
       (
-        select max((substring(order_number from '^ML-([0-9]+)$'))::bigint)
+        select max((substring(order_number from '^SK-([0-9]+)$'))::bigint)
         from public.orders
-        where order_number ~ '^ML-[0-9]+$'
+        where order_number ~ '^SK-[0-9]+$'
       ),
       0
-    ) >= 150000 then true
+    ) >= 1001 then true
     else false
   end
 );
@@ -38,7 +38,7 @@ language sql
 volatile
 set search_path = ''
 as $$
-  select 'ML-' || nextval('public.orders_order_number_seq')::text;
+  select 'SK-' || nextval('public.orders_order_number_seq')::text;
 $$;
 
 revoke all on function public.next_ml_order_number() from public;

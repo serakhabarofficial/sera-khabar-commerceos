@@ -29,8 +29,8 @@
 |---|---|---|
 | 0 | Code copied to Sera Khabar GitHub | ✅ Done (2026-10-12) |
 | 1 | Local setup and account checks | ✅ Done (2026-10-12) |
-| 2 | Collect decisions from the user | 🟡 In progress (2.1–2.8 done) |
-| 3 | Create the Sera Khabar Supabase project and database | ⬜ Not started |
+| 2 | Collect decisions from the user | ✅ Done (2026-10-12; analytics, AI key, SMS to be provided later) |
+| 3 | Create the Sera Khabar Supabase project and database | 🟡 In progress |
 | 4 | Rebrand the Merchant Suite code | ⬜ Not started |
 | 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
 | 6 | First admin login and workspace setup | ⬜ Not started |
@@ -156,10 +156,10 @@ Ask in simple English, one small group at a time. Write the answers into the
       Mango-Lover-specific product pages and landing pages that must be removed or replaced (Phase 7).
 - [x] 2.7 (Steadfast) **Courier**: Steadfast, Pathao, or both.
 - [x] 2.8 (Facebook page above; WhatsApp +8801303103540; Instagram unknown) **Social**: Facebook page URL; whether Instagram and/or WhatsApp Business are used.
-- [ ] 2.9 **Analytics**: Google Tag Manager / GA4 IDs (or none for now); PostHog (optional).
-- [ ] 2.10 **AI provider**: OpenAI (simplest), OpenRouter, or another compatible provider.
-- [ ] 2.11 **Shopify**: used or not (usually not; products are added in the Suite).
-- [ ] 2.12 **SMS provider** if they want order SMS.
+- [x] 2.9 (Later — user will provide) **Analytics**: Google Tag Manager / GA4 IDs (or none for now); PostHog (optional).
+- [x] 2.10 (Later — user will provide) **AI provider**: OpenAI (simplest), OpenRouter, or another compatible provider.
+- [x] 2.11 (No Shopify) **Shopify**: used or not (usually not; products are added in the Suite).
+- [x] 2.12 (Later — user will provide) **SMS provider** if they want order SMS.
 
 ✅ Done when: the Key facts table is filled in (except the Supabase ref, Vercel and workspace id).
 
@@ -197,7 +197,7 @@ Ask in simple English, one small group at a time. Write the answers into the
       `SUPABASE_DB_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 - [ ] 3.8 `npm run verify:supabase-project` must pass (it checks every config file
       points at the same ref as `SUPABASE_URL`).
-- [ ] 3.9 **Order number prefix, before pushing the schema.** These migrations use `ML-`:
+- [x] 3.9 (SK-, first SK-1001; function name `next_ml_order_number` kept to avoid wider changes) **Order number prefix, before pushing the schema.** These migrations use `ML-`:
   - `supabase/migrations/20260910170052_ml_order_numbering.sql`
   - `supabase/migrations/20260910170607_harden_ml_order_number_allocator.sql`
 
