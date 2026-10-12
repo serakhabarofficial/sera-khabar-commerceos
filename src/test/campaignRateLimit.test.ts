@@ -20,7 +20,7 @@ function limiterHarness() {
   const middleware = runInContext("rateLimitPublicRead", context);
   return { counts, async visit(header?: string) {
     let status = 200; let allowed = false;
-    const req = { params: { handle: "mangoloverbd" }, headers: {
+    const req = { params: { handle: "serakhabar" }, headers: {
       "x-vercel-forwarded-for": "192.0.2.1", "x-storefront-client-ip": "198.51.100.99",
       ...(header ? { [CLIENT_CONTEXT_HEADER]: header } : {}),
     }, socket: { remoteAddress: "127.0.0.1" } };
@@ -37,7 +37,7 @@ describe("campaign public read throttling", () => {
     const harness = limiterHarness();
     for (let n = 1; n <= 61; n++) expect(await harness.visit(signed(`203.0.113.${n}`))).toEqual({ status: 200, allowed: true });
     expect(harness.counts.size).toBe(61);
-    expect(harness.counts.get("203.0.113.61:mangoloverbd")).toBe(1);
+    expect(harness.counts.get("203.0.113.61:serakhabar")).toBe(1);
   });
   it("still throttles the same verified shopper after 60 reads", async () => {
     const harness = limiterHarness(); const header = signed("203.0.113.5");
@@ -49,6 +49,6 @@ describe("campaign public read throttling", () => {
     for (const header of [undefined, "forged", signed("203.0.113.5", new Date(Date.now() - 120000).toISOString()), signed("203.0.113.5", new Date().toISOString(), "different-secret")]) {
       expect((await harness.visit(header)).allowed).toBe(true);
     }
-    expect([...harness.counts]).toEqual([["192.0.2.1:mangoloverbd", 4]]);
+    expect([...harness.counts]).toEqual([["192.0.2.1:serakhabar", 4]]);
   });
 });

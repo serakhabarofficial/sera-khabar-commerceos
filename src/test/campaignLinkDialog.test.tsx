@@ -29,7 +29,7 @@ describe('campaign link form', () => {
     const user = userEvent.setup(); setup();
     await user.type(screen.getByLabelText('Name'), 'Himsagar Reel');
     expect(screen.getByLabelText('Link')).toHaveValue('himsagar-reel');
-    expect(screen.getByText('https://www.mangolover.com.bd/go/himsagar-reel')).toBeInTheDocument();
+    expect(screen.getByText('https://www.serakhabar.com/go/himsagar-reel')).toBeInTheDocument();
   });
   it('requires a manual slug for a Bangla-only name', async () => {
     vi.mocked(apiFetch).mockResolvedValue(campaignJson({ products: [] }));
@@ -55,10 +55,10 @@ describe('campaign link form', () => {
     vi.mocked(apiFetch).mockResolvedValue(campaignJson({ products: [] }));
     const user = userEvent.setup(); setup();
     await user.click(screen.getByLabelText('Link'));
-    await user.paste('https://www.mangolover.com.bd/go/bori-campaign-1');
+    await user.paste('https://www.serakhabar.com/go/bori-campaign-1');
     expect(screen.getByLabelText('Link')).toHaveValue('bori-campaign-1');
     expect(screen.getByText(/kept only the part after \/go\//i)).toBeInTheDocument();
-    expect(screen.getByText('https://www.mangolover.com.bd/go/bori-campaign-1')).toBeInTheDocument();
+    expect(screen.getByText('https://www.serakhabar.com/go/bori-campaign-1')).toBeInTheDocument();
   });
   it('picks the channel with pressed buttons', async () => {
     vi.mocked(apiFetch).mockResolvedValue(campaignJson({ products: [] }));

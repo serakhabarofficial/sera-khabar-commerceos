@@ -12,7 +12,7 @@ export const CUSTOMER_SMS_TEMPLATES = [
   {
     id: "thank-you",
     label: "Thank you",
-    message: "প্রিয় {{customer_name}}, Mango Lover BD-এর সাথে থাকার জন্য আন্তরিক ধন্যবাদ। যেকোনো প্রয়োজনে কল করুন {{store_phone}}।",
+    message: "প্রিয় {{customer_name}}, সেরা খাবার-এর সাথে থাকার জন্য আন্তরিক ধন্যবাদ। যেকোনো প্রয়োজনে কল করুন {{store_phone}}।",
   },
   {
     id: "new-season",
@@ -27,7 +27,7 @@ export const CUSTOMER_SMS_TEMPLATES = [
   {
     id: "special-offer",
     label: "Special offer",
-    message: "প্রিয় {{customer_name}}, নিয়মিত গ্রাহক হিসেবে আপনার জন্য Mango Lover BD-তে বিশেষ ছাড় চলছে। বিস্তারিত জানতে কল করুন {{store_phone}}।",
+    message: "প্রিয় {{customer_name}}, নিয়মিত গ্রাহক হিসেবে আপনার জন্য সেরা খাবার-এ বিশেষ ছাড় চলছে। বিস্তারিত জানতে কল করুন {{store_phone}}।",
   },
   {
     id: "back-in-stock",
@@ -42,7 +42,7 @@ export const CUSTOMER_SMS_TEMPLATES = [
   {
     id: "eid",
     label: "Eid greeting",
-    message: "প্রিয় {{customer_name}}, Mango Lover BD-এর পক্ষ থেকে আপনাকে ও আপনার পরিবারকে ঈদ মোবারক! ঈদের শুভেচ্ছা ও ভালোবাসা রইল।",
+    message: "প্রিয় {{customer_name}}, সেরা খাবার-এর পক্ষ থেকে আপনাকে ও আপনার পরিবারকে ঈদ মোবারক! ঈদের শুভেচ্ছা ও ভালোবাসা রইল।",
   },
 ] as const;
 

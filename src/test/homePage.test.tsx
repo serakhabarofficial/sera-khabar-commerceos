@@ -17,7 +17,7 @@ vi.mock("@number-flow/react", () => ({
     <span>{`${prefix}${new Intl.NumberFormat(locales, format).format(value)}${suffix}`}</span>,
 }));
 vi.mock("@/hooks/useUserRole", () => ({ useUserRole: () => ({ isAdmin: role.isAdmin, role: role.isAdmin ? "admin" : "team_member", loading: false }) }));
-vi.mock("@/hooks/useOrgName", () => ({ useOrgName: () => ({ orgName: "Mango Lover BD" }) }));
+vi.mock("@/hooks/useOrgName", () => ({ useOrgName: () => ({ orgName: "Sera Khabar" }) }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { user_metadata: { full_name: "Noor Karim" } } }) }));
 
 import Home from "@/pages/Home";
@@ -82,7 +82,7 @@ beforeEach(() => {
 describe("Home page", () => {
   it("greets by first name and shows today's metrics", async () => {
     renderHome();
-    expect(screen.getByRole("heading", { name: /Hey Noor!/ })).toHaveTextContent("Let's keep Mango Lover BD growing.");
+    expect(screen.getByRole("heading", { name: /Hey Noor!/ })).toHaveTextContent("Let's keep Sera Khabar growing.");
     expect(await screen.findByText("৳84,620")).toBeInTheDocument();
     expect(screen.getByText("1,284")).toBeInTheDocument();
     expect(screen.getByText("4.76%")).toBeInTheDocument();

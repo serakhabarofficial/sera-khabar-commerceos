@@ -34,13 +34,13 @@ function makeOrder(overrides: Partial<InvoiceOrder> = {}): InvoiceOrder {
 
 describe("A4 invoice HTML", () => {
   it("renders the complete Bold Shipping invoice from structured order data", () => {
-    const html = buildInvoiceHtml([makeOrder()], "Mango Lover BD");
+    const html = buildInvoiceHtml([makeOrder()], "Sera Khabar");
 
     expect(html).toContain("@page { size: A4 portrait; margin: 0; }");
     expect(html).toContain("width: 210mm;");
     expect(html).toContain("height: 297mm;");
     expect(html).toContain('<section class="invoice-page">');
-    expect(html).toContain('/mango-lover-print-logo.png');
+    expect(html).toContain('/sera-khabar-print-logo.png');
     expect(html).toContain('<div class="invoice-title">INVOICE</div>');
     expect(html).toContain("#ML567907");
     expect(html).toContain("Sep 06, 2026");

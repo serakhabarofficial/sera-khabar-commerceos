@@ -13,7 +13,7 @@ import { buildLegacyOrderItems } from "../../server/orderItemParsing.js";
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock("@/lib/api", () => ({ apiFetch }));
 vi.mock("@/hooks/useMe", () => ({
-  useMe: () => ({ data: { orgName: "Mango Lover BD" }, isLoading: false }),
+  useMe: () => ({ data: { orgName: "Sera Khabar" }, isLoading: false }),
 }));
 
 const order = {
@@ -913,7 +913,7 @@ describe("OrderDetail SMS amount", () => {
     await user.click(screen.getByRole("radio", { name: /please receive/i }));
 
     expect(screen.getByRole("textbox", { name: /message/i })).toHaveValue(
-      "Dear Ayesha Rahman, your Mango Lover BD order #ML-1001 is ready for delivery. Please receive the product and pay ৳600 upon delivery. Thank you.",
+      "Dear Ayesha Rahman, your Sera Khabar order #ML-1001 is ready for delivery. Please receive the product and pay ৳600 upon delivery. Thank you.",
     );
   });
 
@@ -927,7 +927,7 @@ describe("OrderDetail SMS amount", () => {
     await user.click(screen.getByRole("radio", { name: /please receive/i }));
 
     expect(screen.getByRole("textbox", { name: /message/i })).toHaveValue(
-      "Dear Ayesha Rahman, your Mango Lover BD order #ML-1001 is ready for delivery. Please receive the product and pay ৳800 upon delivery. Thank you.",
+      "Dear Ayesha Rahman, your Sera Khabar order #ML-1001 is ready for delivery. Please receive the product and pay ৳800 upon delivery. Thank you.",
     );
   });
 });

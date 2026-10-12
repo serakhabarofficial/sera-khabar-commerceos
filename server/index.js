@@ -2707,7 +2707,7 @@ async function purgeStorefrontConfigCache(orgId) {
 
 const VERCEL_ACCESS_TOKEN = process.env.VERCEL_ACCESS_TOKEN || "";
 const STOREFRONT_VERCEL_TEAM_ID = process.env.STOREFRONT_VERCEL_TEAM_ID || "";
-const STOREFRONT_GIT_REPO = process.env.STOREFRONT_GIT_REPO || ""; // e.g. "mangoloverbd/mangoloverbd_storefront"
+const STOREFRONT_GIT_REPO = process.env.STOREFRONT_GIT_REPO || ""; // e.g. "serakhabarofficial/sera-khabar-storefront"
 // The public URL of THIS Merchant Suite deploy, baked into every auto-provisioned
 // storefront so it reads catalog + posts orders back here.
 const MERCHANT_SUITE_PUBLIC_URL = (process.env.MERCHANT_SUITE_PUBLIC_URL || process.env.PUBLIC_DOMAIN || "").replace(/\/$/, "");
@@ -3119,7 +3119,7 @@ app.get("/api/internal/abandoned-checkouts-maintenance", async (req, res) => {
       .not("org_id", "is", null);
     if (workspaceError) throw workspaceError;
     const workspaceIds = [...new Set((workspaceRows || []).map((row) => row.org_id).filter(Boolean))];
-    if (workspaceIds.length > 1) throw new Error("Daily maintenance expected one Mango Lover BD workspace");
+    if (workspaceIds.length > 1) throw new Error("Daily maintenance expected one Sera Khabar workspace");
     const now = new Date();
     const releasedHolds = workspaceIds[0]
       ? await releaseDueOrderHolds({
@@ -3161,7 +3161,7 @@ app.get("/api/internal/analytics-rollup", async (req, res) => {
       .not("org_id", "is", null);
     if (workspaceError) throw workspaceError;
     const workspaceIds = [...new Set((workspaceRows || []).map((row) => row.org_id).filter(Boolean))];
-    if (workspaceIds.length > 1) throw new Error("Analytics maintenance expected one Mango Lover BD workspace");
+    if (workspaceIds.length > 1) throw new Error("Analytics maintenance expected one Sera Khabar workspace");
     orgId = workspaceIds[0] || null;
     if (!orgId) return res.json({ ok: true, skipped: "no_workspace" });
     let result = null;
@@ -3296,7 +3296,7 @@ async function syncStorefrontDomain(projectId, prevDomain, newDomain) {
 // env vars, trigger a production deploy, and persist the project id for this merchant.
 async function provisionStorefrontProject(orgId, customOrdersApiKey) {
   if (!VERCEL_ACCESS_TOKEN) return { ok: false, error: "VERCEL_ACCESS_TOKEN not set" };
-  if (!STOREFRONT_GIT_REPO) return { ok: false, error: "STOREFRONT_GIT_REPO not set (e.g. mangoloverbd/mangoloverbd_storefront)" };
+  if (!STOREFRONT_GIT_REPO) return { ok: false, error: "STOREFRONT_GIT_REPO not set (e.g. serakhabarofficial/sera-khabar-storefront)" };
   if (!MERCHANT_SUITE_PUBLIC_URL) return { ok: false, error: "MERCHANT_SUITE_PUBLIC_URL not set — the public URL of this Merchant Suite deploy" };
 
   const projectName = `storefront-${orgId.slice(0, 8)}`;
@@ -7031,7 +7031,7 @@ async function purgeCampaignRouteCache(slugs) {
   let timer;
   try {
     const response = await Promise.race([
-      fetch("https://www.mangolover.com.bd/go/_refresh", { method: "POST", headers: {
+      fetch("https://www.serakhabar.com/go/_refresh", { method: "POST", headers: {
         "Content-Type": "application/json", "x-mlbd-campaign-purge-ts": timestamp,
         "x-mlbd-campaign-purge-signature": signature,
       }, body, signal: controller.signal }),
@@ -7243,7 +7243,7 @@ async function resolveSubmissionCampaign(req, supabase, orgId, effectiveAt, veri
     return await campaignBudget(async signal => {
       let clickId = currentId;
       const receipt = verifyCampaignReceipt(req.headers[CAMPAIGN_RECEIPT_HEADER], process.env.CAMPAIGN_EDGE_SECRET);
-      if (receipt && !receipt.isBot && receipt.handle === "mangoloverbd" && receipt.clickId === currentId) {
+      if (receipt && !receipt.isBot && receipt.handle === "serakhabar" && receipt.clickId === currentId) {
         const workspace = await resolveStorefrontHandle(receipt.handle);
         if (workspace === orgId) {
           const { data: link, error: linkError } = await supabase.from("campaign_links").select("id, org_id")
@@ -7276,7 +7276,7 @@ async function attributeCapturedCampaign(req, supabase, orgId, checkout, effecti
   try {
     await campaignBudget(async signal => {
       const receipt = verifyCampaignReceipt(req.headers[CAMPAIGN_RECEIPT_HEADER], process.env.CAMPAIGN_EDGE_SECRET);
-      if (receipt && !receipt.isBot && receipt.clickId === clickId && receipt.handle === "mangoloverbd"
+      if (receipt && !receipt.isBot && receipt.clickId === clickId && receipt.handle === "serakhabar"
         && await resolveStorefrontHandle(receipt.handle) === orgId) {
         const { data: link, error: linkError } = await supabase.from("campaign_links").select("id, org_id")
           .eq("org_id", orgId).eq("id", receipt.linkId).abortSignal(signal).maybeSingle();
@@ -9842,7 +9842,7 @@ app.post("/api/orders", async (req, res) => {
 
     // Manually created orders default to the operator who is entering them.
     // A telesales lead can assign another staff member, but only if that person
-    // belongs to the same fixed Mango Lover BD workspace.
+    // belongs to the same fixed Sera Khabar workspace.
     const requestedAssignee = req.body?.assigned_to;
     if (requestedAssignee !== undefined && requestedAssignee !== null) {
       if (typeof requestedAssignee !== "string" || !STAFF_USER_ID_RE.test(requestedAssignee.trim())) {

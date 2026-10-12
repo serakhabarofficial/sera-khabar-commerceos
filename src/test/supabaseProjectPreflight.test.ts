@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const SCRIPT_PATH = resolve(process.cwd(), "scripts/verify-supabase-project.mjs");
-const PROJECT_REF = "ldiktvcavyabivpxfwpn";
+const PROJECT_REF = "xnuiaxygeoydtopvcmli";
 const tempRoots: string[] = [];
 
 function createFixture({

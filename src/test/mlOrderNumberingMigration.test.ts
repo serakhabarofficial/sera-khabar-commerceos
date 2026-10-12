@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Mango Lover order-number migration", () => {
+describe("Sera Khabar order-number migration", () => {
   const sql = readFileSync(
     resolve(process.cwd(), "supabase/migrations/20260910170052_ml_order_numbering.sql"),
     "utf8",

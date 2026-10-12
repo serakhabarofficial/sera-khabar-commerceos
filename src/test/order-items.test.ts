@@ -81,7 +81,7 @@ function applyFile(path: string): void {
 
 beforeAll(() => {
   if (contractOnly) return;
-  workDirectory = mkdtempSync(join(tmpdir(), "mangoloverbd-order-items-"));
+  workDirectory = mkdtempSync(join(tmpdir(), "serakhabar-order-items-"));
   const dataDirectory = join(workDirectory, "data");
   socketDirectory = join(workDirectory, "socket");
   execFileSync(initdb, ["-D", dataDirectory, "--no-locale", "--encoding=UTF8"], {
@@ -528,14 +528,14 @@ describe("order item API contract", () => {
       ...productIds.flatMap((productSlug) => buildProductCacheUrls({
         publicDomain: "merchant.example",
         orgId: "org-1",
-        handle: "mango-lover",
+        handle: "serakhabar",
         productSlug,
         listChanged: false,
       })),
       ...buildProductCacheUrls({
         publicDomain: "merchant.example",
         orgId: "org-1",
-        handle: "mango-lover",
+        handle: "serakhabar",
         inventoryIds: productIds,
         listChanged: false,
       }),
@@ -552,10 +552,10 @@ describe("order item API contract", () => {
       },
     });
 
-    expect(urls).toContain("https://merchant.example/api/public/v1/mango-lover/products/old-product");
-    expect(urls).toContain("https://merchant.example/api/public/v1/mango-lover/products/new-product");
-    expect(urls).toContain("https://merchant.example/api/public/v1/mango-lover/products/parent-product");
-    expect(urls).toContain("https://merchant.example/api/public/v1/mango-lover/inventory?ids=old-product,new-product,parent-product");
+    expect(urls).toContain("https://merchant.example/api/public/v1/serakhabar/products/old-product");
+    expect(urls).toContain("https://merchant.example/api/public/v1/serakhabar/products/new-product");
+    expect(urls).toContain("https://merchant.example/api/public/v1/serakhabar/products/parent-product");
+    expect(urls).toContain("https://merchant.example/api/public/v1/serakhabar/inventory?ids=old-product,new-product,parent-product");
     expect(JSON.parse(String(requests[0][1]?.body)).files).toEqual(urls);
     expect(requests).toHaveLength(1);
   });

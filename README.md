@@ -1,8 +1,8 @@
 # Merchant-Suite
 
-**Merchant-Suite** is the private, single-tenant order management system for **Mango Lover BD** — AI-powered order management and social inbox, built with React, Vite, TypeScript, and Supabase.
+**Merchant-Suite** is the private, single-tenant order management system for **Sera Khabar** — AI-powered order management and social inbox, built with React, Vite, TypeScript, and Supabase.
 
-This is not a shared SaaS instance. It serves Mango Lover BD only, using that brand's own Supabase project, integrations, and storefront configuration. See `AGENTS.md` / `CLAUDE.md` before making changes.
+This is not a shared SaaS instance. It serves Sera Khabar only, using that brand's own Supabase project, integrations, and storefront configuration. See `AGENTS.md` / `CLAUDE.md` before making changes.
 
 ## Features
 
@@ -81,7 +81,7 @@ live storefront refresh without a storefront redeploy.
 The storefront also keeps a build-generated catalog snapshot for fast first paint on new devices.
 That snapshot is only an initial fallback. The live API replaces it in the background, and Supabase
 remains the source of truth. To refresh the snapshot deliberately, run `NODE_ENV=production npm run
-build` in the separate `mangoloverbd_storefront` repository and deploy that repository's `main`
+build` in the separate `sera-khabar-storefront` repository and deploy that repository's `main`
 branch. Do not copy product rows or image URLs into dashboard source files.
 
 ### Run the frontend

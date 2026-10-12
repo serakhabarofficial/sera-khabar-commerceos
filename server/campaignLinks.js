@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 
-const STOREFRONT_ORIGIN = "https://www.mangolover.com.bd";
+const STOREFRONT_ORIGIN = "https://www.serakhabar.com";
 const CHANNELS = new Set(["facebook", "instagram", "tiktok", "youtube", "whatsapp", "influencer", "print", "sms", "other"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UNSAFE_CHARACTERS = /[\\\u0000-\u001f\u007f]/;

@@ -8,14 +8,14 @@ describe("buildProductCacheUrls", () => {
       buildProductCacheUrls({
         publicDomain: "merchant.example",
         orgId: "org-1",
-        handle: "mango-lover",
+        handle: "serakhabar",
         productSlug: "black-seed-honey",
         listChanged: true,
       }),
     ).toEqual([
-      "https://merchant.example/api/public/v1/mango-lover/products",
-      "https://merchant.example/api/public/v1/mango-lover/products/black-seed-honey",
-      "https://merchant.example/api/public/v1/mango-lover/products/black-seed-honey/inventory",
+      "https://merchant.example/api/public/v1/serakhabar/products",
+      "https://merchant.example/api/public/v1/serakhabar/products/black-seed-honey",
+      "https://merchant.example/api/public/v1/serakhabar/products/black-seed-honey/inventory",
       "https://merchant.example/api/public/v1/storefronts/org-1/products",
       "https://merchant.example/api/public/v1/storefronts/org-1/products/black-seed-honey",
       "https://merchant.example/api/public/v1/storefronts/org-1/products/black-seed-honey/inventory",
@@ -45,7 +45,7 @@ describe("buildProductCacheUrls", () => {
       buildProductCacheUrls({
         publicDomain: "merchant.example",
         orgId: "org-1",
-        handle: "mango-lover",
+        handle: "serakhabar",
         inventoryIds: ["old-product", "new/product"],
         listChanged: false,
       }),

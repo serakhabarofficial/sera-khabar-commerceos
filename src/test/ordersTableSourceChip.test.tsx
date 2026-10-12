@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 
 vi.mock("@/lib/api", () => ({ apiFetch }));
-vi.mock("@/hooks/useOrgName", () => ({ useOrgName: () => ({ orgName: "Mango Lover BD" }) }));
+vi.mock("@/hooks/useOrgName", () => ({ useOrgName: () => ({ orgName: "Sera Khabar" }) }));
 vi.mock("@/hooks/useWarehouses", () => ({ useWarehouses: () => ({ warehouses: [] }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/components/ui/sonner", () => ({

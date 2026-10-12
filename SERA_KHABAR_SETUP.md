@@ -31,7 +31,7 @@
 | 1 | Local setup and account checks | ✅ Done (2026-10-12) |
 | 2 | Collect decisions from the user | ✅ Done (2026-10-12; analytics, AI key, SMS to be provided later) |
 | 3 | Create the Sera Khabar Supabase project and database | 🟡 Schema done; user to turn off Confirm email (3.4); Site URL in Phase 5 |
-| 4 | Rebrand the Merchant Suite code | ⬜ Not started |
+| 4 | Rebrand the Merchant Suite code | 🟡 Done on branch `chore/sera-khabar-rebrand`; waiting to push/merge (4.7) |
 | 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
 | 6 | First admin login and workspace setup | 🟡 Admin account created (6.1–6.2); rest after Phase 5 |
 | 7 | Rebrand the storefront code | ⬜ Not started |
@@ -62,6 +62,7 @@
 | Courier | — | Steadfast only |
 | Workspace id (`org_id`) | `3cd26e57-85ef-4970-94a4-cd99c0f1b554` | `690aa8b3-6657-46c4-8df5-addcc1f96035` (= admin user id) |
 | Main admin login | — | `serakhabarofficial@gmail.com` |
+| Default warehouse | `Mango Lover` | `Sera Khabar` (inserted directly in the DB 2026-10-12) |
 
 Origin of the code: Suite copied from Mango Lover commit `39c1899`, storefront from
 `5c06ac6`. The storefront was pushed with `--no-verify` because its build needs
@@ -248,28 +249,28 @@ Tip: for the handle and storefront URL, a single constant or env var is cleaner
 than many literals, but keep the change small (CLAUDE.md §13.3 "Surgical changes").
 
 ### 4B. UI text
-- [ ] 4.1 `grep -rniE "mango ?lover|ম্যাংগো" src` and replace user-visible text
+- [x] 4.1 `grep -rniE "mango ?lover|ম্যাংগো" src` and replace user-visible text
       (sidebar, login page, headers, emails, SMS templates, AI prompts).
-- [ ] 4.2 Check server-side AI prompts, SMS and message templates in `server/` for the brand name.
+- [x] 4.2 Check server-side AI prompts, SMS and message templates in `server/` for the brand name.
 
 ### 4C. Docs and agent instructions
-- [ ] 4.3 Rewrite `CLAUDE.md`, `AGENTS.md`, `README.md` and `replit.md` for Sera Khabar:
+- [x] 4.3 Rewrite `CLAUDE.md`, `AGENTS.md`, `README.md` and `replit.md` for Sera Khabar:
       brand name, repos, Supabase ref, Facebook page, domains. Keep the technical rules
       (auth, `apiFetch`, `org_id` guard, design rules). Keep the top banner pointing to
       this file until Phase 11 is done.
 
 ### 4D. Tests
-- [ ] 4.4 Update tests that hardcode Mango Lover values:
+- [x] 4.4 Update tests that hardcode Mango Lover values:
       `src/test/supabaseProjectPreflight.test.ts`, `src/test/productImagePipeline.test.ts`,
       and any that fail after the changes.
 
 ### 4E. Verify and push
-- [ ] 4.5 Sweep. Only historical `docs/`, `progress/` and `CHANGELOG.md` may still match:
+- [x] 4.5 (Clean except: banners/this guide, applied migrations `20260828…`/`20260829…` + `warehouseSchema.test.ts`, `supabase/legacy-migrations/README.md`.) Sweep. Only historical `docs/`, `progress/` and `CHANGELOG.md` may still match:
   ```bash
   grep -rniE "mangolover|mango lover|ম্যাংগো|ldiktvcavyabivpxfwpn|3cd26e57" . \
     --exclude-dir={node_modules,dist,.git,docs,progress} --exclude=CHANGELOG.md
   ```
-- [ ] 4.6 `npm run lint`, `npm test`, `npm run build` all pass.
+- [x] 4.6 (lint 0 errors / 46 pre-existing warnings; 2336 tests pass; build OK.) `npm run lint`, `npm test`, `npm run build` all pass.
 - [ ] 4.7 Commit `chore: rebrand Merchant Suite for Sera Khabar`. Rule S4 check, then
       push the branch and merge to `main` (ask the user: PR or direct merge).
 

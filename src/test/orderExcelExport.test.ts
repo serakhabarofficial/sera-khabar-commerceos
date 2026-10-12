@@ -6,7 +6,7 @@ describe("order Excel export", () => {
 
   it("maps the agreed columns and preserves Bangla", () => {
     expect(ORDER_EXPORT_COLUMNS).toHaveLength(10);
-    expect(buildOrderExportRows([order], { w1: "Mango Lover" })[0]).toEqual(["#1", "নূর", "0171", "ঢাকা", "Mango", 2, 10, 900, "Mango Lover", 123]);
+    expect(buildOrderExportRows([order], { w1: "Sera Khabar" })[0]).toEqual(["#1", "নূর", "0171", "ঢাকা", "Mango", 2, 10, 900, "Sera Khabar", 123]);
   });
 
   it("uses inbox fields and blanks unknown values", () => {

@@ -10,7 +10,7 @@ const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));
 vi.mock("@/components/ui/sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/hooks/useOrgName", () => ({
-  useOrgName: () => ({ orgName: "Mango Lover BD", isLoading: false, refresh: vi.fn() }),
+  useOrgName: () => ({ orgName: "Sera Khabar", isLoading: false, refresh: vi.fn() }),
 }));
 
 const detail = {

@@ -46,7 +46,7 @@ describe("campaign validation", () => {
     expect(normalizeDestinationPath(path)).toBe(expected);
   });
   it.each([
-    "https://www.mangolover.com.bd/a", "//evil.example", "///evil.example", "a", " /a", "/\\evil.example",
+    "https://www.serakhabar.com/a", "//evil.example", "///evil.example", "a", " /a", "/\\evil.example",
     "/a\n", "/a%0d%0aLocation:x", "/%5cevil", "/%2f%2fevil", "/%252f%252fevil", "/%zz", "/%E0%A4",
     "/go", "/go/abc", "/GO/abc", "/go?x=1", "/%67%6f/abc", "/%2567%256f/abc",
     "/a/../go/abc", "/a/%2e%2e/go/abc", "/a/%252e%252e/go/abc", "/go%2fabc", "/go%3fabc",

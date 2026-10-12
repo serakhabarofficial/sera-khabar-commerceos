@@ -74,13 +74,13 @@ describe("shipping label HTML", () => {
   });
 
   it("renders recipient details with the approved balanced-stack hierarchy", () => {
-    const result = buildShippingLabelHtml([makeOrder()], "Mango Lover BD");
+    const result = buildShippingLabelHtml([makeOrder()], "Sera Khabar");
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected printable label HTML");
 
     expect(result.html).toContain("<title></title>");
-    expect(result.html).not.toContain("Mango Lover BD Shipping Label");
+    expect(result.html).not.toContain("Sera Khabar Shipping Label");
     expect(result.html).toContain("999");
     expect(result.html).toContain('<div class="shipment-meta">');
     expect(result.html).toContain(

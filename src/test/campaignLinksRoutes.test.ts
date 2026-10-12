@@ -57,7 +57,7 @@ describe("campaign staff HTTP handlers", () => {
     expect(created.status).toBe(201); expect(edited.status).toBe(200);
     expect(requests).toHaveLength(2);
     for (const request of requests) {
-      expect(request.url).toBe("https://www.mangolover.com.bd/go/_refresh");
+      expect(request.url).toBe("https://www.serakhabar.com/go/_refresh");
       const body = String(request.init.body);
       const timestamp = new Headers(request.init.headers).get("x-mlbd-campaign-purge-ts")!;
       expect(new Headers(request.init.headers).get("x-mlbd-campaign-purge-signature")).toBe(createHmac("sha256", secret)
@@ -121,14 +121,14 @@ describe("campaign staff HTTP handlers", () => {
 describe("campaign public HTTP click handler", () => {
   it('read-only GET lookup returns destination/defaults without recording a click', async () => {
     const db = database({ campaign_links: [link] }); const { app } = handlers(db);
-    const result = await http(app, 'GET', `/api/public/v1/mangoloverbd/campaign-links/${link.slug}/clicks`);
+    const result = await http(app, 'GET', `/api/public/v1/serakhabar/campaign-links/${link.slug}/clicks`);
     expect(result.status).toBe(200); expect(result.body.destinationPath).toBe(link.destination_path);
     expect(result.body.linkId).toBe(link.id);
     expect(result.body.clickId).toBe(null); expect(db.calls.filter(call => call.method === 'rpc')).toHaveLength(0);
   });
   it("requires verified context and trusted request UUID, retries idempotently, keeps archived destinations", async () => {
     const db = database({ ...seed(), campaign_links: [{ ...link, archived_at: "2026-10-01" }] }); const { app } = handlers(db);
-    const path = `/api/public/v1/mangoloverbd/campaign-links/${link.slug}/clicks`;
+    const path = `/api/public/v1/serakhabar/campaign-links/${link.slug}/clicks`;
     expect((await http(app, "POST", path, {}, {})).body).toEqual({ clickId: null, destinationPath: link.destination_path, utm: { utm_source: "facebook", utm_medium: "campaign_link", utm_campaign: link.slug } });
     const headers = { ...signedHeaders(), "x-mlbd-campaign-request-id": uuid(99) };
     const first = await http(app, "POST", path, {}, headers); const retry = await http(app, "POST", path, {}, headers);
@@ -138,24 +138,24 @@ describe("campaign public HTTP click handler", () => {
     expect(db.tables.campaign_link_clicks[0].visitor_hash).toMatch(/^[a-f0-9]{64}$/);
   });
   it("persists bots but returns no cookie ID; insert outages retain destination/defaults; unknown slug falls back", async () => {
-    const db = database(seed()); const { app } = handlers(db); const path = `/api/public/v1/mangoloverbd/campaign-links/${link.slug}/clicks`;
+    const db = database(seed()); const { app } = handlers(db); const path = `/api/public/v1/serakhabar/campaign-links/${link.slug}/clicks`;
     const bot = await http(app, "POST", path, {}, { ...signedHeaders("facebookexternalhit/1.1"), "x-mlbd-campaign-request-id": uuid(99) });
     expect(bot.body.clickId).toBeNull(); expect(db.tables.campaign_link_clicks[0].is_bot).toBe(true);
     db.failures.record_campaign_link_click = { message: "write unavailable" };
     const outage = await http(app, "POST", path, {}, { ...signedHeaders(), "x-mlbd-campaign-request-id": uuid(98) });
     expect(outage.status).toBe(200); expect(outage.body.destinationPath).toBe(link.destination_path); expect(outage.body.utm.utm_source).toBe("facebook");
-    const unknown = await http(app, "POST", "/api/public/v1/mangoloverbd/campaign-links/unknown/clicks", {}, {});
+    const unknown = await http(app, "POST", "/api/public/v1/serakhabar/campaign-links/unknown/clicks", {}, {});
     expect(unknown.status).toBe(404); expect(unknown.body.destinationPath).toBe("/");
     expect((await http(app, "POST", "/api/public/v1/foreign/campaign-links/mango-reel/clicks", {}, {})).status).toBe(404);
   });
   it("lookup timeouts fall back independently; malformed request IDs/forged context and malformed slugs never write", async () => {
     const db = database(seed()); const { app } = handlers(db);
-    const path = `/api/public/v1/mangoloverbd/campaign-links/${link.slug}/clicks`;
+    const path = `/api/public/v1/serakhabar/campaign-links/${link.slug}/clicks`;
     for (const headers of [{ ...signedHeaders(), "x-mlbd-campaign-request-id": "bad" }, { ...signedHeaders(), "x-mlbd-campaign-request-id": uuid(9), "x-mlbd-client-context": "forged" }]) {
       expect((await http(app, "POST", path, { requestId: uuid(9) }, headers)).body.clickId).toBeNull();
     }
     expect(db.tables.campaign_link_clicks).toBeUndefined();
-    expect((await http(app, "POST", "/api/public/v1/mangoloverbd/campaign-links/invalid_slug/clicks", {}, signedHeaders())).status).toBe(404);
+    expect((await http(app, "POST", "/api/public/v1/serakhabar/campaign-links/invalid_slug/clicks", {}, signedHeaders())).status).toBe(404);
     db.hanging.add("campaign_links");
     const timeout = await http(app, "POST", path, {}, signedHeaders());
     expect(timeout.status).toBe(503); expect(timeout.body).toMatchObject({ destinationPath: "/", clickId: null, utm: {} });

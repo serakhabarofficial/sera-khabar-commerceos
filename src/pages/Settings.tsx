@@ -503,7 +503,7 @@ function BusinessCard() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
-                placeholder="Mango Lover BD"
+                placeholder="Sera Khabar"
                 className="h-9 w-full max-w-xs rounded-[10px] border-black/[0.12] bg-white text-[14px] text-black placeholder:text-black/25 focus-visible:ring-1 focus-visible:ring-black/20"
               />
               <button

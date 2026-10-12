@@ -91,7 +91,7 @@ export default function Home() {
         <Rise className="relative z-[2]">
           <h1 className="text-center text-[32px] font-medium leading-[1.2] tracking-[-0.02em] text-[#8C8A84] max-md:text-[24px]">
             {greeting}
-            <span className="block text-[#111110]">Let's keep {orgName || "Mango Lover BD"} growing.</span>
+            <span className="block text-[#111110]">Let's keep {orgName || "Sera Khabar"} growing.</span>
           </h1>
         </Rise>
         <Rise delay={0.08} className="relative z-[2] flex w-full justify-center">

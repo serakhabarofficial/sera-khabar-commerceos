@@ -12,9 +12,9 @@ const now = new Date("2026-10-03T08:00:00Z");
 
 describe("website analytics paths", () => {
   it("keeps only the path, never query strings or fragments", () => {
-    expect(normalizeAnalyticsPath("https://www.mangolover.com.bd/product/katimon-mango?phone=017&utm_source=fb#x")).toBe("/product/katimon-mango");
-    expect(normalizeAnalyticsPath("https://www.mangolover.com.bd/")).toBe("/");
-    expect(normalizeAnalyticsPath("https://www.mangolover.com.bd/step/katimon-mango/")).toBe("/step/katimon-mango");
+    expect(normalizeAnalyticsPath("https://www.serakhabar.com/product/katimon-mango?phone=017&utm_source=fb#x")).toBe("/product/katimon-mango");
+    expect(normalizeAnalyticsPath("https://www.serakhabar.com/")).toBe("/");
+    expect(normalizeAnalyticsPath("https://www.serakhabar.com/step/katimon-mango/")).toBe("/step/katimon-mango");
   });
   it("rejects non-web URLs, API paths and oversized paths", () => {
     expect(normalizeAnalyticsPath("javascript:alert(1)")).toBeNull();
@@ -34,25 +34,25 @@ describe("website analytics paths", () => {
 
 describe("traffic source classification", () => {
   it("labels campaign links separately from their utm source", () => {
-    expect(classifyTrafficSource({ url: "https://www.mangolover.com.bd/product/x?utm_source=facebook&utm_medium=campaign_link&utm_campaign=himsagar-reel" }))
+    expect(classifyTrafficSource({ url: "https://www.serakhabar.com/product/x?utm_source=facebook&utm_medium=campaign_link&utm_campaign=himsagar-reel" }))
       .toMatchObject({ source: "campaign_link", medium: "campaign_link", utm_source: "facebook", utm_campaign: "himsagar-reel" });
   });
   it("uses the referrer host for social and search visits", () => {
-    expect(classifyTrafficSource({ url: "https://www.mangolover.com.bd/", referrer: "https://m.facebook.com/" })).toMatchObject({ source: "facebook", medium: "social", referrer_host: "m.facebook.com" });
-    expect(classifyTrafficSource({ url: "https://www.mangolover.com.bd/", referrer: "https://www.google.com/" })).toMatchObject({ source: "google", medium: "organic" });
+    expect(classifyTrafficSource({ url: "https://www.serakhabar.com/", referrer: "https://m.facebook.com/" })).toMatchObject({ source: "facebook", medium: "social", referrer_host: "m.facebook.com" });
+    expect(classifyTrafficSource({ url: "https://www.serakhabar.com/", referrer: "https://www.google.com/" })).toMatchObject({ source: "google", medium: "organic" });
   });
   it("does not treat fbclid alone as a paid click", () => {
-    expect(classifyTrafficSource({ url: "https://www.mangolover.com.bd/?fbclid=abc" })).toMatchObject({ source: "facebook", medium: "referral" });
-    expect(classifyTrafficSource({ url: "https://www.mangolover.com.bd/?utm_source=facebook&utm_medium=cpc" })).toMatchObject({ source: "facebook", medium: "paid" });
+    expect(classifyTrafficSource({ url: "https://www.serakhabar.com/?fbclid=abc" })).toMatchObject({ source: "facebook", medium: "referral" });
+    expect(classifyTrafficSource({ url: "https://www.serakhabar.com/?utm_source=facebook&utm_medium=cpc" })).toMatchObject({ source: "facebook", medium: "paid" });
   });
   it("calls same-site and missing referrers direct", () => {
-    expect(classifyTrafficSource({ url: "https://www.mangolover.com.bd/", referrer: "https://www.mangolover.com.bd/product/x" })).toMatchObject({ source: "direct", medium: "none", referrer_host: null });
-    expect(classifyTrafficSource({ url: "https://www.mangolover.com.bd/" })).toMatchObject({ source: "direct" });
+    expect(classifyTrafficSource({ url: "https://www.serakhabar.com/", referrer: "https://www.serakhabar.com/product/x" })).toMatchObject({ source: "direct", medium: "none", referrer_host: null });
+    expect(classifyTrafficSource({ url: "https://www.serakhabar.com/" })).toMatchObject({ source: "direct" });
   });
 });
 
 describe("tracker hit parsing", () => {
-  const body = { ...ids, url: "https://www.mangolover.com.bd/product/katimon-mango?utm_source=instagram", referrer: "" };
+  const body = { ...ids, url: "https://www.serakhabar.com/product/katimon-mango?utm_source=instagram", referrer: "" };
   it("turns a page view into an event with entry attribution, device and city", () => {
     const hit = parseTrackerAnalyticsHit(body, { kind: "pageview", userAgent: "Mozilla/5.0 (iPhone) FBAV/450", country: "BD", city: "Dhaka", now });
     expect(hit).toMatchObject({ event: "page_view", path: "/product/katimon-mango", productSlug: "katimon-mango", receivedAt: "2026-10-03T08:00:00.000Z",

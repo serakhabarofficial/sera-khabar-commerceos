@@ -624,7 +624,7 @@ async function verifyCustomerContextConcurrency(connection) {
 }
 
 async function verifyFreshDatabase(runNumber) {
-  const workDirectory = mkdtempSync(join(tmpdir(), "mangoloverbd-baseline-"));
+  const workDirectory = mkdtempSync(join(tmpdir(), "serakhabar-baseline-"));
   const dataDirectory = join(workDirectory, "data");
   const socketDirectory = join(workDirectory, "socket");
   const migrationCopy = join(workDirectory, "baseline.sql");

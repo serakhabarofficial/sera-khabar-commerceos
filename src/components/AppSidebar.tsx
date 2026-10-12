@@ -341,7 +341,7 @@ export function AppSidebar() {
                             {orgLoading ? (
                                 <span className="mt-1 block h-3 w-24 animate-pulse rounded bg-black/10" />
                             ) : (
-                                <span className="mt-0.5 block truncate whitespace-nowrap font-sans text-[13px] font-medium leading-tight text-[#1b1b19]">{orgName || "Mango Lover BD"}</span>
+                                <span className="mt-0.5 block truncate whitespace-nowrap font-sans text-[13px] font-medium leading-tight text-[#1b1b19]">{orgName || "Sera Khabar"}</span>
                             )}
                         </span>
                         <CaretUpDown aria-hidden="true" weight="light" size={14} className={cn("shrink-0 text-[#a3a29d] group-data-[collapsible=icon]:hidden", railFade)} />

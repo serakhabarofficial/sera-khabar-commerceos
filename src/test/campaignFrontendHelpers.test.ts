@@ -13,8 +13,8 @@ describe('campaign frontend form helpers', () => {
     expect(campaignMoney(0)).toBe('৳0'); expect(campaignRate(null)).toBe('—'); expect(campaignRate(0)).toBe('0%');
   });
   it.each([
-    ['https://www.mangolover.com.bd/go/bori-campaign-1', 'bori-campaign-1', true],
-    ['www.mangolover.com.bd/go/Himsagar-Reel?utm_source=fb', 'himsagar-reel', true],
+    ['https://www.serakhabar.com/go/bori-campaign-1', 'bori-campaign-1', true],
+    ['www.serakhabar.com/go/Himsagar-Reel?utm_source=fb', 'himsagar-reel', true],
     ['  Katimon-Ad ', 'katimon-ad', false],
   ])('cleans pasted link input %s', (input, slug, fromUrl) => {
     expect(cleanCampaignSlugInput(input)).toEqual({ slug, fromUrl });

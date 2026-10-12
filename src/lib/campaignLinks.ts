@@ -1,6 +1,6 @@
 import { CHART } from '@/components/business-report/chartTheme';
 
-export const CAMPAIGN_ORIGIN = 'https://www.mangolover.com.bd';
+export const CAMPAIGN_ORIGIN = 'https://www.serakhabar.com';
 export const CAMPAIGN_CHANNELS = ['facebook', 'instagram', 'tiktok', 'youtube', 'whatsapp', 'influencer', 'print', 'sms', 'other'] as const;
 export type CampaignChannel = typeof CAMPAIGN_CHANNELS[number];
 export type CampaignLink = {

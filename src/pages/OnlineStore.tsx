@@ -220,7 +220,7 @@ export default function OnlineStore() {
 
   const livePreviewUrl = import.meta.env.DEV
     ? previewUrl || "http://localhost:5001"
-    : "https://www.mangolover.com.bd/";
+    : "https://www.serakhabar.com/";
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-2">

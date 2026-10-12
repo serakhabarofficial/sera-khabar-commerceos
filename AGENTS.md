@@ -1,4 +1,4 @@
-> **⚠️ SERA KHABAR PROJECT — READ `SERA_KHABAR_SETUP.md` FIRST.** This repo is a copy of the Mango Lover BD codebase being set up for a new merchant, **Sera Khabar** (GitHub `serakhabarofficial`). Mango Lover text below is historical until the rebrand step. Never touch Mango Lover repos, folders, or Supabase project `ldiktvcavyabivpxfwpn`.
+> **⚠️ SERA KHABAR PROJECT — READ `SERA_KHABAR_SETUP.md` FIRST.** This repo is a copy of the Mango Lover BD codebase being set up for a new merchant, **Sera Khabar** (GitHub `serakhabarofficial`). The Merchant Suite code and this guide are rebranded for Sera Khabar. Never touch Mango Lover repos, folders, or Supabase project `ldiktvcavyabivpxfwpn`.
 >
 > **Sera Khabar has two separate repos, in two separate folders on this Mac:**
 > | Part | GitHub repo | Folder on this Mac |
@@ -6,7 +6,7 @@
 > | Merchant Suite (this repo) | `serakhabarofficial/sera-khabar-commerceos` | `/Users/noorkarimmehedi/Sera Khabar - সেরা খাবার/sera-khabar-commerceos` |
 > | Storefront | `serakhabarofficial/sera-khabar-storefront` | `/Users/noorkarimmehedi/Sera Khabar - সেরা খাবার/sera-khabar-storefront` |
 >
-> Any mention below of `mangoloverbd/mangoloverbd_storefront` means **the Sera Khabar storefront above**: for Sera Khabar, `STOREFRONT_GIT_REPO=serakhabarofficial/sera-khabar-storefront`. Storefront code changes go in the storefront folder, not here. The folder path has spaces and Bangla characters, so always quote it in shell commands.
+> `STOREFRONT_GIT_REPO=serakhabarofficial/sera-khabar-storefront`. Storefront code changes go in the storefront folder, not here. The folder path has spaces and Bangla characters, so always quote it in shell commands.
 
 # AGENTS.md — Merchant-Suite Agent Guide
 
@@ -17,9 +17,9 @@ Read it fully before making any changes. The rules in the **AI Agent Rules** sec
 
 ## 1. Project Overview
 
-**Merchant-Suite** is the private, single-tenant order management system for **Mango Lover BD**. It handles order ingestion, courier dispatch, fraud detection, social inbox management, and P&L analytics for this brand only.
+**Merchant-Suite** is the private, single-tenant order management system for **Sera Khabar**. It handles order ingestion, courier dispatch, fraud detection, social inbox management, and P&L analytics for this brand only.
 
-This deployment is not a shared SaaS instance. Use the Mango Lover BD Supabase project, integrations, branding, social accounts, and storefront configuration for every change. The code still contains `org_id` fields and helpers for database compatibility; in this deployment they identify the one Mango Lover BD workspace rather than separate customer tenants.
+This deployment is not a shared SaaS instance. Use the Sera Khabar Supabase project, integrations, branding, social accounts, and storefront configuration for every change. The code still contains `org_id` fields and helpers for database compatibility; in this deployment they identify the one Sera Khabar workspace rather than separate customer tenants.
 
 **Tech stack:**
 - Frontend: React 18 + Vite + TypeScript, Tailwind CSS, shadcn/ui
@@ -49,7 +49,7 @@ SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 OPENAI_API_KEY=
-STOREFRONT_GIT_REPO=mangoloverbd/mangoloverbd_storefront
+STOREFRONT_GIT_REPO=serakhabarofficial/sera-khabar-storefront
 # Optional: route chat/completions (incl. Order Chat) through OpenRouter instead of OpenAI
 AI_PROVIDER=openrouter            # "openai" (default) or "openrouter"
 OPENROUTER_API_KEY=
@@ -82,7 +82,7 @@ All frontend code lives in `src/`. Entry point is `src/main.tsx` → `src/App.ts
 
 The entire Express server is `server/index.js` (~2100 lines, ESM). It is a single file by design.
 
-- Uses `getServiceSupabase()` internally — this uses `SUPABASE_SERVICE_ROLE_KEY` and bypasses RLS. This deployment serves only Mango Lover BD. Preserve the existing `org_id` checks as defense in depth and database compatibility, but do not design new shared-tenant behavior.
+- Uses `getServiceSupabase()` internally — this uses `SUPABASE_SERVICE_ROLE_KEY` and bypasses RLS. This deployment serves only Sera Khabar. Preserve the existing `org_id` checks as defense in depth and database compatibility, but do not design new shared-tenant behavior.
 - In dev, Express also proxies the Vite dev server. In production, it serves the built `dist/` folder.
 - Raw body buffering is enabled for webhook HMAC verification (`req.rawBody`).
 
@@ -114,17 +114,17 @@ Run `npm run verify:supabase-project` before any linked Supabase command and
 
 ### Storefront integration boundary (approved target architecture)
 
-Merchant-Suite and the dedicated storefront are separate GitHub repositories and separate Vercel projects, but they use the same Mango Lover BD Supabase project for runtime commerce data and merchant-editable content.
+Merchant-Suite and the dedicated storefront are separate GitHub repositories and separate Vercel projects, but they use the same Sera Khabar Supabase project for runtime commerce data and merchant-editable content.
 
 - **GitHub + Vercel own application code.** Storefront components, layouts, CSS, application logic, and fixed code assets live in the storefront repository. Agent-led design customization is committed there, and Vercel redeploys it automatically.
-- **Supabase owns runtime content and commerce data.** Products, prices, variants, authoritative stock, product images, editable branding, shipping configuration, customers, orders, and storefront revision state live in the same Mango Lover BD Supabase project.
+- **Supabase owns runtime content and commerce data.** Products, prices, variants, authoritative stock, product images, editable branding, shipping configuration, customers, orders, and storefront revision state live in the same Sera Khabar Supabase project.
 - **Dashboard changes never require a storefront redeploy.** Product, image, price, publication, variant, or stock mutations go through authenticated Merchant-Suite APIs, update Supabase, advance catalog/inventory revisions, and notify already-open storefronts. Revision-keyed URLs provide cache correctness on Vercel without a v1 purge dependency.
 - **The storefront has a build-generated first-paint snapshot.** It is only a fast initial fallback. Supabase and the versioned public API remain authoritative, and the storefront revalidates live data in the background. The public catalog response is not stored in browser or CDN caches, so newly published or imported products appear on the next live storefront refresh without a storefront deploy; a production storefront build refreshes the snapshot for future first loads.
 - **The public storefront consumes the versioned Merchant-Suite API.** Keep commerce reads and checkout behind `/api/public/v1/:handle/...`; do not couple storefront UI to internal Supabase product or order tables.
 - **Direct Supabase access in the storefront is notification-only.** A browser-safe Supabase publishable key may subscribe to a narrowly exposed, read-only storefront revision signal. Never expose the service-role/secret key, and never grant the storefront direct writes to commerce tables.
 - **Images use Supabase Storage plus Vercel delivery.** Merchant-uploaded product and branding images use immutable UUID object paths in the shared Supabase Storage project. The storefront serves responsive variants through Vercel Image Optimization/CDN.
 - **One source of stock truth.** Do not maintain parallel stock values in `app_settings` and product/variant rows. Product or variant inventory must have one authoritative database representation, and checkout must validate and decrement it atomically.
-- **Preserve the fixed workspace guard.** The deployment is single-tenant, but all server-side data access continues to resolve and filter by the Mango Lover BD `org_id`. Public clients use the assigned storefront handle and never submit an arbitrary organization id.
+- **Preserve the fixed workspace guard.** The deployment is single-tenant, but all server-side data access continues to resolve and filter by the Sera Khabar `org_id`. Public clients use the assigned storefront handle and never submit an arbitrary organization id.
 
 The detailed approved direction is documented in `docs/superpowers/specs/2026-08-27-realtime-storefront-sync-design.md`.
 
@@ -165,11 +165,11 @@ The detailed approved direction is documented in `docs/superpowers/specs/2026-08
 
 ## 4. Single-Tenant Deployment (Critical — Read Before Any DB Work)
 
-This deployment belongs exclusively to Mango Lover BD. Every piece of data belongs to the one Mango Lover BD workspace. The existing `org_id` is the fixed workspace identifier used by the current schema and route helpers; it is not an invitation to add support for multiple merchants.
+This deployment belongs exclusively to Sera Khabar. Every piece of data belongs to the one Sera Khabar workspace. The existing `org_id` is the fixed workspace identifier used by the current schema and route helpers; it is not an invitation to add support for multiple merchants.
 
 ### How it works
 
-The Mango Lover BD admin account and its team members use the same existing `org_id` stored in `user_roles.org_id`. The backend resolves the current workspace for authenticated requests so existing data remains compatible.
+The Sera Khabar admin account and its team members use the same existing `org_id` stored in `user_roles.org_id`. The backend resolves the current workspace for authenticated requests so existing data remains compatible.
 
 **Server auth helpers** (defined at top of `server/index.js`):
 ```js
@@ -180,7 +180,7 @@ const token = getToken(req);
 const { user } = await getUser(token);
 if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-// Resolve the Mango Lover BD workspace from user_roles
+// Resolve the Sera Khabar workspace from user_roles
 const { data: roleRow } = await supabase
   .from("user_roles")
   .select("org_id, role")
@@ -198,7 +198,7 @@ const cfg = await getSettings([`${orgId}:shopify_token`]);
 await saveSettings({ [`${orgId}:shopify_token`]: value });
 ```
 
-**Workspace guard** — keep the existing `org_id` filter on queries for `orders`, `social_conversations`, `social_inbox_orders`, `products`, and other user data. This prevents accidental cross-workspace data access if legacy records or tooling exist, but the application has one intended merchant: Mango Lover BD.
+**Workspace guard** — keep the existing `org_id` filter on queries for `orders`, `social_conversations`, `social_inbox_orders`, `products`, and other user data. This prevents accidental cross-workspace data access if legacy records or tooling exist, but the application has one intended merchant: Sera Khabar.
 ```js
 const { data } = await supabase
   .from("orders")
@@ -208,7 +208,7 @@ const { data } = await supabase
 
 ### Hard rule
 
-**Every new route that reads or writes user data MUST use the current Mango Lover BD workspace and preserve the `org_id` guard in all relevant queries.** Do not accept an arbitrary organization or tenant identifier from the client, and do not introduce shared multi-merchant behavior.
+**Every new route that reads or writes user data MUST use the current Sera Khabar workspace and preserve the `org_id` guard in all relevant queries.** Do not accept an arbitrary organization or tenant identifier from the client, and do not introduce shared multi-merchant behavior.
 
 > **When adding new DB features:** invoke `supabase` skill. When reviewing a diff that touches DB queries, invoke `review` skill to check for workspace guard, auth, and data-isolation gaps.
 
@@ -236,7 +236,7 @@ const res = await fetch("/api/orders");
 1. Extract token: `const token = getToken(req);`
 2. Validate and get user: `const { user } = await getUser(token);`
 3. Guard: `if (!user) return res.status(401).json({ error: "Unauthorized" });`
-4. Resolve the Mango Lover BD workspace and role from `user_roles`
+4. Resolve the Sera Khabar workspace and role from `user_roles`
 
 First-login side effect: `getUser()` auto-assigns an `admin` role if the user has no role yet.
 
@@ -269,7 +269,7 @@ All routes are in `server/index.js`. Group new routes with their domain section.
 
 ## 7. External Integrations
 
-All integration credentials are stored in the Mango Lover BD deployment's `app_settings` (using the existing workspace-prefixed keys). They are configured through the Settings page (`/settings`) and read server-side via `getSettings()`.
+All integration credentials are stored in the Sera Khabar deployment's `app_settings` (using the existing workspace-prefixed keys). They are configured through the Settings page (`/settings`) and read server-side via `getSettings()`.
 
 ### Shopify
 - Admin API for order sync
@@ -414,7 +414,7 @@ This project has gstack and superpowers installed. Skills are the correct way to
 | `autoplan` | Run CEO + design + eng + DX reviews automatically in sequence |
 
 ### MCP Server
-The Supabase MCP server is configured project-locally for project `ldiktvcavyabivpxfwpn`, in two places — one per agent runtime, both pointing at the same project:
+The Supabase MCP server is configured project-locally for project `xnuiaxygeoydtopvcmli`, in two places — one per agent runtime, both pointing at the same project:
 
 | File | Runtime |
 |---|---|
@@ -431,7 +431,7 @@ These are non-negotiable. Violating any of these will introduce bugs or security
 
 1. **Always use `apiFetch()`** from `src/lib/api.ts` for all API calls from the frontend. Never use raw `fetch()` for authenticated endpoints.
 
-2. **Always use the fixed Mango Lover BD workspace guard**. Every query on `orders`, `social_conversations`, `social_inbox_orders`, `products`, and any new user-data table must preserve the resolved `org_id` filter. Never accept a tenant or organization id from the client.
+2. **Always use the fixed Sera Khabar workspace guard**. Every query on `orders`, `social_conversations`, `social_inbox_orders`, `products`, and any new user-data table must preserve the resolved `org_id` filter. Never accept a tenant or organization id from the client.
 
 3. **Always guard new API endpoints with auth**. Call `getToken(req)` → `getUser(token)` → `if (!user) return 401` at the top of every new route handler.
 
@@ -447,9 +447,9 @@ These are non-negotiable. Violating any of these will introduce bugs or security
 
 9. **Before building any feature, invoke `brainstorming` skill.** Before shipping, invoke `review` and `verification-before-completion`.
 
-10. **For any Supabase schema change, invoke the `supabase` skill first.** Schema changes affect the Mango Lover BD database and PostgREST schema cache — they need to be handled carefully.
+10. **For any Supabase schema change, invoke the `supabase` skill first.** Schema changes affect the Sera Khabar database and PostgREST schema cache — they need to be handled carefully.
 
-11. **Keep storefront code and runtime data separate.** Storefront design/code changes belong in its GitHub repository and deploy through Vercel; merchant-editable products, stock, images, branding, and orders belong in the shared Mango Lover BD Supabase project.
+11. **Keep storefront code and runtime data separate.** Storefront design/code changes belong in its GitHub repository and deploy through Vercel; merchant-editable products, stock, images, branding, and orders belong in the shared Sera Khabar Supabase project.
 
 12. **Do not give the public storefront direct commerce-table access.** It may use a publishable Supabase key only for the read-only revision notification channel. Catalog, inventory, and checkout continue through the versioned Merchant-Suite public API; never expose a service-role or secret key.
 

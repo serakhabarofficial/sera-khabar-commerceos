@@ -147,7 +147,7 @@ export default function CampaignLinks() {
       </div>}>
         {allRows.length === 0 ? <div className="flex flex-col items-center gap-2 py-12 text-center">
           <h3 className="text-[15px] font-medium">No campaign links yet</h3>
-          <p className="max-w-sm text-xs text-black/60">Create one link for each post, ad or creator, like mangolover.com.bd/go/himsagar-reel.</p>
+          <p className="max-w-sm text-xs text-black/60">Create one link for each post, ad or creator, like serakhabar.com/go/katimon-reel.</p>
           <Button size="sm" className="mt-2" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus weight="light" size={15} className="mr-1.5" aria-hidden="true" />New link</Button>
         </div> : rows.length === 0 ? <p className="py-10 text-center text-xs text-black/55">No links match this search or filter.</p> : <div className="relative -mx-1.5 overflow-x-auto">
           <table className="w-full min-w-[880px] border-separate border-spacing-y-1 text-[13px]">

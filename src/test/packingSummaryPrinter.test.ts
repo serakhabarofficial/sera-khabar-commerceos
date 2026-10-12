@@ -48,7 +48,7 @@ describe("buildPackingSummary", () => {
         ],
       },
     ]);
-    const html = buildPackingSummaryHtml(summary, "Mango Lover BD", "Sep 17, 2026");
+    const html = buildPackingSummaryHtml(summary, "Sera Khabar", "Sep 17, 2026");
 
     expect(html).toContain("@page { size: A4 portrait; margin: 0; }");
     expect(html).toContain("PACKING SUMMARY");

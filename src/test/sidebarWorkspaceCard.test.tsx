@@ -11,7 +11,7 @@ const apiFetch = vi.hoisted(() => vi.fn(async () => ({ ok: true, json: async () 
 vi.mock("@/lib/api", () => ({ apiFetch }));
 
 vi.mock("@/hooks/useUserRole", () => ({ useUserRole: () => ({ isAdmin: role.value === "admin", role: role.value }) }));
-vi.mock("@/hooks/useOrgName", () => ({ useOrgName: () => ({ orgName: "Mango Lover BD", isLoading: false }) }));
+vi.mock("@/hooks/useOrgName", () => ({ useOrgName: () => ({ orgName: "Sera Khabar", isLoading: false }) }));
 vi.mock("@/hooks/useNavCounts", () => ({ useNavCounts: () => ({ data: { order_protection_held: 0, returns_pending: 0 } }) }));
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ user: { email: "noor@example.com", user_metadata: { full_name: "Noor Karim" } }, signOut: vi.fn() }),
@@ -36,7 +36,7 @@ describe("sidebar brand card", () => {
     expect(within(brand).getByTestId("sidebar-brand-logo")).toHaveClass("bg-white", "rounded-[6px]");
     expect(within(within(brand).getByTestId("sidebar-brand-logo")).getByRole("img", { name: "Sera Khabar" })).toHaveAttribute("src", "/brand/sera-khabar-mark.webp");
     const product = within(brand).getByText("Merchant Suite");
-    const name = within(brand).getByText("Mango Lover BD");
+    const name = within(brand).getByText("Sera Khabar");
     expect(product.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -92,7 +92,7 @@ describe("sidebar footer", () => {
     await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
     expect(root()).toHaveAttribute("data-state", "collapsed");
     // The shop name stays in place and fades with the rail instead of unmounting.
-    expect(within(screen.getByTestId("sidebar-brand")).getByText("Mango Lover BD")).toBeInTheDocument();
+    expect(within(screen.getByTestId("sidebar-brand")).getByText("Sera Khabar")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Expand sidebar" }));
     expect(root()).toHaveAttribute("data-state", "expanded");
     expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();

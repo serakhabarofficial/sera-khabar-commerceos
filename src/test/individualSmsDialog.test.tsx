@@ -86,7 +86,7 @@ describe("IndividualSmsDialog", () => {
     );
   });
 
-  it("uses the Mango Lover BD phone when storefront settings do not have one", async () => {
+  it("uses the Sera Khabar phone when storefront settings do not have one", async () => {
     const user = userEvent.setup();
     apiFetch.mockResolvedValue(response({ settings: { contactPhone: null } }));
     render(<IndividualSmsDialog {...props} />);

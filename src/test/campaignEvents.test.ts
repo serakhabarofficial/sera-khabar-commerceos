@@ -7,7 +7,7 @@ const secret = "test-secret-that-is-at-least-32-characters-long";
 const now = Date.parse("2026-10-03T12:00:00.000Z");
 const event = {
   v: 1,
-  handle: "mangoloverbd",
+  handle: "serakhabar",
   linkId: "11111111-1111-4111-8111-111111111111",
   clickId: randomUUID(),
   clickedAt: new Date(now - 1000).toISOString(),
@@ -45,12 +45,12 @@ describe("campaign receipt signatures", () => {
     const db = database({ campaign_links: [{ id: event.linkId, org_id: orgId, slug: "mango-reel" }, { id: foreignLinkId, org_id: foreignOrg, slug: "foreign" }] });
     const { app } = handlers(db);
     const token = signCampaignReceipt(event, secret);
-    expect((await http(app, "POST", "/api/public/v1/mangoloverbd/campaign-click-events", undefined, { "x-mlbd-campaign-receipt": token })).status).toBe(202);
+    expect((await http(app, "POST", "/api/public/v1/serakhabar/campaign-click-events", undefined, { "x-mlbd-campaign-receipt": token })).status).toBe(202);
     expect(db.tables.campaign_link_clicks[0]).toMatchObject({ id: event.clickId, org_id: orgId, link_id: event.linkId, clicked_at: event.clickedAt });
     expect((await http(app, "POST", "/api/public/v1/foreign/campaign-click-events", undefined, { "x-mlbd-campaign-receipt": token })).status).toBe(401);
-    expect((await http(app, "POST", "/api/public/v1/mangoloverbd/campaign-click-events", undefined, { "x-mlbd-campaign-receipt": "forged" })).status).toBe(401);
+    expect((await http(app, "POST", "/api/public/v1/serakhabar/campaign-click-events", undefined, { "x-mlbd-campaign-receipt": "forged" })).status).toBe(401);
     const foreignToken = signCampaignReceipt({ ...event, clickId: randomUUID(), linkId: foreignLinkId }, secret);
-    expect((await http(app, "POST", "/api/public/v1/mangoloverbd/campaign-click-events", undefined, { "x-mlbd-campaign-receipt": foreignToken })).status).toBe(404);
+    expect((await http(app, "POST", "/api/public/v1/serakhabar/campaign-click-events", undefined, { "x-mlbd-campaign-receipt": foreignToken })).status).toBe(404);
     expect(db.tables.campaign_link_clicks).toHaveLength(1);
     delete process.env.CAMPAIGN_EDGE_SECRET;
   });

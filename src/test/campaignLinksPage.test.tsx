@@ -57,7 +57,7 @@ describe('campaign list', () => {
     vi.mocked(apiFetch).mockImplementation(async () => campaignJson(campaignReportFixture()));
     setup();
     await user.click(await screen.findByRole('button', { name: 'Copy Himsagar reel link' }));
-    expect(await navigator.clipboard.readText()).toBe('https://www.mangolover.com.bd/go/himsagar-reel');
+    expect(await navigator.clipboard.readText()).toBe('https://www.serakhabar.com/go/himsagar-reel');
   });
   it('keeps a failed copy message visible with a recoverable detail link', async () => {
     const user = userEvent.setup();

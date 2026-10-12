@@ -139,7 +139,7 @@ const formatKg = (value: number | null) =>
 
 export function buildPackingSummaryHtml(
   summary: PackingSummary,
-  businessName = "Mango Lover BD",
+  businessName = "Sera Khabar",
   printedAt = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
 ): string {
   const rows = summary.rows

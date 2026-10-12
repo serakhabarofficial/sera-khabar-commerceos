@@ -25,7 +25,7 @@ export function verifyCampaignReceipt(token, secret, { now = Date.now() } = {}) 
   if (!timingSafeEqual(Buffer.from(parts[1], "hex"), expected)) return undefined;
   try {
     const value = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
-    if (!value || value.v !== 1 || value.handle !== "mangoloverbd" || !UUID.test(value.linkId || "") || !UUID.test(value.clickId || "")
+    if (!value || value.v !== 1 || value.handle !== "serakhabar" || !UUID.test(value.linkId || "") || !UUID.test(value.clickId || "")
       || typeof value.clickedAt !== "string" || typeof value.isBot !== "boolean"
       || !(value.visitorHash === null || HASH.test(value.visitorHash))
       || !(value.referrerHost === null || (typeof value.referrerHost === "string" && value.referrerHost.length <= 253 && !/[\s/?#@]/.test(value.referrerHost)))

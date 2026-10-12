@@ -65,11 +65,11 @@ describe("product image asset paths", () => {
 describe("product image variant backfill", () => {
   it("requires a target workspace and defaults to dry-run mode", () => {
     expect(
-      parseBackfillArguments(["--org-id=3cd26e57-85ef-4970-94a4-cd99c0f1b554"]),
-    ).toEqual({ orgId: "3cd26e57-85ef-4970-94a4-cd99c0f1b554", apply: false });
+      parseBackfillArguments(["--org-id=690aa8b3-6657-46c4-8df5-addcc1f96035"]),
+    ).toEqual({ orgId: "690aa8b3-6657-46c4-8df5-addcc1f96035", apply: false });
     expect(
-      parseBackfillArguments(["--org-id=3cd26e57-85ef-4970-94a4-cd99c0f1b554", "--apply"]),
-    ).toEqual({ orgId: "3cd26e57-85ef-4970-94a4-cd99c0f1b554", apply: true });
+      parseBackfillArguments(["--org-id=690aa8b3-6657-46c4-8df5-addcc1f96035", "--apply"]),
+    ).toEqual({ orgId: "690aa8b3-6657-46c4-8df5-addcc1f96035", apply: true });
     expect(() => parseBackfillArguments([])).toThrow("Pass a valid --org-id=<uuid>");
   });
 

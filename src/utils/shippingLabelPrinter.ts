@@ -127,7 +127,7 @@ function labelSection(order: ShippingLabelOrder, cn: string, businessName: strin
     <section class="shipping-label">
       <div class="label-summary">
         <header class="brand-header">
-          <img src="/mango-lover-print-logo.png" alt="${escapeHtml(businessName)}" />
+          <img src="/sera-khabar-print-logo.png" alt="${escapeHtml(businessName)}" />
         </header>
         <div class="barcode-wrap">${barcodeSvg(cn)}</div>
         <div class="cn"><span>CN:</span> ${escapeHtml(cn)}</div>
@@ -151,7 +151,7 @@ function labelSection(order: ShippingLabelOrder, cn: string, businessName: strin
 
 export function buildShippingLabelHtml(
   orders: ShippingLabelOrder[],
-  businessName = "Mango Lover BD",
+  businessName = "Sera Khabar",
 ): ShippingLabelHtmlResult {
   const missingOrderNumbers = orders
     .filter((order) => !getShippingLabelCn(order))
