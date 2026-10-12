@@ -30,7 +30,7 @@
 | 0 | Code copied to Sera Khabar GitHub | ✅ Done (2026-10-12) |
 | 1 | Local setup and account checks | ✅ Done (2026-10-12) |
 | 2 | Collect decisions from the user | ✅ Done (2026-10-12; analytics, AI key, SMS to be provided later) |
-| 3 | Create the Sera Khabar Supabase project and database | 🟡 In progress |
+| 3 | Create the Sera Khabar Supabase project and database | 🟡 Schema done; user to turn off Confirm email (3.4); Site URL in Phase 5 |
 | 4 | Rebrand the Merchant Suite code | ⬜ Not started |
 | 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
 | 6 | First admin login and workspace setup | ⬜ Not started |
@@ -168,15 +168,15 @@ Ask in simple English, one small group at a time. Write the answers into the
 ## Phase 3 — Create the Supabase project and database
 
 ### 3A. The user creates the project (browser, NEW Supabase account)
-- [ ] 3.1 New project. Name: `sera-khabar`. Region: **Southeast Asia (Singapore)**
+- [x] 3.1 New project. Name: `sera-khabar`. Region: **Southeast Asia (Singapore)**
       (Vercel functions run in `sin1`). Save the database password in a password manager.
-- [ ] 3.2 From **Project Settings → API / Data API**, collect (the user pastes them
+- [x] 3.2 From **Project Settings → API / Data API**, collect (the user pastes them
       into `.env` themselves, or gives them privately; never commit them):
   - Project URL `https://<ref>.supabase.co`
   - anon / publishable key
   - service_role / secret key
   - Project ref (20 characters) → write it in the Key facts table (not a secret)
-- [ ] 3.3 From **Connect → Connection string → Transaction pooler**: the URI with
+- [x] 3.3 From **Connect → Connection string → Transaction pooler**: the URI with
       host `*.pooler.supabase.com` (**not** `.co`) → `SUPABASE_DB_URL`.
 - [ ] 3.4 **Authentication → Sign In / Providers → Email**: turn **off** "Confirm email"
       (the app expects sign-up to log the user in straight away).
@@ -192,10 +192,10 @@ Ask in simple English, one small group at a time. Write the answers into the
   sed -i '' "s/ldiktvcavyabivpxfwpn/$NEW_REF/g" supabase/config.toml
   ```
   Do the same in the storefront's `.mcp.json` and `.codex/config.toml`.
-- [ ] 3.7 Create `.env` from `.env.example` with the Sera Khabar values from 3.2–3.3
+- [x] 3.7 Create `.env` from `.env.example` with the Sera Khabar values from 3.2–3.3
       (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
       `SUPABASE_DB_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
-- [ ] 3.8 `npm run verify:supabase-project` must pass (it checks every config file
+- [x] 3.8 `npm run verify:supabase-project` must pass (it checks every config file
       points at the same ref as `SUPABASE_URL`).
 - [x] 3.9 (SK-, first SK-1001; function name `next_ml_order_number` kept to avoid wider changes) **Order number prefix, before pushing the schema.** These migrations use `ML-`:
   - `supabase/migrations/20260910170052_ml_order_numbering.sql`
@@ -205,7 +205,7 @@ Ask in simple English, one small group at a time. Write the answers into the
   `'^SK-([0-9]+)$'`). Then `grep -rn "ML-" server src shared` and update any code
   or tests that build or parse `ML-` numbers. Ask the user what the first order number
   should be (check the sequence start value in the migration).
-- [ ] 3.10 Link and push the schema (ask the user first; Rule S5 check first):
+- [x] 3.10 (Done 2026-10-12 via psql over the session pooler — all 43 files in `supabase/migrations/`, each in one transaction, recorded in `supabase_migrations.schema_migrations` so a later `supabase db push` sees them as applied.) Link and push the schema (ask the user first; Rule S5 check first):
   ```bash
   supabase login                      # NEW Supabase account
   supabase projects list              # must NOT show ldiktvcavyabivpxfwpn
@@ -214,13 +214,13 @@ Ask in simple English, one small group at a time. Write the answers into the
   supabase db push                    # applies supabase/migrations/* only
   ```
   **Never** apply `supabase/legacy-migrations/`.
-- [ ] 3.11 Verify: in the Supabase table editor, the tables `orders`, `products`,
+- [x] 3.11 (43 public tables, RLS on everywhere, `product-images` bucket exists, order sequence at 1001.) Verify: in the Supabase table editor, the tables `orders`, `products`,
       `app_settings`, `user_roles`, `social_conversations` etc. exist, and the
       Storage bucket `product-images` exists (created by the canonical migration).
-- [ ] 3.12 Authenticate the Supabase MCP (`/mcp` → supabase → Authenticate) with the
+- [x] 3.12 (Supabase MCP connected to `xnuiaxygeoydtopvcmli`.) Authenticate the Supabase MCP (`/mcp` → supabase → Authenticate) with the
       **new** Supabase account, and check it lists the Sera Khabar project.
-- [ ] 3.13 Run the Supabase security advisor (MCP `get_advisors`) and report any issues.
-- [ ] 3.14 `supabase/functions/` has 11 legacy edge functions (`ai-alerts`,
+- [x] 3.13 (Only INFO `rls_enabled_no_policy` on 42 tables — expected: the browser has no table access, the server uses the service role.) Run the Supabase security advisor (MCP `get_advisors`) and report any issues.
+- [x] 3.14 (Not deployed.) `supabase/functions/` has 11 legacy edge functions (`ai-alerts`,
       `analyze-orders`, `check-fraud`, …). The main backend is `server/index.js`.
       **Don't deploy them** unless the user confirms they're needed.
 
