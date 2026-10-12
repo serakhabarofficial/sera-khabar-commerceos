@@ -28,7 +28,7 @@
 | Phase | Name | Status |
 |---|---|---|
 | 0 | Code copied to Sera Khabar GitHub | ✅ Done (2026-10-12) |
-| 1 | Local setup and account checks | 🟡 In progress (1.1–1.4 done) |
+| 1 | Local setup and account checks | ✅ Done (2026-10-12) |
 | 2 | Collect decisions from the user | ⬜ Not started |
 | 3 | Create the Sera Khabar Supabase project and database | ⬜ Not started |
 | 4 | Rebrand the Merchant Suite code | ⬜ Not started |
@@ -51,8 +51,8 @@
 | Local folder | `~/conductor/repos/mangoloverbd_commerceos` | `/Users/noorkarimmehedi/Sera Khabar - সেরা খাবার/` (contains `sera-khabar-commerceos/` and `sera-khabar-storefront/`) |
 | GitHub account | `noorkarimmehedi` / `mangoloverbd` | `serakhabarofficial` |
 | Supabase | project `ldiktvcavyabivpxfwpn` | new account and new project — ref: `xnuiaxygeoydtopvcmli` |
-| Vercel | Mango Lover's account | new account — team/user: `________` |
-| Cloudflare | Mango Lover's account | new account |
+| Vercel | Mango Lover's account | new account — team `serakhabarofficial-6832` (`team_d5c0Y4idD8xCTKpDyV5WgLmk`) |
+| Cloudflare | Mango Lover's account | new account — `serakhabarofficial@gmail.com` |
 | Admin (Suite) domain | `admin.mangolover.com.bd` | `________` |
 | Storefront domain | `www.mangolover.com.bd` | `________` |
 | Storefront handle | `mangoloverbd` | `________` |
@@ -123,12 +123,12 @@ Goal: both folders ready to work in, with the right accounts logged in.
   ```
 - [x] 1.4 GitHub: `gh auth status`. Both accounts should be listed. Switch to
       `serakhabarofficial` only when pushing (Rule S4).
-- [ ] 1.5 Ask the user whether they've **created** the new Supabase, Vercel and
+- [x] 1.5 Ask the user whether they've **created** the new Supabase, Vercel and
       Cloudflare accounts yet. If not, list what to create:
   - Supabase: https://supabase.com (sign up with Sera Khabar's email)
   - Vercel: https://vercel.com (connect it to the `serakhabarofficial` GitHub account)
   - Cloudflare: https://dash.cloudflare.com
-- [ ] 1.6 Check whether the CLIs are installed (`supabase --version`, `vercel --version`,
+- [x] 1.6 (Done via MCP: Supabase, Vercel and Cloudflare MCPs verified on Sera Khabar accounts 2026-10-12; `supabase`/`wrangler` CLIs not installed — use MCP instead.) Check whether the CLIs are installed (`supabase --version`, `vercel --version`,
       `wrangler --version`) and logged in to the **new** accounts (Rule S5).
       The browser dashboards are fine too; CLIs are optional except `supabase`.
 
