@@ -32,8 +32,8 @@
 | 2 | Collect decisions from the user | ✅ Done (2026-10-12; analytics, AI key, SMS to be provided later) |
 | 3 | Create the Sera Khabar Supabase project and database | 🟡 Schema done; user to turn off Confirm email (3.4); Site URL in Phase 5 |
 | 4 | Rebrand the Merchant Suite code | ✅ Done (2026-10-12, pushed to main) |
-| 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
-| 6 | First admin login and workspace setup | 🟡 Admin account created (6.1–6.2); rest after Phase 5 |
+| 5 | Deploy the Merchant Suite on Vercel | ✅ Done (2026-10-12) — https://sera-khabar-commerceos.vercel.app, project `prj_ucCq5RoMVsLYHbubFbeAZRFSLnZu`; AI key still to add |
+| 6 | First admin login and workspace setup | 🟡 6.1–6.3 done (handle `serakhabar` set); store info + products next |
 | 7 | Rebrand the storefront code | ⬜ Not started |
 | 8 | Provision and deploy the storefront | ⬜ Not started |
 | 9 | Domains and Cloudflare | ⬜ Not started |
@@ -280,21 +280,21 @@ than many literals, but keep the change small (CLAUDE.md §13.3 "Surgical change
 
 ## Phase 5 — Deploy the Merchant Suite on Vercel (new account)
 
-- [ ] 5.1 The user connects the new Vercel account to the `serakhabarofficial` GitHub
+- [x] 5.1 The user connects the new Vercel account to the `serakhabarofficial` GitHub
       (Vercel → Settings → Git → GitHub app → allow both Sera Khabar repos).
-- [ ] 5.2 Vercel → **Add New → Project** → import `serakhabarofficial/sera-khabar-commerceos`.
+- [x] 5.2 (Created via API: framework vite, `npm ci`, Node 24.x.) Vercel → **Add New → Project** → import `serakhabarofficial/sera-khabar-commerceos`.
       Framework preset: **Other / Vite** (`vercel.json` controls rewrites, region `sin1`
       and 3 crons: SEO refresh, abandoned checkouts, analytics rollup).
-- [ ] 5.3 Create a Vercel **access token** (Account Settings → Tokens) for
+- [x] 5.3 Create a Vercel **access token** (Account Settings → Tokens) for
       `VERCEL_ACCESS_TOKEN`, and note the **Team ID** (Team Settings → General) for
       `STOREFRONT_VERCEL_TEAM_ID` (leave empty on a personal Hobby account).
-- [ ] 5.4 Generate secrets locally. The agent can run this; the user copies the output into Vercel:
+- [x] 5.4 (Saved in local `.env` for reuse by the storefront.) Generate secrets locally. The agent can run this; the user copies the output into Vercel:
   ```bash
   for k in ORDER_PROTECTION_HASH_SECRET STOREFRONT_CONTEXT_SECRET CAMPAIGN_EDGE_SECRET CRON_SECRET TOKEN_ENCRYPTION_KEY; do echo "$k=$(openssl rand -hex 32)"; done
   ```
   **Save `STOREFRONT_CONTEXT_SECRET`, `CAMPAIGN_EDGE_SECRET` and `CRON_SECRET`.** The
   storefront project needs the same values (Phase 8).
-- [ ] 5.5 Set Production (and Preview) env vars in the Suite Vercel project:
+- [x] 5.5 (18 vars set for production+preview. Not yet: AI key, `VERCEL_PROJECT_ID` (Phase 8), optional Turnstile/PostHog/FraudShield/Meta.) Set Production (and Preview) env vars in the Suite Vercel project:
 
   | Variable | Value |
   |---|---|
@@ -319,7 +319,7 @@ than many literals, but keep the change small (CLAUDE.md §13.3 "Surgical change
   | **Do NOT set** | `UPSTASH_REDIS_*` (not used), `STRIPE_*` (unless the user wants billing), `DATABASE_URL` (legacy) |
 
   Before relying on any optional variable, confirm what it does with `grep -n "process.env.<NAME>" server/*.js`.
-- [ ] 5.6 Deploy. Open `https://<suite>.vercel.app`, check the login page loads and
+- [x] 5.6 (READY; /, /auth, /api/config 200; admin API calls 200; no runtime errors.) Deploy. Open `https://<suite>.vercel.app`, check the login page loads and
       `GET /api/config` responds. Check Vercel function logs for startup errors
       (e.g. the read-only schema readiness check).
 
@@ -336,7 +336,7 @@ than many literals, but keep the change small (CLAUDE.md §13.3 "Surgical change
   select user_id, role, org_id from public.user_roles;
   ```
   Write the `org_id` into the Key facts table. It's the storefront's `VITE_STOREFRONT_ID`.
-- [ ] 6.3 **Set the storefront handle.** There's no UI for it; use the API as the
+- [x] 6.3 (Set via API 2026-10-12; public products endpoint returns 200.) **Set the storefront handle.** There's no UI for it; use the API as the
       logged-in admin. In the browser console on the Suite (or with curl and the admin's JWT):
   ```
   POST /api/storefront/handle   body: { "handle": "<sera-khabar-handle>" }
