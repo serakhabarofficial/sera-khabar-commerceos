@@ -36,7 +36,7 @@
 | 4 | Rebrand the Merchant Suite code | ✅ Done (2026-10-12, pushed to main) |
 | 5 | Deploy the Merchant Suite on Vercel | ✅ Done (2026-10-12) — https://sera-khabar-commerceos.vercel.app, project `prj_ucCq5RoMVsLYHbubFbeAZRFSLnZu`; AI key still to add |
 | 6 | First admin login and workspace setup | 🟡 Admin, handle, store name and 2 published products done; shipping charges still to set |
-| 7 | Rebrand the storefront code | 🟡 Safety rebrand, header logo and pre-launch letter gate done & pushed (2026-10-12); design (colours, homepage, Mango Lover campaign pages `/step/*`) still to do |
+| 7 | Rebrand the storefront code | 🟡 Safety rebrand, header logo and pre-launch letter gate done & pushed (2026-10-12); design (colours, homepage, Mango Lover campaign pages `/step/*`) still to do; homepage design approved 2026-10-13, see storefront `docs/design/2026-10-13-homepage/` |
 | 8 | Provision and deploy the storefront | ✅ Done (2026-10-12) — https://serakhabar-storefront.vercel.app, project `storefront-690aa8b3` (`prj_6LwMpprczqsb1GbmSRZeZzblu76C`); behind the pre-launch gate; test order still to do |
 | 9 | Domains and Cloudflare | ⬜ Waiting for the owner to move `serakhabar.com` into the Sera Khabar Cloudflare account |
 | 10 | Integrations (courier, fraud, Meta, SMS…) | ⬜ Not started |
