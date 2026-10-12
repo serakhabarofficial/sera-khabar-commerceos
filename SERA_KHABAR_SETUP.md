@@ -31,7 +31,7 @@
 | 1 | Local setup and account checks | ✅ Done (2026-10-12) |
 | 2 | Collect decisions from the user | ✅ Done (2026-10-12; analytics, AI key, SMS to be provided later) |
 | 3 | Create the Sera Khabar Supabase project and database | 🟡 Schema done; user to turn off Confirm email (3.4); Site URL in Phase 5 |
-| 4 | Rebrand the Merchant Suite code | 🟡 Done on branch `chore/sera-khabar-rebrand`; waiting to push/merge (4.7) |
+| 4 | Rebrand the Merchant Suite code | ✅ Done (2026-10-12, pushed to main) |
 | 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
 | 6 | First admin login and workspace setup | 🟡 Admin account created (6.1–6.2); rest after Phase 5 |
 | 7 | Rebrand the storefront code | ⬜ Not started |
@@ -271,7 +271,7 @@ than many literals, but keep the change small (CLAUDE.md §13.3 "Surgical change
     --exclude-dir={node_modules,dist,.git,docs,progress} --exclude=CHANGELOG.md
   ```
 - [x] 4.6 (lint 0 errors / 46 pre-existing warnings; 2336 tests pass; build OK.) `npm run lint`, `npm test`, `npm run build` all pass.
-- [ ] 4.7 Commit `chore: rebrand Merchant Suite for Sera Khabar`. Rule S4 check, then
+- [x] 4.7 (Fast-forward merged and pushed to main.) Commit `chore: rebrand Merchant Suite for Sera Khabar`. Rule S4 check, then
       push the branch and merge to `main` (ask the user: PR or direct merge).
 
 ✅ Done when: the sweep is clean, checks pass, and `main` on GitHub has the rebrand.
