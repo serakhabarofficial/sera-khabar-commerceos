@@ -29,7 +29,7 @@
 |---|---|---|
 | 0 | Code copied to Sera Khabar GitHub | ✅ Done (2026-10-12) |
 | 1 | Local setup and account checks | ✅ Done (2026-10-12) |
-| 2 | Collect decisions from the user | ⬜ Not started |
+| 2 | Collect decisions from the user | 🟡 In progress (2.1–2.5 done) |
 | 3 | Create the Sera Khabar Supabase project and database | ⬜ Not started |
 | 4 | Rebrand the Merchant Suite code | ⬜ Not started |
 | 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
@@ -53,10 +53,10 @@
 | Supabase | project `ldiktvcavyabivpxfwpn` | new account and new project — ref: `xnuiaxygeoydtopvcmli` |
 | Vercel | Mango Lover's account | new account — team `serakhabarofficial-6832` (`team_d5c0Y4idD8xCTKpDyV5WgLmk`) |
 | Cloudflare | Mango Lover's account | new account — `serakhabarofficial@gmail.com` |
-| Admin (Suite) domain | `admin.mangolover.com.bd` | `________` |
-| Storefront domain | `www.mangolover.com.bd` | `________` |
-| Storefront handle | `mangoloverbd` | `________` |
-| Order number prefix | `ML-` | `________` |
+| Admin (Suite) domain | `admin.mangolover.com.bd` | `admin.<domain>` (domain not bought yet; Phase 9) |
+| Storefront domain | `www.mangolover.com.bd` | `www.<domain>` (domain not bought yet; Phase 9) |
+| Storefront handle | `mangoloverbd` | `serakhabar` |
+| Order number prefix | `ML-` | `SK-` |
 | Workspace id (`org_id`) | `3cd26e57-85ef-4970-94a4-cd99c0f1b554` | `________` (created in Phase 6) |
 
 Origin of the code: Suite copied from Mango Lover commit `39c1899`, storefront from
@@ -141,13 +141,13 @@ Goal: both folders ready to work in, with the right accounts logged in.
 Ask in simple English, one small group at a time. Write the answers into the
 **Key facts** table above (no secrets).
 
-- [ ] 2.1 **Brand name**: English (`Sera Khabar`) and Bangla (`সেরা খাবার`), and the exact spelling to show customers.
-- [ ] 2.2 **Storefront handle**: lowercase letters, numbers and hyphens, e.g. `serakhabar`.
+- [x] 2.1 **Brand name**: English (`Sera Khabar`) and Bangla (`সেরা খাবার`), and the exact spelling to show customers.
+- [x] 2.2 **Storefront handle**: lowercase letters, numbers and hyphens, e.g. `serakhabar`.
       It appears in API URLs (`/api/public/v1/<handle>/...`) and can't easily change later.
-- [ ] 2.3 **Order number prefix**, e.g. `SK-` (Mango Lover uses `ML-`).
-- [ ] 2.4 **Domains**: storefront (e.g. `www.serakhabar.com`) and admin (e.g.
+- [x] 2.3 **Order number prefix**, e.g. `SK-` (Mango Lover uses `ML-`).
+- [x] 2.4 **Domains**: storefront (e.g. `www.serakhabar.com`) and admin (e.g.
       `admin.serakhabar.com`). Is the domain already bought? At which registrar?
-- [ ] 2.5 **Logo and branding**: logo files (SVG/PNG), favicon, brand colors, OG
+- [x] 2.5 (Full logo `brand-assets/Sera Khabar Leaf Logo.webp`, 1774×887; leaf mark already in Suite `public/brand/sera-khabar-mark.webp`; colours green `#015128`, orange `#FD8300`.) **Logo and branding**: logo files (SVG/PNG), favicon, brand colors, OG
       share image. Ask the user to put them in `$BASE/brand-assets/`.
 - [ ] 2.6 **What they sell**: product types. Mango Lover's storefront has
       Mango-Lover-specific product pages and landing pages that must be removed or replaced (Phase 7).
