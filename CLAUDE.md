@@ -1,3 +1,5 @@
+> **⚠️ SERA KHABAR PROJECT — READ `SERA_KHABAR_SETUP.md` FIRST.** This repo is a copy of the Mango Lover BD codebase being set up for a new merchant, **Sera Khabar** (GitHub `serakhabarofficial`). Mango Lover text below is historical until the rebrand step. Never touch Mango Lover repos, folders, or Supabase project `ldiktvcavyabivpxfwpn`.
+
 # CLAUDE.md — Merchant-Suite Agent Guide
 
 This file is the authoritative guide for AI agents (Claude, OpenCode, etc.) working in this codebase.
