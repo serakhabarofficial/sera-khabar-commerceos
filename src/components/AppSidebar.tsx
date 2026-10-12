@@ -334,7 +334,7 @@ export function AppSidebar() {
                         className="flex h-10 w-full items-center gap-2 overflow-hidden rounded-[6px] border border-[#dcdbd7] bg-[#f9f8f6] p-px pr-2.5 shadow-[inset_0_1px_0_#fff,0_1px_2px_rgba(0,0,0,0.03)] outline-none transition-[color,background-color,height] duration-200 ease-out hover:bg-white focus-visible:ring-2 focus-visible:ring-black/15 group-data-[collapsible=icon]:h-[31px] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:pr-px"
                     >
                         <span data-testid="sidebar-brand-logo" className="flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-[width,height] duration-200 ease-out group-data-[collapsible=icon]:h-[27px] group-data-[collapsible=icon]:w-[27px] group-data-[collapsible=icon]:rounded-[5px]">
-                            <img src="/brand/mango-lover-logo.webp" alt="Mango Lover BD" className="h-full w-full scale-110 object-contain" />
+                            <img src="/brand/sera-khabar-mark.webp" alt="Sera Khabar" className="h-full w-full scale-110 object-contain" />
                         </span>
                         <span className={cn("min-w-0 flex-1 group-data-[collapsible=icon]:hidden", railFade)}>
                             <span className="block truncate whitespace-nowrap font-sans text-[10.5px] leading-tight text-[#8d8c87]">Merchant Suite</span>

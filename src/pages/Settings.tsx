@@ -481,7 +481,7 @@ function BusinessCard() {
   return (
     <section className="flex flex-wrap items-center gap-4 rounded-[18px] border border-[#F3DFB4] bg-[#FFF8EB] px-5 py-4">
       <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-black/[0.06] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
-        <img src="/brand/mango-lover-logo.webp" alt="" className="h-full w-full scale-110 object-contain" />
+        <img src="/brand/sera-khabar-mark.webp" alt="" className="h-full w-full scale-110 object-contain" />
       </span>
 
       <div className="min-w-0 flex-1 basis-56">

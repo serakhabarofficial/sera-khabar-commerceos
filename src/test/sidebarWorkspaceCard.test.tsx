@@ -34,7 +34,7 @@ describe("sidebar brand card", () => {
     renderSidebar();
     const brand = screen.getByTestId("sidebar-brand");
     expect(within(brand).getByTestId("sidebar-brand-logo")).toHaveClass("bg-white", "rounded-[6px]");
-    expect(within(within(brand).getByTestId("sidebar-brand-logo")).getByRole("img", { name: "Mango Lover BD" })).toHaveAttribute("src", "/brand/mango-lover-logo.webp");
+    expect(within(within(brand).getByTestId("sidebar-brand-logo")).getByRole("img", { name: "Sera Khabar" })).toHaveAttribute("src", "/brand/sera-khabar-mark.webp");
     const product = within(brand).getByText("Merchant Suite");
     const name = within(brand).getByText("Mango Lover BD");
     expect(product.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
