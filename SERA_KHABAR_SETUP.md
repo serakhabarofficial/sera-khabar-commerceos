@@ -33,7 +33,7 @@
 | 3 | Create the Sera Khabar Supabase project and database | 🟡 Schema done; user to turn off Confirm email (3.4); Site URL in Phase 5 |
 | 4 | Rebrand the Merchant Suite code | ⬜ Not started |
 | 5 | Deploy the Merchant Suite on Vercel | ⬜ Not started |
-| 6 | First admin login and workspace setup | ⬜ Not started |
+| 6 | First admin login and workspace setup | 🟡 Admin account created (6.1–6.2); rest after Phase 5 |
 | 7 | Rebrand the storefront code | ⬜ Not started |
 | 8 | Provision and deploy the storefront | ⬜ Not started |
 | 9 | Domains and Cloudflare | ⬜ Not started |
@@ -60,7 +60,8 @@
 | Contact | — | phone `01310-980289`, WhatsApp `+8801303103540`, email `serakhabar518@gmail.com`, Rajshahi |
 | Facebook page | `WeAreMangoLover` | `https://www.facebook.com/profile.php?id=100068711778004` |
 | Courier | — | Steadfast only |
-| Workspace id (`org_id`) | `3cd26e57-85ef-4970-94a4-cd99c0f1b554` | `________` (created in Phase 6) |
+| Workspace id (`org_id`) | `3cd26e57-85ef-4970-94a4-cd99c0f1b554` | `690aa8b3-6657-46c4-8df5-addcc1f96035` (= admin user id) |
+| Main admin login | — | `serakhabarofficial@gmail.com` |
 
 Origin of the code: Suite copied from Mango Lover commit `39c1899`, storefront from
 `5c06ac6`. The storefront was pushed with `--no-verify` because its build needs
@@ -327,9 +328,9 @@ than many literals, but keep the change small (CLAUDE.md §13.3 "Surgical change
 
 ## Phase 6 — First admin login and workspace setup
 
-- [ ] 6.1 The owner **signs up** in the Suite. **The first account becomes admin**
+- [x] 6.1 (Created early on 2026-10-12 via the Supabase admin API: email pre-confirmed, `user_roles` row admin with org_id = user id, login tested OK.) The owner **signs up** in the Suite. **The first account becomes admin**
       (`getUser()` auto-assigns the admin role). Use the owner's real email.
-- [ ] 6.2 Get the new workspace id (Supabase MCP or SQL editor, Sera Khabar project only):
+- [x] 6.2 Get the new workspace id (Supabase MCP or SQL editor, Sera Khabar project only):
   ```sql
   select user_id, role, org_id from public.user_roles;
   ```
