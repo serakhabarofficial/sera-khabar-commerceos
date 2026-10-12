@@ -34,8 +34,8 @@
 | 4 | Rebrand the Merchant Suite code | ✅ Done (2026-10-12, pushed to main) |
 | 5 | Deploy the Merchant Suite on Vercel | ✅ Done (2026-10-12) — https://sera-khabar-commerceos.vercel.app, project `prj_ucCq5RoMVsLYHbubFbeAZRFSLnZu`; AI key still to add |
 | 6 | First admin login and workspace setup | 🟡 6.1–6.3 done (handle `serakhabar` set); store info + products next |
-| 7 | Rebrand the storefront code | ⬜ Not started |
-| 8 | Provision and deploy the storefront | ⬜ Not started |
+| 7 | Rebrand the storefront code | 🟡 Safety rebrand done & pushed (2026-10-12); design (colours, homepage, Mango Lover campaign pages `/step/*`) still to do |
+| 8 | Provision and deploy the storefront | ✅ Done (2026-10-12) — https://serakhabar-storefront.vercel.app, project `storefront-690aa8b3` (`prj_6LwMpprczqsb1GbmSRZeZzblu76C`); test order still to do |
 | 9 | Domains and Cloudflare | ⬜ Not started |
 | 10 | Integrations (courier, fraud, Meta, SMS…) | ⬜ Not started |
 | 11 | End-to-end testing and go-live | ⬜ Not started |
@@ -56,6 +56,7 @@
 | Admin (Suite) domain | `admin.mangolover.com.bd` | `admin.serakhabar.com` |
 | Storefront domain | `www.mangolover.com.bd` | `www.serakhabar.com` — domain already owned (registrar Cloudflare, expires 2027-11-29) but in a different Cloudflare account; currently runs the old WordPress/WooCommerce shop. User will move it later (Phase 9). |
 | Storefront handle | `mangoloverbd` | `serakhabar` |
+| Storefront Vercel URL | `mangoloverbd.vercel.app` | `https://serakhabar-storefront.vercel.app` (also `storefront-690aa8b3.vercel.app`) |
 | Order number prefix | `ML-` | `SK-` (first order `SK-1001`) |
 | Contact | — | phone `01310-980289`, WhatsApp `+8801303103540`, email `serakhabar518@gmail.com`, Rajshahi |
 | Facebook page | `WeAreMangoLover` | `https://www.facebook.com/profile.php?id=100068711778004` |
@@ -377,8 +378,8 @@ file-by-file list). Summary of what's critical:
 
 ## Phase 8 — Provision and deploy the storefront
 
-- [ ] 8.1 Make sure the storefront rebrand is on `main` on GitHub (Phase 7).
-- [ ] 8.2 In the Suite: **Settings → Provision Storefront** (`POST /api/storefront/provision`).
+- [x] 8.1 Make sure the storefront rebrand is on `main` on GitHub (Phase 7).
+- [x] 8.2 (Ran 2026-10-12 as the admin via the API.) In the Suite: **Settings → Provision Storefront** (`POST /api/storefront/provision`).
       The server (`provisionStorefrontProject`, `server/index.js` ~line 3297):
   - creates the Vercel project `storefront-<first 8 chars of org_id>` from `STOREFRONT_GIT_REPO`
   - sets `VITE_MERCHANT_SUITE_URL`, `VITE_STOREFRONT_ID` (= org_id), `VITE_STOREFRONT_HANDLE`,
@@ -388,10 +389,10 @@ file-by-file list). Summary of what's critical:
   If it fails, read the error: missing `VERCEL_ACCESS_TOKEN`, `STOREFRONT_GIT_REPO`,
   `MERCHANT_SUITE_PUBLIC_URL`, handle not set (Phase 6.3), or the Vercel GitHub app
   can't access the storefront repo (5.1).
-- [ ] 8.3 In the new storefront Vercel project, **add manually** (provisioning doesn't set these):
+- [x] 8.3 In the new storefront Vercel project, **add manually** (provisioning doesn't set these):
   `STOREFRONT_CONTEXT_SECRET`, `CAMPAIGN_EDGE_SECRET`, `CRON_SECRET`, each **identical**
   to the Suite's values from 5.4. Then redeploy.
-- [ ] 8.4 Copy the storefront project's id into the Suite's `VERCEL_PROJECT_ID`, then redeploy the Suite.
+- [x] 8.4 Copy the storefront project's id into the Suite's `VERCEL_PROJECT_ID`, then redeploy the Suite.
 - [ ] 8.5 Open the storefront URL: Sera Khabar branding, Sera Khabar products, no Mango Lover anywhere.
 
 ✅ Done when: the storefront is live on its `*.vercel.app` URL showing only Sera Khabar.
@@ -402,6 +403,8 @@ file-by-file list). Summary of what's critical:
 
 - [ ] 9.1 The user adds the Sera Khabar domain to the **new** Cloudflare account and
       changes the nameservers at the registrar to Cloudflare's. Wait for "Active".
+> ⚠️ The storefront code hardcodes the Suite URL `https://sera-khabar-commerceos.vercel.app` in production (`script/build.ts`, `middleware.ts`, `server/order-service.ts`, `server/abandoned-cart-service.ts`, `server/campaign-links.ts`, `api/orders.ts`, `api/abandoned-carts.ts`, `client/src/lib/tracker.ts`, `client/src/lib/storefront-products.ts`). After `admin.serakhabar.com` works, replace it there and update the Suite's `MERCHANT_SUITE_PUBLIC_URL`/`APP_URL` and the storefront's `VITE_MERCHANT_SUITE_URL`/`MERCHANT_SUITE_URL`.
+
 - [ ] 9.2 Vercel, Suite project → Domains → add `admin.<domain>`.
 - [ ] 9.3 Vercel, storefront project → Domains → add `www.<domain>` and the apex `<domain>`
       (redirect apex → www, or the other way; match what the code expects; Mango Lover uses `www`).
