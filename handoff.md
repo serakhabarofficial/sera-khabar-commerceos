@@ -1,44 +1,68 @@
-# Handoff — Composio for Facebook + Instagram Connect
+# Handoff — Sera Khabar setup
 
-## Goal
-Add one-click **Connect Facebook Page** and **Connect Instagram Business** to Merchant-Suite using Composio as the OAuth broker. WhatsApp Business stays on the current manual setup — Composio's WhatsApp flow requires the merchant to already have a WABA ID (confirmed via dashboard screenshots), so it adds no onboarding value for BD merchants.
+Last updated: 2026-10-12. Full step-by-step plan and safety rules: `SERA_KHABAR_SETUP.md` (read it first).
+Never put secrets in this file. They live in the local `.env` files (git-ignored) and in Vercel.
 
-Success = a BD merchant lands on `/integrations`, clicks Connect Facebook (or Instagram), goes through Meta's OAuth popup, and returns with a working Page/IG connection whose tokens land in the existing `app_settings` keys so the current Meta Graph webhook + send code keeps working unchanged.
+## Where things are
 
-## Current state
-- Nothing built yet. This is a fresh feature.
-- Decision locked: Composio for FB + IG, **not** WhatsApp.
-- Architectural pattern locked: **Composio as OAuth broker only.** After connect, extract raw tokens from Composio and write to existing `app_settings` keys (`{orgId}:facebook_access_token`, `{orgId}:facebook_page_id`, `{orgId}:instagram_business_account_id`, etc.). Existing HMAC-verified webhooks and send paths remain direct-to-Meta — do not route through Composio at runtime.
-- Meta App decision **pending**: ship first with Composio's Meta App (fast, but consent screen says "Composio"), then migrate to Merchant-Suite's own Meta App once we've validated with 5-10 merchants. Own-App requires Meta App Review (1-4 weeks) + Business Verification (1-14 days).
-- Tenancy pattern locked: `user_id = "org_${orgId}:${userId}"` on every Composio call, with a server-side invariant test.
-- Pricing gate locked: Composio-powered features live behind a Pro tier (5-8k taka/mo), never Starter. Per-tenant call quotas from day one.
+| Part | URL | Vercel project | GitHub repo |
+|---|---|---|---|
+| Merchant Suite (dashboard) | https://sera-khabar-commerceos.vercel.app | `sera-khabar-commerceos` (`prj_ucCq5RoMVsLYHbubFbeAZRFSLnZu`) | `serakhabarofficial/sera-khabar-commerceos` |
+| Storefront (shop) | https://serakhabar-storefront.vercel.app (also `storefront-690aa8b3.vercel.app`) | `storefront-690aa8b3` (`prj_6LwMpprczqsb1GbmSRZeZzblu76C`) | `serakhabarofficial/sera-khabar-storefront` |
+| Database | Supabase project `xnuiaxygeoydtopvcmli` (Singapore) | — | — |
 
-## Active files
-None modified yet. Files that will be touched next session:
-- `server/index.js` — new Composio route section (`/api/composio/*`)
-- `server/composio.js` — **NEW** — wrapper for `getComposioSession(orgId, userId)` and the token-extract-to-app_settings helper
-- `.env` — add `COMPOSIO_API_KEY`
-- `src/App.tsx` — add `/integrations` route under `ProtectedRoute`
-- `src/pages/Integrations.tsx` — **NEW** — card grid for FB / IG (WhatsApp card either hidden or wired to existing manual flow)
-- `src/components/AppSidebar.tsx` — add Integrations nav item (Phosphor `Plug` icon, `weight="light"`)
+Vercel team `serakhabarofficial-6832` (`team_d5c0Y4idD8xCTKpDyV5WgLmk`). Cloudflare account `serakhabarofficial@gmail.com`.
+Workspace `org_id` `690aa8b3-6657-46c4-8df5-addcc1f96035`, handle `serakhabar`, order prefix `SK-` (first `SK-1001`).
+Pushes to `main` in either repo deploy automatically. Push only as the `serakhabarofficial` GitHub account.
 
-## Changes made
-None. This session was decision + scoping only. No code was written, no dependencies installed, no routes added.
+## Implemented (2026-10-12)
 
-## Failed attempts
-None this session. Prior-session context worth carrying forward:
-- Considered using Composio for WhatsApp Business — **rejected** after seeing the dashboard connect flow requires a pre-existing WABA ID (screenshots confirmed no Meta Embedded Signup). Would provide no onboarding value over the current manual token paste.
-- Considered replacing the hand-rolled Shopify / Steadfast / Pathao / FraudShield / Meta clients with Composio — **rejected**. Composio has no coverage for Steadfast/Pathao/FraudShield/Firecrawl, and moving Meta send/webhooks behind Composio breaks HMAC verification via `req.rawBody` and adds a 200-400ms hosted hop.
-- Considered per-user Composio sessions keyed on Supabase `user.id` — **rejected**. Our tenant unit is `org_id`, not user; must prefix `user_id` with `org_` for tenant isolation since Composio has no native org primitive.
+**Accounts and MCP**
+- Supabase, Vercel and Cloudflare MCPs verified on the Sera Khabar accounts (never Mango Lover's).
 
-## Next steps
-1. **Verify with Composio support**: (a) do they support BYO Meta App credentials on our tier, and (b) can we extract the raw Meta access token + Page ID + IG Business Account ID via their API after a successful connect, so we can write to `app_settings` and keep our direct-Meta code path. If either is "no", revisit — architecture depends on both.
-2. **Invoke `brainstorming` skill** to finalize the Integrations page UX (card layout, connected-state indicators, disconnect flow, error surfaces for "IG not linked to Page" case).
-3. **Invoke `writing-plans` skill** to produce a step-by-step implementation plan before touching code. Plan should include the Composio wrapper, the four `/api/composio/*` routes, the frontend page, and the token-extract-to-app_settings bridge.
-4. **Invoke `plan-eng-review`** on the plan before implementation — catches multi-tenancy gaps and confirms the "OAuth broker only" boundary is preserved.
-5. Register `COMPOSIO_API_KEY` in `.env` (dev) and confirm production secret path.
-6. Implement behind a feature flag (`app_settings` key `composio_enabled`) so it can be killed instantly if Composio has an outage. Roll out to one internal test org first, then staged.
-7. Add per-org rate limits + spend cap in `server/composio.js` before any second merchant is enabled — the pay-per-call model needs a ceiling.
-8. Instrument connect funnel: connect_started / consent_granted / callback_success / callback_failure per toolkit, per org. Meta OAuth fails silently in many ways (Page not selected, IG not linked, permission denied) — need the data.
-9. Add pre-flight helper on the Instagram card: "Your IG must be a Business/Creator account linked to a Facebook Page" with a link to Meta's how-to. Prevents the most common BD-merchant failure mode.
-10. Do **not** ship a WhatsApp card via Composio. Leave WhatsApp Business setup as-is (manual token paste in Settings) until we evaluate a proper BSP (Interakt / Karix / Twilio) with Meta Embedded Signup.
+**Database**
+- All 43 files in `supabase/migrations/` applied (via psql over the session pooler) and recorded in `supabase_migrations.schema_migrations`. 43 tables, RLS on, `product-images` bucket. Security advisor: only the expected INFO "RLS enabled, no policy".
+- Order numbers changed to `SK-`, starting at 1001 (`20260910170052_ml_order_numbering.sql`, `server/index.js` check). The function name `next_ml_order_number` was kept on purpose.
+- Main admin `serakhabarofficial@gmail.com` created (email pre-confirmed, `user_roles` admin, `org_id` = user id). Default warehouse "Sera Khabar" inserted.
+
+**Merchant Suite**
+- Rebranded for Sera Khabar: storefront URL/handle, UI text, Bangla SMS templates, invoice/label print logo, share image, agent docs. Lint has 0 errors; 2336 tests pass; build OK.
+- Deployed on Vercel with 19 env vars (Supabase, 5 generated secrets, Vercel token, storefront repo/team, public URL, admin email, `VERCEL_PROJECT_ID` = storefront project). No runtime errors.
+- Storefront handle set to `serakhabar`. Store name set. 2 products added and published by the user (আমসত্ত্ব আচার, হোমমেড কুমড়ো বড়ি).
+
+**Storefront**
+- Safety rebrand: Suite URL, handle and workspace id point at Sera Khabar; Mango Lover GTM/Pixel, reels, product snapshot, comparison image, phone/address/email/social links removed or replaced; contact details, logo, favicons, share image and green-poster hero added.
+- Header uses the full leaf logo (`attached_assets/sera-khabar-leaf-logo.webp`).
+- Provisioned via the Suite (`POST /api/storefront/provision`). The shared secrets `STOREFRONT_CONTEXT_SECRET`, `CAMPAIGN_EDGE_SECRET` and `CRON_SECRET` were added and match the Suite.
+- SEO works: publishing a product makes the Suite redeploy the storefront, which builds per-product meta, Product JSON-LD and the sitemap. Canonical URLs point at `www.serakhabar.com`.
+- **Pre-launch gate is ON.** `server/site-access.ts` + `server/coming-soon-page.ts`, run from `middleware.ts` (matcher `/:path*`). While the storefront env var `SITE_ACCESS_PASSWORD` is set:
+  - every visitor sees the founder's letter (logo, short bold Bangla text, underlined call/WhatsApp links, "Jahidul Islam" signature, designer credit), served as 503 + `noindex`, with `robots.txt` disallowing all;
+  - shop APIs return 401;
+  - the team password (ask the owner; it is not written here) sets a signed 30-day cookie that opens the full shop.
+
+  7 gate tests pass (`npx tsx --test server/site-access.test.ts`).
+- Storefront tests: 45 of 379 fail with plain `node --test`; all 45 already failed in the copied Mango Lover code (many only because Node can't resolve the `.js` import style; `npx tsx --test` handles it). No new failures.
+
+## Left to do
+
+**Owner actions (dashboard / accounts)**
+1. Supabase → Authentication: turn off **Confirm email**; set **Site URL** to `https://sera-khabar-commerceos.vercel.app` (later `https://admin.serakhabar.com`). Not verified yet.
+2. Rotate the secrets that were pasted in chat before go-live: Supabase DB password, service-role key, Vercel access token, admin password. After rotating, update the local `.env` and the Vercel env vars.
+3. Move `serakhabar.com` into the Sera Khabar Cloudflare account. It is in another Cloudflare account and still serves the old WordPress shop.
+4. Provide later: AI key (OpenAI/OpenRouter), Google Analytics/GTM ID, SMS provider, full street address (the shop shows only "Rajshahi, Bangladesh"), Instagram (if any).
+5. Settings page: shipping charges (inside/outside Dhaka) and other store info.
+
+**Agent work**
+6. **Phase 9 — domains:** add `www.serakhabar.com` + apex to the storefront project and `admin.serakhabar.com` to the Suite; add the DNS records in Cloudflare (DNS-only/grey cloud for Vercel). Then replace the hardcoded Suite URL `https://sera-khabar-commerceos.vercel.app` in the storefront code (`script/build.ts`, `middleware.ts`, `server/order-service.ts`, `server/abandoned-cart-service.ts`, `server/campaign-links.ts`, `api/orders.ts`, `api/abandoned-carts.ts`, `client/src/lib/tracker.ts`, `client/src/lib/storefront-products.ts`), and update `MERCHANT_SUITE_PUBLIC_URL`/`APP_URL` (Suite) and `VITE_MERCHANT_SUITE_URL`/`MERCHANT_SUITE_URL` (storefront). Supabase Site URL too.
+7. **Phase 7 — storefront design:** still Mango Lover's layout and colours (yellow highlights), some Mango Lover homepage/category pictures, and the copied campaign pages `/step/*` (honey, kalojira, honey-nut are Mango Lover products; katimon and pumpkin bori could be reused). The homepage hero crops the logo under its fade. Ask the owner for the design direction.
+8. **Phase 10 — integrations:** Steadfast keys + webhook, FraudShield, Meta (Facebook page/WhatsApp), AI brand doc, SMS, team invites.
+9. **Phase 11 — go-live:** test order (lands as `SK-1001`, then cancel), courier send/cancel, live price/stock update without redeploy, image upload, crons. Then **launch by deleting `SITE_ACCESS_PASSWORD`** from the storefront Vercel project and redeploying, and submit `https://www.serakhabar.com/sitemap.xml` in Google Search Console.
+10. Optional: the storefront middleware now runs on every request; after launch its matcher could be narrowed back to `/go/:path*` if the gate is no longer needed.
+11. At the end of a session: `gh auth switch -u noorkarimmehedi` (the owner's other account).
+
+## Gotchas learned this session
+- The Supabase pooler host is `aws-0-ap-southeast-1.pooler.supabase.com` (not `aws-1`). Use port 5432 (session mode) for DDL via psql.
+- The Vercel MCP couldn't link GitHub when creating a project ("install the GitHub integration first"); the REST API with the Sera Khabar access token worked.
+- `src/test/productBranding.test.ts` in the Suite fails if any file in the repo folder (tracked or not) contains the old product brand string defined in that test (the designer credit on the letter mockups triggered it). Keep scratch/mockup files outside the repo folder.
+- Bangla text animations must split per word, never per character (it breaks conjuncts).
+- The storefront `npm run build` rewrites `client/src/lib/generated-storefront-products.ts` from the live Suite; don't commit that change by accident.

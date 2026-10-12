@@ -25,18 +25,20 @@
 
 ## Progress tracker
 
+> **Latest status and the to-do list are in `handoff.md`** (updated 2026-10-12). Read it after this file.
+
 | Phase | Name | Status |
 |---|---|---|
 | 0 | Code copied to Sera Khabar GitHub | ✅ Done (2026-10-12) |
 | 1 | Local setup and account checks | ✅ Done (2026-10-12) |
 | 2 | Collect decisions from the user | ✅ Done (2026-10-12; analytics, AI key, SMS to be provided later) |
-| 3 | Create the Sera Khabar Supabase project and database | 🟡 Schema done; user to turn off Confirm email (3.4); Site URL in Phase 5 |
+| 3 | Create the Sera Khabar Supabase project and database | 🟡 Schema done; owner still to turn off Confirm email (3.4) and set Site URL (3.5), not verified |
 | 4 | Rebrand the Merchant Suite code | ✅ Done (2026-10-12, pushed to main) |
 | 5 | Deploy the Merchant Suite on Vercel | ✅ Done (2026-10-12) — https://sera-khabar-commerceos.vercel.app, project `prj_ucCq5RoMVsLYHbubFbeAZRFSLnZu`; AI key still to add |
-| 6 | First admin login and workspace setup | 🟡 6.1–6.3 done (handle `serakhabar` set); store info + products next |
-| 7 | Rebrand the storefront code | 🟡 Safety rebrand done & pushed (2026-10-12); design (colours, homepage, Mango Lover campaign pages `/step/*`) still to do |
-| 8 | Provision and deploy the storefront | ✅ Done (2026-10-12) — https://serakhabar-storefront.vercel.app, project `storefront-690aa8b3` (`prj_6LwMpprczqsb1GbmSRZeZzblu76C`); test order still to do |
-| 9 | Domains and Cloudflare | ⬜ Not started |
+| 6 | First admin login and workspace setup | 🟡 Admin, handle, store name and 2 published products done; shipping charges still to set |
+| 7 | Rebrand the storefront code | 🟡 Safety rebrand, header logo and pre-launch letter gate done & pushed (2026-10-12); design (colours, homepage, Mango Lover campaign pages `/step/*`) still to do |
+| 8 | Provision and deploy the storefront | ✅ Done (2026-10-12) — https://serakhabar-storefront.vercel.app, project `storefront-690aa8b3` (`prj_6LwMpprczqsb1GbmSRZeZzblu76C`); behind the pre-launch gate; test order still to do |
+| 9 | Domains and Cloudflare | ⬜ Waiting for the owner to move `serakhabar.com` into the Sera Khabar Cloudflare account |
 | 10 | Integrations (courier, fraud, Meta, SMS…) | ⬜ Not started |
 | 11 | End-to-end testing and go-live | ⬜ Not started |
 
@@ -66,8 +68,8 @@
 | Default warehouse | `Mango Lover` | `Sera Khabar` (inserted directly in the DB 2026-10-12) |
 
 Origin of the code: Suite copied from Mango Lover commit `39c1899`, storefront from
-`5c06ac6`. The storefront was pushed with `--no-verify` because its build needs
-`VITE_MERCHANT_SUITE_URL`, which doesn't exist yet.
+`5c06ac6`. The storefront's first push used `--no-verify`; since the rebrand its pushes
+pass the pre-push hook normally.
 
 The path contains spaces and Bangla characters. **Always quote it** in shell commands:
 ```bash
@@ -345,11 +347,11 @@ than many literals, but keep the change small (CLAUDE.md §13.3 "Surgical change
   ```
   (Backed by `app_settings` keys `storefront_handle:<handle>` and `<orgId>:public_storefront_handle`;
   see `server/index.js` ~line 1503 and ~2496.)
-- [ ] 6.4 Settings page: set the store name, store info and shipping charges
+- [ ] 6.4 (Store name set; shipping charges and other store info still to do.) Settings page: set the store name, store info and shipping charges
       (inside/outside Dhaka), and anything else the Settings page shows for branding.
-- [ ] 6.5 Add 2–3 real products (name, price, images, stock) and **publish** them.
+- [x] 6.5 (2 products published by the owner: আমসত্ত্ব আচার, হোমমেড কুমড়ো বড়ি.) Add 2–3 real products (name, price, images, stock) and **publish** them.
       Images upload to the `product-images` bucket.
-- [ ] 6.6 Check `GET <suite>/api/public/v1/<handle>/products` returns those products.
+- [x] 6.6 Check `GET <suite>/api/public/v1/<handle>/products` returns those products.
 
 ✅ Done when: the admin works, the handle is set, and the public products API returns Sera Khabar products.
 
@@ -393,7 +395,7 @@ file-by-file list). Summary of what's critical:
   `STOREFRONT_CONTEXT_SECRET`, `CAMPAIGN_EDGE_SECRET`, `CRON_SECRET`, each **identical**
   to the Suite's values from 5.4. Then redeploy.
 - [x] 8.4 Copy the storefront project's id into the Suite's `VERCEL_PROJECT_ID`, then redeploy the Suite.
-- [ ] 8.5 Open the storefront URL: Sera Khabar branding, Sera Khabar products, no Mango Lover anywhere.
+- [x] 8.5 (Checked with the team password: Sera Khabar branding and products only.) Open the storefront URL: Sera Khabar branding, Sera Khabar products, no Mango Lover anywhere.
 
 ✅ Done when: the storefront is live on its `*.vercel.app` URL showing only Sera Khabar.
 
