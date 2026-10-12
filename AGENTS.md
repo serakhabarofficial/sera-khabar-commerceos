@@ -1,3 +1,13 @@
+> **⚠️ SERA KHABAR PROJECT — READ `SERA_KHABAR_SETUP.md` FIRST.** This repo is a copy of the Mango Lover BD codebase being set up for a new merchant, **Sera Khabar** (GitHub `serakhabarofficial`). Mango Lover text below is historical until the rebrand step. Never touch Mango Lover repos, folders, or Supabase project `ldiktvcavyabivpxfwpn`.
+>
+> **Sera Khabar has two separate repos, in two separate folders on this Mac:**
+> | Part | GitHub repo | Folder on this Mac |
+> |---|---|---|
+> | Merchant Suite (this repo) | `serakhabarofficial/sera-khabar-commerceos` | `/Users/noorkarimmehedi/Sera Khabar - সেরা খাবার/sera-khabar-commerceos` |
+> | Storefront | `serakhabarofficial/sera-khabar-storefront` | `/Users/noorkarimmehedi/Sera Khabar - সেরা খাবার/sera-khabar-storefront` |
+>
+> Any mention below of `mangoloverbd/mangoloverbd_storefront` means **the Sera Khabar storefront above**: for Sera Khabar, `STOREFRONT_GIT_REPO=serakhabarofficial/sera-khabar-storefront`. Storefront code changes go in the storefront folder, not here. The folder path has spaces and Bangla characters, so always quote it in shell commands.
+
 # AGENTS.md — Merchant-Suite Agent Guide
 
 This file is the authoritative guide for AI agents (Codex, OpenCode, etc.) working in this codebase.
