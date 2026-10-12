@@ -28,7 +28,7 @@
 | Phase | Name | Status |
 |---|---|---|
 | 0 | Code copied to Sera Khabar GitHub | ✅ Done (2026-10-12) |
-| 1 | Local setup and account checks | ⬜ Not started |
+| 1 | Local setup and account checks | 🟡 In progress (1.1–1.4 done) |
 | 2 | Collect decisions from the user | ⬜ Not started |
 | 3 | Create the Sera Khabar Supabase project and database | ⬜ Not started |
 | 4 | Rebrand the Merchant Suite code | ⬜ Not started |
@@ -50,7 +50,7 @@
 | Storefront repo | `mangoloverbd/mangoloverbd_storefront` | `serakhabarofficial/sera-khabar-storefront` |
 | Local folder | `~/conductor/repos/mangoloverbd_commerceos` | `/Users/noorkarimmehedi/Sera Khabar - সেরা খাবার/` (contains `sera-khabar-commerceos/` and `sera-khabar-storefront/`) |
 | GitHub account | `noorkarimmehedi` / `mangoloverbd` | `serakhabarofficial` |
-| Supabase | project `ldiktvcavyabivpxfwpn` | new account and new project — ref: `________` |
+| Supabase | project `ldiktvcavyabivpxfwpn` | new account and new project — ref: `xnuiaxygeoydtopvcmli` |
 | Vercel | Mango Lover's account | new account — team/user: `________` |
 | Cloudflare | Mango Lover's account | new account |
 | Admin (Suite) domain | `admin.mangolover.com.bd` | `________` |
@@ -108,20 +108,20 @@ cd "$BASE/sera-khabar-commerceos"
 
 Goal: both folders ready to work in, with the right accounts logged in.
 
-- [ ] 1.1 Confirm the folder and remotes:
+- [x] 1.1 Confirm the folder and remotes:
   ```bash
   BASE="/Users/noorkarimmehedi/Sera Khabar - সেরা খাবার"
   git -C "$BASE/sera-khabar-commerceos" remote -v
   git -C "$BASE/sera-khabar-storefront" remote -v
   ```
   Both must show `serakhabarofficial/...` only.
-- [ ] 1.2 Check the Node version (`.nvmrc`); Node 20+ is required.
-- [ ] 1.3 Install dependencies in both folders (the pre-push hook needs them):
+- [x] 1.2 Check the Node version (`.nvmrc`); Node 20+ is required.
+- [x] 1.3 Install dependencies in both folders (the pre-push hook needs them):
   ```bash
   cd "$BASE/sera-khabar-commerceos" && npm ci
   cd "$BASE/sera-khabar-storefront" && npm ci
   ```
-- [ ] 1.4 GitHub: `gh auth status`. Both accounts should be listed. Switch to
+- [x] 1.4 GitHub: `gh auth status`. Both accounts should be listed. Switch to
       `serakhabarofficial` only when pushing (Rule S4).
 - [ ] 1.5 Ask the user whether they've **created** the new Supabase, Vercel and
       Cloudflare accounts yet. If not, list what to create:
@@ -181,7 +181,7 @@ Ask in simple English, one small group at a time. Write the answers into the
       (update again after Phases 5 and 9).
 
 ### 3B. The agent wires this repo to the new project
-- [ ] 3.6 Replace the placeholder with the real ref:
+- [x] 3.6 Replace the placeholder with the real ref:
   ```bash
   cd "$BASE/sera-khabar-commerceos"
   NEW_REF=<ref>
