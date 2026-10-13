@@ -361,10 +361,14 @@ TypeScript is strict — do not use `any` unless absolutely unavoidable and docu
 
 ## 10. Git & Shipping Workflow
 
-Branch from `main`. Commit messages use imperative style: `fix:`, `feat:`, `chore:`, `refactor:`.
+Commit messages use imperative style: `fix:`, `feat:`, `chore:`, `refactor:`. Choose the shipping path by risk, not just the number of changed lines.
 
-> **When code is ready to ship:** invoke `ship` skill — it merges base branch, runs checks, bumps VERSION, updates CHANGELOG, and creates the PR. Do not push directly to main. Before merging, invoke `review` to catch pre-landing issues. After merging, invoke `land-and-deploy` to verify production health.
->
+- **Small, low-risk changes:** documentation, copy corrections, or isolated styling/static-image changes that do not alter application behavior may go directly to `main` after diff review, required checks, and the user's explicit approval to push to `main`. A PR is optional for these changes; create one if the user requests it. A topic branch is optional. Do not invoke `ship` or add VERSION/CHANGELOG changes just to deliver a small fix.
+- **Larger or risky changes:** branch from `main` and use a PR. This includes authentication, security, database/schema, checkout, orders, inventory, integrations, dependencies, architecture, or production deployment configuration, even when the diff is small. If the risk is unclear, use a PR.
+- **Approval:** implementing a change does not authorize publishing it. Get explicit approval for pushing, opening a PR, merging, or deploying. PR creation does not imply permission to merge it. A push or merge to `main` automatically deploys on Vercel; make that consequence clear when requesting approval.
+- **Before publishing:** review the complete diff, run the required checks, preserve unrelated work, and follow the account checks and pre-push-hook rules in `SERA_KHABAR_SETUP.md`. A direct push must be a normal, non-force push; if remote changes or branch protection prevent it, stop and ask rather than bypassing safeguards.
+- **Shipping skills:** use `ship` for the PR path and `land-and-deploy` only for an approved merge/deploy. Their default workflows do not override the small-change exception or approval requirements above. Verify production health after an approved deployment.
+
 > **For weekly engineering retrospectives:** invoke `retro` skill.
 >
 > **To save/restore working context across sessions:** invoke `context-save` and `context-restore`.
