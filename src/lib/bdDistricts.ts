@@ -86,7 +86,6 @@ const DISTRICT_AREA_ALIASES: Record<string, string> = {
   উত্তরা: "Dhaka",
   badda: "Dhaka",
   বাড্ডা: "Dhaka",
-  বাড্ডা: "Dhaka",
   khilgaon: "Dhaka",
   motijheel: "Dhaka",
   paltan: "Dhaka",
