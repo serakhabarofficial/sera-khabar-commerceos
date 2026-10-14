@@ -1,14 +1,14 @@
 # Handoff — Sera Khabar setup
 
-Last updated: 2026-10-12. Full step-by-step plan and safety rules: `SERA_KHABAR_SETUP.md` (read it first).
+Last updated: 2026-10-15. Full step-by-step plan and safety rules: `SERA_KHABAR_SETUP.md` (read it first).
 Never put secrets in this file. They live in the local `.env` files (git-ignored) and in Vercel.
 
 ## Where things are
 
 | Part | URL | Vercel project | GitHub repo |
 |---|---|---|---|
-| Merchant Suite (dashboard) | https://sera-khabar-commerceos.vercel.app | `sera-khabar-commerceos` (`prj_ucCq5RoMVsLYHbubFbeAZRFSLnZu`) | `serakhabarofficial/sera-khabar-commerceos` |
-| Storefront (shop) | https://serakhabar-storefront.vercel.app (also `storefront-690aa8b3.vercel.app`) | `storefront-690aa8b3` (`prj_6LwMpprczqsb1GbmSRZeZzblu76C`) | `serakhabarofficial/sera-khabar-storefront` |
+| Merchant Suite (dashboard) | https://admin.serakhabar.com (also `sera-khabar-commerceos.vercel.app`) | `sera-khabar-commerceos` (`prj_ucCq5RoMVsLYHbubFbeAZRFSLnZu`) | `serakhabarofficial/sera-khabar-commerceos` |
+| Storefront (shop) | https://www.serakhabar.com (`serakhabar.com` 308-redirects to `www`; also `serakhabar-storefront.vercel.app`) | `storefront-690aa8b3` (`prj_6LwMpprczqsb1GbmSRZeZzblu76C`) | `serakhabarofficial/sera-khabar-storefront` |
 | Database | Supabase project `xnuiaxygeoydtopvcmli` (Singapore) | — | — |
 
 Vercel team `serakhabarofficial-6832` (`team_d5c0Y4idD8xCTKpDyV5WgLmk`). Cloudflare account `serakhabarofficial@gmail.com`.
@@ -46,14 +46,14 @@ Pushes to `main` in either repo deploy automatically. Push only as the `serakhab
 ## Left to do
 
 **Owner actions (dashboard / accounts)**
-1. Supabase → Authentication: turn off **Confirm email**; set **Site URL** to `https://sera-khabar-commerceos.vercel.app` (later `https://admin.serakhabar.com`). Not verified yet.
+1. Supabase → Authentication: turn off **Confirm email** (not verified yet). Site URL → `https://admin.serakhabar.com` (done by the owner 2026-10-15).
 2. Rotate the secrets that were pasted in chat before go-live: Supabase DB password, service-role key, Vercel access token, admin password. After rotating, update the local `.env` and the Vercel env vars.
-3. Move `serakhabar.com` into the Sera Khabar Cloudflare account. It is in another Cloudflare account and still serves the old WordPress shop.
+3. ~~Move `serakhabar.com`~~ Done: the domain now points at Vercel.
 4. Provide later: AI key (OpenAI/OpenRouter), Google Analytics/GTM ID, SMS provider, full street address (the shop shows only "Rajshahi, Bangladesh"), Instagram (if any).
-5. Settings page: shipping charges (inside/outside Dhaka) and other store info.
+5. Settings page: shipping zones (none set — checkout falls back to a ৳100 default) and store info (the public config shows an empty store name).
 
 **Agent work**
-6. **Phase 9 — domains:** add `www.serakhabar.com` + apex to the storefront project and `admin.serakhabar.com` to the Suite; add the DNS records in Cloudflare (DNS-only/grey cloud for Vercel). Then replace the hardcoded Suite URL `https://sera-khabar-commerceos.vercel.app` in the storefront code (`script/build.ts`, `middleware.ts`, `server/order-service.ts`, `server/abandoned-cart-service.ts`, `server/campaign-links.ts`, `api/orders.ts`, `api/abandoned-carts.ts`, `client/src/lib/tracker.ts`, `client/src/lib/storefront-products.ts`), and update `MERCHANT_SUITE_PUBLIC_URL`/`APP_URL` (Suite) and `VITE_MERCHANT_SUITE_URL`/`MERCHANT_SUITE_URL` (storefront). Supabase Site URL too.
+6. ~~Phase 9 — domains~~ **Done 2026-10-15:** domains connected; storefront code (11 files) and env vars `MERCHANT_SUITE_PUBLIC_URL`/`APP_URL` (Suite) and `MERCHANT_SUITE_URL`/`VITE_MERCHANT_SUITE_URL` (storefront) point at `https://admin.serakhabar.com`; both redeployed. Supabase Site URL set by the owner. Test order **`SK-1001`** ("TEST ORDER - please cancel", ৳400) placed through the public orders API and landed in the Sera Khabar workspace — cancel it from the dashboard. Still to test: an order through the real checkout page (needs the gate password).
 7. **Phase 7 — storefront design:** still Mango Lover's layout and colours (yellow highlights), some Mango Lover homepage/category pictures, and the copied campaign pages `/step/*` (honey, kalojira, honey-nut are Mango Lover products; katimon and pumpkin bori could be reused). The homepage hero crops the logo under its fade. **Homepage direction approved 2026-10-13, not built yet:** the full spec and the approved mockup are in the storefront repo at `docs/design/2026-10-13-homepage/` (`README.md` + `homepage-mockup.html`, variant ক · রঙিন কার্ড). Summary: "Market Poster" layout, palette তেঁতুল + হলুদ (`#5B2D17` / `#F6B826` / `#E2547A` on `#FAF4EA`), Noto Serif Bengali titles, Atma for every digit, categories ফ্রেশ আম/হোমমেড/গুড় only as coloured cut-out cards (one per row on phone), product photos blended with no colour behind them, cash-memo footer with the designer credit emblem as the signature.
 8. **Phase 10 — integrations:** Steadfast keys + webhook, FraudShield, Meta (Facebook page/WhatsApp), AI brand doc, SMS, team invites.
 9. **Phase 11 — go-live:** test order (lands as `SK-1001`, then cancel), courier send/cancel, live price/stock update without redeploy, image upload, crons. Then **launch by deleting `SITE_ACCESS_PASSWORD`** from the storefront Vercel project and redeploying, and submit `https://www.serakhabar.com/sitemap.xml` in Google Search Console.
