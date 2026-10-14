@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 type Color =
   | "default"
+  | "brand"
   | "blue"
   | "purple"
   | "pink"
@@ -41,6 +42,7 @@ interface RichButtonProps
 const colorMap: Record<Color, string> = {
   default:
     "bg-[#E3E3E3]/80 hover:bg-[#E3E3E3] shadow-[0_2px_4px_0_rgba(0,0,0,0.10),0_0_0_1px_rgba(0,0,0,0.16),inset_0_1px_0_0_#FDFDFD] focus-visible:ring-[#1a1614]",
+  brand: "from-brand/85 to-brand dark:from-brand/75",
   emerald: "from-emerald-600/85 to-emerald-600 dark:from-emerald-600/75",
   blue: "from-blue-600/85 to-blue-600 dark:from-blue-600/75",
   purple: "from-purple-600/85 to-purple-600 dark:from-purple-600/75",
@@ -67,6 +69,7 @@ const colorMap: Record<Color, string> = {
 
 const textShadowMap: Record<Color, string> = {
   default: "",
+  brand: "[text-shadow:0_1px_0_var(--color-brand-deep)]",
   emerald: "[text-shadow:0_1px_0_var(--color-emerald-800)]",
   blue: "[text-shadow:0_1px_0_var(--color-blue-800)]",
   purple: "[text-shadow:0_1px_0_var(--color-purple-800)]",

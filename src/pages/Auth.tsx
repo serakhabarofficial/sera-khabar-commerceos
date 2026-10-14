@@ -233,7 +233,7 @@ export default function Auth() {
               >
                 {/* Logo — matches sidebar header */}
                  <div className="mb-10 max-md:mb-7 flex items-center gap-1">
-                   <Logo className="h-[21px] w-auto shrink-0 max-md:h-[19px]" />
+                   <Logo className="h-[30px] w-auto shrink-0 max-md:h-[26px]" />
                    <span className="text-[21px] max-md:text-[18px] font-bold tracking-tight text-[#111] antialiased">
                     Sera Khabar Suite
                   </span>
@@ -360,7 +360,7 @@ export default function Auth() {
                     <RichButton
                       type="submit"
                       disabled={loading}
-                      color="default"
+                      color="brand"
                       size="lg"
                        className="w-full mt-2 h-11 max-md:h-12 rounded-lg"
                     >

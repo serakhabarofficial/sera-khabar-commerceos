@@ -11,6 +11,18 @@
  * --------------------------------------------------------------------------- */
 
 @theme {
+  /* ----- Sera Khabar brand ---------------------------------------------------
+   * Deep green and leaf orange from the Sera Khabar logo. Use bg-brand,
+   * text-brand, bg-brand-soft, bg-brand-accent and friends.
+   * --------------------------------------------------------------------------*/
+  --color-brand:             #015128;
+  --color-brand-hover:       #013F1F;
+  --color-brand-deep:        #00301A;
+  --color-brand-soft:        #E6EFE9;
+  --color-brand-accent:      #F7871E;
+  --color-brand-accent-soft: #FEF1E3;
+  --color-brand-accent-ink:  #9A4A05;
+
   /* ----- Color primitives ----------------------------------------------------
    * Almost the entire palette matches Tailwind v4's OKLCH defaults. The four
    * overrides below are the only intentional deviations (see Figma → variables
@@ -213,8 +225,8 @@
   --color-border-focus-ring:       var(--color-blue-500);
 
   /* State */
-  --color-state-success-text: var(--color-lime-800);
-  --color-state-success-base: var(--color-lime-200);
+  --color-state-success-text: var(--color-green-800);
+  --color-state-success-base: var(--color-green-200);
 
   /* Selected control interiors remain light on colored tracks in both themes. */
   --color-control-indicator-background:        var(--color-white);
@@ -259,16 +271,16 @@
   /* Notification status-icon surfaces. */
   --color-notification-information-background: var(--color-blue-100);
   --color-notification-information-foreground: var(--color-blue-600);
-  --color-notification-success-background:     var(--color-lime-100);
-  --color-notification-success-foreground:     var(--color-lime-600);
+  --color-notification-success-background:     var(--color-green-100);
+  --color-notification-success-foreground:     var(--color-green-700);
   --color-notification-error-background:       var(--color-rose-100);
   --color-notification-error-foreground:       var(--color-rose-600);
   --color-notification-center-background:      var(--color-white);
 
   /* Table status chips. Dark mappings come from the medical dashboard table
    * in Figma (4139:7202, 4139:7240, 4139:7278, 4139:7315). */
-  --color-status-lime-background:   var(--color-lime-200);
-  --color-status-lime-text:         var(--color-lime-800);
+  --color-status-lime-background:   var(--color-brand-soft);
+  --color-status-lime-text:         var(--color-brand);
   --color-status-green-background:  var(--color-green-200);
   --color-status-green-text:        var(--color-green-800);
   --color-status-yellow-background: var(--color-yellow-200);
@@ -455,8 +467,8 @@
    * remains crisp without reverting to a bright pastel circle. */
   --color-notification-information-background: color-mix(in srgb, var(--color-blue-800) 50%, transparent);
   --color-notification-information-foreground: var(--color-blue-300);
-  --color-notification-success-background:     color-mix(in srgb, var(--color-lime-800) 50%, transparent);
-  --color-notification-success-foreground:     var(--color-lime-300);
+  --color-notification-success-background:     color-mix(in srgb, var(--color-green-800) 50%, transparent);
+  --color-notification-success-foreground:     var(--color-green-300);
   --color-notification-error-background:       color-mix(in srgb, var(--color-rose-800) 50%, transparent);
   --color-notification-error-foreground:       var(--color-rose-300);
   --color-notification-center-background:      var(--color-neutral-900);
@@ -479,8 +491,8 @@
   --color-separator-border-strong: color-mix(in srgb, var(--color-neutral-700) 60%, transparent);
 
   /* Figma's dark table status pairs. */
-  --color-status-lime-background:   color-mix(in srgb, var(--color-lime-950) 60%, transparent);
-  --color-status-lime-text:         var(--color-lime-500);
+  --color-status-lime-background:   color-mix(in srgb, var(--color-green-950) 60%, transparent);
+  --color-status-lime-text:         var(--color-green-400);
   --color-status-green-background:  color-mix(in srgb, var(--color-green-950) 60%, transparent);
   --color-status-green-text:        var(--color-green-400);
   --color-status-yellow-background: color-mix(in srgb, var(--color-yellow-950) 60%, transparent);

@@ -1806,7 +1806,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 max-md:w-full max-md:flex-col max-md:items-stretch">
             {!isAbandonedQueue && activeOrderStatusFilter === "print" && (
               <PopButton
-                color="sky"
+                color="default"
                 size="sm"
                 onClick={() => void handlePackingSummary()}
                 disabled={filteredOrders.length === 0}
@@ -1819,11 +1819,11 @@ export default function Dashboard() {
             )}
 
             <PopButton
-              color="yellow"
+              color="brand"
               size="sm"
               onClick={() => navigate("/orders/new", { state: { from: location.pathname } })}
               disabled={bulkUpdating || autoSyncing}
-              className="gap-1.5 px-3 text-[11px] font-bold tracking-normal text-black max-md:w-full max-md:justify-center"
+              className="gap-1.5 px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
               data-testid="button-create-order"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -1833,7 +1833,7 @@ export default function Dashboard() {
               <Popover open={bulkMenuOpen} onOpenChange={setBulkMenuOpen}>
               <PopoverTrigger asChild>
                 <PopButton
-                  color="sky"
+                  color="default"
                   size="sm"
                   disabled={bulkUpdating || selectedOrderIds.size === 0}
                   className="gap-1.5 px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
@@ -1874,7 +1874,7 @@ export default function Dashboard() {
               <Popover open={abandonedBulkMenuOpen} onOpenChange={setAbandonedBulkMenuOpen}>
                 <PopoverTrigger asChild>
                   <PopButton
-                    color="sky"
+                    color="default"
                     size="sm"
                     disabled={bulkAbandonedRunning || selectedAbandonedIds.size === 0}
                     className="gap-1.5 px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"

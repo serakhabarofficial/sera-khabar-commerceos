@@ -68,11 +68,11 @@ const SyncOrderLiquidButton = ({ onClick, loading = false, disabled = false }: S
                     onMouseEnter={() => setIsHovered(true)}
                     onMouseLeave={() => setIsHovered(false)}
                     disabled={!interactive}>
-                    <span className="flex items-center justify-center px-4 gap-2 rounded-lg group-hover:text-yellow-400 text-white text-sm font-semibold tracking-wide whitespace-nowrap h-full">
+                    <span className="flex items-center justify-center px-4 gap-2 rounded-lg group-hover:text-brand-accent text-white text-sm font-semibold tracking-wide whitespace-nowrap h-full">
                         {loading ? (
                             <Spinner className="text-white/70" />
                         ) : (
-                            <RefreshCw className={`w-4 h-4 flex-shrink-0 transition-colors ${isHovered ? 'fill-yellow-400 text-yellow-400' : 'fill-white text-white'}`} />
+                            <RefreshCw className={`w-4 h-4 flex-shrink-0 transition-colors ${isHovered ? 'fill-brand-accent text-brand-accent' : 'fill-white text-white'}`} />
                         )}
                         <span>{loading ? 'Syncing...' : 'Sync Order'}</span>
                     </span>

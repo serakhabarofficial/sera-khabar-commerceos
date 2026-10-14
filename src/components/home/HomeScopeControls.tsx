@@ -18,7 +18,7 @@ const tinted = (Icon: PhosphorIcon, color: string): ChannelLogo => function Tint
 
 // Full-colour marks from Settings → Integrations where the channel has one.
 const CHANNEL_LOGOS: Record<HomeChannel, ChannelLogo> = {
-  all: tinted(SquaresFour, "#E0861B"),
+  all: tinted(SquaresFour, "#015128"),
   website: CustomWebsiteLogo,
   facebook: FacebookLogo,
   instagram: InstagramLogo,

@@ -1118,7 +1118,7 @@ export default function InboxOrders() {
                         {!order.sent_to_courier ? (
                           <Popover>
                             <PopoverTrigger asChild>
-                              <button className="send-btn flex items-center rounded-xl bg-white border border-amber-500 text-amber-500 text-[11px] font-medium px-3 py-1.5 overflow-hidden transition-all duration-200 cursor-pointer active:scale-95 hover:bg-amber-50">
+                              <button className="send-btn flex items-center rounded-xl bg-white border border-brand text-brand text-[11px] font-medium px-3 py-1.5 overflow-hidden transition-all duration-200 cursor-pointer active:scale-95 hover:bg-brand-soft">
                                 <div className="send-btn-svg-wrapper flex items-center">
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={13} height={13} className="send-btn-icon transition-transform duration-300 origin-center">
                                     <path fill="none" d="M0 0h24v24H0z"/>

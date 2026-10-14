@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 export function Logo({ className }: { className?: string }) {
     return (
         <img
-            src="/favicon.svg"
+            src="/brand/sera-khabar-mark.webp"
             alt="Sera Khabar Suite"
-            className={cn("shrink-0 mix-blend-multiply brightness-0", className)}
+            className={cn("shrink-0 object-contain", className)}
         />
     );
 }

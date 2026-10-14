@@ -58,7 +58,7 @@ describe("OrdersTable order source chip", () => {
   it.each([
     ["facebook", "bg-status-blue-background"],
     ["telesales", "bg-status-green-background"],
-    ["storefront", "bg-status-yellow-background"],
+    ["storefront", "bg-brand-accent-soft"],
     ["whatsapp", "bg-status-green-background"],
     ["upsell", "bg-status-purple-background"],
   ])("colors the %s source chip", (source, bgClass) => {

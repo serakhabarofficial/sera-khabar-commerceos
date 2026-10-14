@@ -3,24 +3,26 @@
 import { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion"
 
+// Sera Khabar Suite highlights shown beside the sign-in form. No customer
+// quotes: these describe what the Suite does for the Sera Khabar team.
 const testimonials = [
   {
-    quote: "Transformed our entire order management overnight.",
-    author: "Nafis Rahman",
-    role: "Operations Director",
-    company: "Angonaloy",
+    quote: "অর্ডার, ডেলিভারি আর হিসাব, সব এক জায়গায়।",
+    author: "Sera Khabar Suite",
+    role: "সেরা খাবার",
+    company: "Sera Khabar",
   },
   {
-    quote: "The most elegant commerce solution we've ever used.",
-    author: "Maliha Chowdhury",
-    role: "Founder",
-    company: "Noksha Living",
+    quote: "Confirm, pack and send every order from one screen.",
+    author: "Orders and courier",
+    role: "Steadfast · Pathao",
+    company: "Sera Khabar",
   },
   {
-    quote: "Pure craftsmanship in every single detail.",
-    author: "Tahsin Ahmed",
-    role: "Head of E-commerce",
-    company: "ZAIR",
+    quote: "See what each order really earns after delivery and cost of goods.",
+    author: "Business Analytics",
+    role: "Profit per order",
+    company: "Sera Khabar",
   },
 ]
 
@@ -91,7 +93,7 @@ export function AuthTestimonial() {
             className="mb-8"
           >
             <span className="inline-flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-black/35">
-              <span className="w-1 h-1 rounded-full bg-black/30" />
+              <span className="w-1 h-1 rounded-full bg-brand-accent" />
               {current.company}
             </span>
           </motion.div>
@@ -154,7 +156,7 @@ export function AuthTestimonial() {
               key={i}
               onClick={() => setActiveIndex(i)}
               className={`h-px transition-all duration-700 ${
-                i === activeIndex ? "w-8 bg-black/40" : "w-4 bg-black/10 hover:bg-black/20"
+                i === activeIndex ? "w-8 bg-brand" : "w-4 bg-black/10 hover:bg-black/20"
               }`}
             />
           ))}

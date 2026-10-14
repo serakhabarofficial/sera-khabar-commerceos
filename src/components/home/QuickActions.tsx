@@ -17,7 +17,7 @@ export function QuickActions({ actions }: { actions: HomeQuickAction[] }) {
           <span
             className={cn(
               "rounded-full px-2 py-0.5 text-[12.5px] font-medium tabular-nums",
-              action.tone === "warn" && (action.count ?? 0) > 0 ? "bg-[#FDEFD9] text-[#E0861B]" : "bg-[#F2F1EC] text-[#55534E]",
+              action.tone === "warn" && (action.count ?? 0) > 0 ? "bg-brand-accent-soft text-brand-accent-ink" : "bg-[#F2F1EC] text-[#55534E]",
             )}
           >
             {action.count ?? "—"}

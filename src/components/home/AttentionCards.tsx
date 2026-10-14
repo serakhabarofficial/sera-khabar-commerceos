@@ -8,7 +8,7 @@ import type { HomeAttentionCard, HomeChatRow, HomeOrderRow, HomePreview, HomeTag
 
 const TAG_TONES: Record<HomeTagTone, string> = {
   ok: "bg-[#E3F4E5] text-[#2B7A36]",
-  warn: "bg-[#FDEFD9] text-[#E0861B]",
+  warn: "bg-brand-accent-soft text-brand-accent-ink",
   risk: "bg-[#FBE4E1] text-[#B4372A]",
 };
 
@@ -59,7 +59,7 @@ function Bars({ rows }: { rows: { label: string; value: number }[] }) {
         <div key={row.label} className="relative flex w-[58px] flex-col items-center">
           <span className="mb-1.5 w-[72px] truncate text-center text-[11px] text-[#55534E]" title={row.label}>{row.label}</span>
           <motion.div
-            className="w-[58px] origin-bottom rounded-t-xl bg-[linear-gradient(160deg,#FFE1A3,#F2A93B_55%,#E0861B)] shadow-[inset_0_2px_0_rgba(255,255,255,0.6),0_10px_30px_rgba(224,134,27,0.25)]"
+            className="w-[58px] origin-bottom rounded-t-xl bg-[linear-gradient(160deg,#5FA777,#1F6B3E_55%,#015128)] shadow-[inset_0_2px_0_rgba(255,255,255,0.35),0_10px_30px_rgba(1,81,40,0.22)]"
             style={{ height: 40 + (row.value / max) * 150 }}
             initial={reduceMotion ? false : { scaleY: 0 }}
             animate={{ scaleY: 1 }}
@@ -76,7 +76,7 @@ function Places({ rows }: { rows: { city: string; count: number }[] }) {
     <ul className="flex flex-col gap-2">
       {rows.map((row) => (
         <li key={row.city} className="flex items-center gap-2.5 rounded-[10px] bg-[#F6F5F1] px-3.5 py-2.5 text-[13px]">
-          <span className="h-2 w-2 rounded-full bg-[#F2A93B]" aria-hidden="true" />
+          <span className="h-2 w-2 rounded-full bg-brand-accent" aria-hidden="true" />
           <span className="flex-1 truncate">{row.city}</span>
           <span className="tabular-nums text-[#8C8A84]">{row.count}</span>
         </li>
@@ -98,7 +98,7 @@ function Preview({ preview, kind }: { preview: HomePreview | null; kind: string 
   if (preview?.type === "bars" && preview.rows.length) return <Bars rows={preview.rows} />;
   if (preview?.type === "places" && preview.rows.length) return <Places rows={preview.rows} />;
   return (
-    <div aria-hidden="true" className="flex justify-end text-[#F2A93B]/70">
+    <div aria-hidden="true" className="flex justify-end text-brand-accent/70">
       {KIND_ICONS[kind] ?? <CheckCircle weight="light" size={96} />}
     </div>
   );

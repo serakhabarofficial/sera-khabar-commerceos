@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 type Color =
   | "default"
+  | "brand"
   | "blue"
   | "purple"
   | "pink"
@@ -50,6 +51,7 @@ const PopButton = React.forwardRef<HTMLButtonElement, PopButtonProps>(
     const colors: Record<Color, string> = {
       default:
         "bg-white hover:bg-gray-50 border-neutral-300 text-neutral-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-100",
+      brand: "bg-brand hover:bg-brand-hover border-brand-deep text-white",
       blue: "bg-blue-500 hover:bg-blue-600 border-blue-800 text-white",
       purple: "bg-purple-500 hover:bg-purple-600 border-purple-800 text-white",
       pink: "bg-pink-500 hover:bg-pink-600 border-pink-800 text-white",

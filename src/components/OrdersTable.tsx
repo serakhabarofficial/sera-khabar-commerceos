@@ -245,7 +245,7 @@ interface FraudData {
 const ORDER_SOURCE_CHIP_COLORS: Partial<Record<OrderSource, ComponentProps<typeof Chip>["color"]>> = {
   facebook: "blue",
   telesales: "green",
-  website: "yellow",
+  website: "orange",
   whatsapp: "green",
   upsell: "purple",
 };
@@ -1298,7 +1298,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
               </button>
             )}
             {!order.sent_to_courier && (
-              <button type="button" onClick={() => handleSendToCourier(order)} className="min-h-10 rounded-xl border border-amber-300 bg-amber-50 px-3 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+              <button type="button" onClick={() => handleSendToCourier(order)} className="min-h-10 rounded-xl border border-brand/30 bg-brand-soft px-3 text-[10px] font-semibold uppercase tracking-wide text-brand">
                 Send courier
               </button>
             )}
@@ -1625,7 +1625,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                       {!order.sent_to_courier ? (
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="send-btn flex items-center rounded-xl bg-white border border-amber-500 text-amber-500 text-[11px] font-medium px-3 py-1.5 overflow-hidden transition-all duration-200 cursor-pointer active:scale-95 hover:bg-amber-50">
+                            <button className="send-btn flex items-center rounded-xl bg-white border border-brand text-brand text-[11px] font-medium px-3 py-1.5 overflow-hidden transition-all duration-200 cursor-pointer active:scale-95 hover:bg-brand-soft">
                               <div className="send-btn-svg-wrapper flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={13} height={13} className="send-btn-icon transition-transform duration-300 origin-center">
                                   <path fill="none" d="M0 0h24v24H0z"/>

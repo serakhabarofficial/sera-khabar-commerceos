@@ -105,7 +105,7 @@ function NavBadgeDot({ count }: { count?: number }) {
             <span
                 data-testid="nav-badge-dot"
                 aria-hidden="true"
-                className="pointer-events-none absolute left-[18px] top-[4px] h-[7px] w-[7px] rounded-full bg-amber-500 opacity-0 ring-2 ring-[#f4f3f1] transition-opacity duration-200 ease-out group-data-[collapsible=icon]:opacity-100"
+                className="pointer-events-none absolute left-[18px] top-[4px] h-[7px] w-[7px] rounded-full bg-brand-accent opacity-0 ring-2 ring-[#f4f3f1] transition-opacity duration-200 ease-out group-data-[collapsible=icon]:opacity-100"
             />
             {state === "collapsed" && <span className="sr-only">{count} pending</span>}
         </>

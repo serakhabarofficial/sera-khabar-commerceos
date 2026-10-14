@@ -25,10 +25,11 @@ import { cx, sortCx } from "@/utils/cx";
  *   neutral bg color/neutral/200 text color/neutral/500
  *   gray    bg color/neutral/100 text color/neutral/800
  *   soft    bg background/secondary/default text text/secondary
+ *   orange  Sera Khabar leaf orange (brand-accent-soft / brand-accent-ink)
  */
 
 type ChipVariant = "bold" | "subtle" | "caption";
-type ChipColor = "lime" | "green" | "rose" | "yellow" | "cyan" | "blue" | "purple" | "neutral" | "gray" | "soft";
+type ChipColor = "lime" | "green" | "rose" | "yellow" | "cyan" | "blue" | "purple" | "neutral" | "gray" | "soft" | "orange";
 
 export interface ChipProps extends HTMLAttributes<HTMLSpanElement> {
   variant?: ChipVariant;
@@ -54,6 +55,7 @@ const styles = sortCx({
     neutral: "bg-background-tertiary-default text-text-secondary",
     gray: "bg-background-secondary-default text-text-primary",
     soft: "bg-background-secondary-default text-text-secondary",
+    orange: "bg-brand-accent-soft text-brand-accent-ink",
   },
 });
 
