@@ -8,8 +8,8 @@ describe("deterministic risk decision", () => {
   it("publishes the contracted families, scores and thresholds", () => {
     expect(FAMILIES).toEqual(["IDENTITY", "DEVICE", "NETWORK", "BEHAVIOUR", "CONTENT", "LOCATION", "HISTORY", "LIST"]);
     expect(SEVERITY_POINTS).toEqual({ critical: 100, high: 40, medium: 20, low: 10 });
-    expect(THRESHOLDS).toMatchObject({ holdScore: 40, blockScore: 100, blockMinHighFamilies: 2, fastCheckoutSeconds: 12, unusualLineQuantity: 10 });
-    expect(Object.keys(SIGNAL_DEFINITIONS)).toHaveLength(32);
+    expect(THRESHOLDS).toMatchObject({ holdScore: 40, blockScore: 100, blockMinHighFamilies: 2, fastCheckoutSeconds: 12, unusualLineQuantity: 10, bulkOrderUnits: 20 });
+    expect(Object.keys(SIGNAL_DEFINITIONS)).toHaveLength(33);
     expect(() => createSignal("unknown", "evidence")).toThrow();
   });
 
@@ -52,5 +52,12 @@ describe("deterministic risk decision", () => {
     expect(decideRisk({ signals: signals("courier_no_history", "address_incomplete"), contextTrusted: true })).toMatchObject({ decision: "HOLD", reasons: ["incomplete_address_unknown"] });
     expect(decideRisk({ signals: signals("courier_no_history", "address_incomplete", "trusted_delivered_customer"), contextTrusted: true }).decision).toBe("ALLOW");
     expect(decideRisk({ signals: signals("honeypot_filled"), contextTrusted: true }).decision).toBe("HOLD");
+  });
+
+  it("holds a bulk order unless we have already delivered to the customer", () => {
+    expect(decideRisk({ signals: signals("quantity_bulk"), contextTrusted: true })).toMatchObject({ decision: "HOLD", reasons: ["bulk_quantity_unproven"] });
+    // Courier history from other merchants does not vouch for a bulk order.
+    expect(decideRisk({ signals: signals("quantity_bulk", "courier_strong_history"), contextTrusted: true })).toMatchObject({ decision: "HOLD", reasons: ["bulk_quantity_unproven"] });
+    expect(decideRisk({ signals: signals("quantity_bulk", "trusted_delivered_customer"), contextTrusted: true }).decision).toBe("ALLOW");
   });
 });
