@@ -22,6 +22,7 @@ const REASON_LABELS: Record<string, string> = {
   incomplete_address_unknown: "Incomplete address from a number with no trust record",
   confirmed_fake_history: "Previously confirmed fake orders on this phone or device",
   independent_high_families: "Strong signals from independent checks",
+  bulk_quantity_unproven: "Bulk quantity from a customer we have not delivered to",
   honeypot_filled: "Hidden bot-trap field was filled",
   staff_allowlist: "Allowlisted by staff",
   untrusted_context: "Unverified browser context",

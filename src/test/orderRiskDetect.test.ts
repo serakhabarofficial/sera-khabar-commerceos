@@ -45,4 +45,10 @@ describe("risk detectors", () => {
       expect(codes({ ...ctx, turnstile })).not.toContain("bot_check_failed");
     }
   });
+
+  it("flags a bulk order by its total units across lines", () => {
+    expect(codes({ ...ctx, items: [{ quantity: 20 }] })).not.toContain("quantity_bulk");
+    expect(codes({ ...ctx, items: [{ quantity: 10 }, { quantity: 11 }] })).toContain("quantity_bulk");
+    expect(codes({ ...ctx, items: [{ quantity: 100 }] })).toEqual(expect.arrayContaining(["quantity_unusual", "quantity_bulk"]));
+  });
 });

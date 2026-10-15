@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0.72] - 2026-10-16
+
+### Fixed
+
+- Bulk website orders are held for a call. An order with more than 20 units in total now raises a high "Bulk quantity" signal and is held as "Bulk quantity from a customer we have not delivered to", unless we have already delivered to that customer. Good courier history from other merchants does not exempt it. Before this, a prank order for 100 packs scored 10 and went through.
+- The abuse list now recognises common crude Bangla and English words, including "পায়খানা". Matching is whole-word only, so names and places such as "বালক" or "বালুচর" are not flagged.
+
 ## [0.1.0.71] - 2026-10-10
 
 ### Fixed
