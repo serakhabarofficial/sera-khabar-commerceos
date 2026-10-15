@@ -5,8 +5,12 @@ import { parseDate, type CalendarDate } from "@internationalized/date";
 import { ChevronDown } from "lucide-react";
 import { X } from "@phosphor-icons/react";
 import { SolarCalendarIcon } from "@/components/SolarDateIcons";
-import { Button } from "@/components/base/buttons/button";
-import { MonthPanel, popoverClassName } from "@/components/base/date-picker/shared";
+import {
+  MonthPanel,
+  pickerPrimaryButtonClassName,
+  pickerSecondaryButtonClassName,
+  popoverClassName,
+} from "@/components/base/date-picker/shared";
 import { cn } from "@/lib/utils";
 import { useDismissOnOutsidePress, useTriggerToggle } from "@/utils/use-dismiss-on-outside-press";
 import { getBangladeshDateKey } from "../../../../shared/orderHold.js";
@@ -75,11 +79,13 @@ export function DatePicker({
       <AriaPopover ref={popoverRef} offset={4} placement="bottom start" isNonModal className={popoverClassName}>
         <Dialog aria-label={ariaLabel} className="outline-none">
           <Calendar aria-label={ariaLabel} value={selected} onChange={(date) => pick(date.toString())}>
-            <div className="flex flex-col gap-2 p-2">
-              <MonthPanel offset={0} showPrev showNext />
-              <div className="flex items-center justify-between gap-2 px-1">
-                <Button variant="ghost" size="small" onClick={() => pick(null)}>Clear</Button>
-                <Button variant="secondary" size="small" onClick={() => pick(getBangladeshDateKey())}>Today</Button>
+            <div className="flex flex-col">
+              <div className="px-[15px] pt-1 pb-3">
+                <MonthPanel offset={0} showPrev showNext />
+              </div>
+              <div className="flex h-[50px] items-center justify-end gap-2 border-t border-[#EBEBEB] px-3.5">
+                <button type="button" className={pickerSecondaryButtonClassName} onClick={() => pick(null)}>Clear</button>
+                <button type="button" className={pickerPrimaryButtonClassName} onClick={() => pick(getBangladeshDateKey())}>Today</button>
               </div>
             </div>
           </Calendar>

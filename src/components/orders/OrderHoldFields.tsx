@@ -91,7 +91,7 @@ export function OrderHoldFields({ value, onChange, disabled = false, popoverPort
                 <CalendarBlank aria-hidden weight="light" size={16} className="text-black/55" />
               </button>
             </PopoverTrigger>
-            <PopoverContent side="top" align="start" className="w-auto p-0">
+            <PopoverContent side="top" align="start" className="w-auto overflow-hidden rounded-xl border-0 bg-white p-0 shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_4px_6px_-2px_rgba(26,26,26,0.2),0_12px_24px_-4px_rgba(26,26,26,0.12)]">
               <Calendar
                 mode="single"
                 selected={value.hold_until_date ? dateFromDateKey(value.hold_until_date) : undefined}
