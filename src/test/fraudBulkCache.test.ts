@@ -36,7 +36,7 @@ describe("bulk fraud checks reuse cache", () => {
 
   it("sends force:false from the orders bulk handler but not the single handler", () => {
     const table = read("src/components/OrdersTable.tsx");
-    const bulk = section(table, "const handleBulkFraudCheck", "const bulkSelectionOrders");
+    const bulk = section(table, "const handleBulkFraudCheck", "const selectedPrintOrders");
     const single = section(table, "const handleCheckFraud", "const handleBulkFraudCheck");
 
     expect(bulk).toContain("force: false");

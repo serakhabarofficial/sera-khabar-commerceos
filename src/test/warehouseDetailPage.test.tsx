@@ -192,46 +192,52 @@ describe("warehouse detail", () => {
     expect(await screen.findByText("New order editor")).toBeInTheDocument();
   });
 
-  it("moves selected routed orders from the header status menu", async () => {
-    const user = userEvent.setup();
+  function mockBulkStatus() {
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === "/api/warehouses/main") return { ok: true, json: async () => detail };
       if (url === "/api/orders?warehouse_id=main") return { ok: true, json: async () => ({ orders: warehouseOrders }) };
-      if (url === "/api/orders/o1" && init?.method === "PATCH") {
+      if (url === "/api/orders/bulk-status" && init?.method === "POST") {
         const body = JSON.parse(String(init.body));
-        return { ok: true, json: async () => ({ success: true, order: { ...warehouseOrders[0], status: body.status } }) };
+        const updated = warehouseOrders.filter((order) => body.orderIds.includes(order.id)).map((order) => ({ ...order, status: body.status }));
+        return { ok: true, json: async () => ({ success: true, processed: updated.length, failed: 0, updated, failures: [] }) };
       }
       return { ok: true, json: async () => ({}) };
     });
+  }
+
+  const bulkStatusCalls = () => apiFetch.mock.calls.filter(([url, init]) => url === "/api/orders/bulk-status" && init?.method === "POST");
+  const patchCalls = () => apiFetch.mock.calls.filter(([, init]) => init?.method === "PATCH");
+
+  it("moves selected routed orders from the header status menu in one request", async () => {
+    const user = userEvent.setup();
+    mockBulkStatus();
     renderDetail();
 
     const trigger = await screen.findByRole("button", { name: "Update Status" });
     expect(trigger).toBeDisabled();
 
     await user.click(screen.getByTestId("checkbox-order-o1"));
+    await user.click(screen.getByTestId("checkbox-order-o2"));
     expect(trigger).not.toBeDisabled();
 
     await user.click(trigger);
-    await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Cancelled" }));
+    const menu = screen.getByTestId("bulk-status-menu");
+    expect(within(menu).queryByRole("button", { name: "Cancelled" })).not.toBeInTheDocument();
+    await user.click(within(menu).getByRole("button", { name: "Approved" }));
 
-    await waitFor(() => {
-      const patches = apiFetch.mock.calls.filter(([url, init]) => url === "/api/orders/o1" && init?.method === "PATCH");
-      expect(patches).toHaveLength(1);
-      expect(JSON.parse(String(patches[0][1]?.body))).toEqual({ status: "cancelled" });
+    await waitFor(() => expect(bulkStatusCalls()).toHaveLength(1));
+    expect(JSON.parse(String(bulkStatusCalls()[0][1]?.body))).toEqual({
+      orderIds: ["o1", "o2"],
+      status: "confirmed",
+      activity_group_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
-    expect(screen.getByRole("button", { name: "Update Status" })).toBeDisabled();
+    expect(patchCalls()).toHaveLength(0);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Update Status" })).toBeDisabled());
   });
 
   it("requires hold metadata before applying a bulk hold to warehouse orders", async () => {
     const user = userEvent.setup();
-    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (url === "/api/warehouses/main") return { ok: true, json: async () => detail };
-      if (url === "/api/orders?warehouse_id=main") return { ok: true, json: async () => ({ orders: warehouseOrders }) };
-      if (url === "/api/orders/o1" && init?.method === "PATCH") {
-        return { ok: true, json: async () => ({ success: true, order: { ...warehouseOrders[0], status: "on_hold" } }) };
-      }
-      return { ok: true, json: async () => ({}) };
-    });
+    mockBulkStatus();
     renderDetail();
 
     const trigger = await screen.findByRole("button", { name: "Update Status" });
@@ -240,22 +246,21 @@ describe("warehouse detail", () => {
     await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "On Hold" }));
 
     expect(await screen.findByRole("heading", { name: "Hold order" })).toBeInTheDocument();
-    expect(apiFetch.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(0);
+    expect(bulkStatusCalls()).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: /Hold reason/ }));
     await user.click(await screen.findByRole("option", { name: "Other" }));
     await user.type(screen.getByRole("textbox", { name: "Other hold details" }), "গ্রাহককে পরে কল করুন");
     await user.click(screen.getByRole("button", { name: "Hold orders" }));
 
-    await waitFor(() => {
-      const patch = apiFetch.mock.calls.find(([url, init]) => url === "/api/orders/o1" && init?.method === "PATCH");
-      expect(patch).toBeDefined();
-      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({
-        status: "on_hold",
-        hold_reason_code: "other",
-        hold_reason_detail: "গ্রাহককে পরে কল করুন",
-        hold_until_date: null,
-      });
+    await waitFor(() => expect(bulkStatusCalls()).toHaveLength(1));
+    expect(JSON.parse(String(bulkStatusCalls()[0][1]?.body))).toMatchObject({
+      orderIds: ["o1"],
+      status: "on_hold",
+      hold_reason_code: "other",
+      hold_reason_detail: "গ্রাহককে পরে কল করুন",
+      hold_until_date: null,
     });
+    expect(patchCalls()).toHaveLength(0);
   });
 
   it("opens the add-products picker and assigns the selection", async () => {

@@ -89,6 +89,7 @@ import {
   type OrderStatusFilter,
 } from "@/lib/orderStatusFilters";
 import { planBulkStatusChange } from "@/lib/orderTransitions";
+import { requestBulkStatusChange } from "@/lib/bulkOrderStatus";
 import { useOrderPageSize } from "@/hooks/useOrderPageSize";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePnlLayout, type MobilePnlMetric } from "@/components/MobilePnlLayout";
@@ -824,32 +825,17 @@ export default function Dashboard() {
       return false;
     }
     setBulkUpdating(true);
-    let moved = 0;
-    let failed = 0;
     try {
-      for (const orderId of validIds) {
-        try {
-          const res = await apiFetch(`/api/orders/${orderId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: target, ...(holdDetails || {}) }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || "Failed to update status");
-          if (data?.order) handleOrderUpdate(data.order);
-          else handleStatusUpdate(orderId, target);
-          moved += 1;
-        } catch {
-          failed += 1;
-        }
-      }
-      const skippedTotal = skipped + failed;
+      const { updated, failedIds, error } = await requestBulkStatusChange<Order>(validIds, target, holdDetails);
+      handleOrdersUpdate(updated);
+      const moved = updated.length;
+      const skippedTotal = skipped + failedIds.size;
       if (moved > 0) {
         toast.success(`${moved} order${moved === 1 ? "" : "s"} moved to ${targetLabel}${skippedTotal > 0 ? `, ${skippedTotal} skipped` : ""}`);
-        setSelectedOrderIds(new Set());
       } else {
-        toast.error(`No orders moved to ${targetLabel}`);
+        toast.error(error || `No orders moved to ${targetLabel}`);
       }
+      setSelectedOrderIds(new Set(failedIds));
       return moved > 0;
     } finally {
       setBulkUpdating(false);
@@ -884,6 +870,19 @@ export default function Dashboard() {
         fetchAnalytics(dateRange, false, true);
       }
       const next = prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
+      queryClient.setQueryData(["/api/orders"], next);
+      return next;
+    });
+  };
+
+  // Replaces many orders in one state and cache update, so the table and the
+  // status tab counts redraw once instead of once per order.
+  const handleOrdersUpdate = (updatedOrders: Order[]) => {
+    if (updatedOrders.length === 0) return;
+    const byId = new Map(updatedOrders.map((order) => [order.id, order]));
+    patchRangeOrders((o) => byId.get(o.id) ?? o);
+    setOrders((prev) => {
+      const next = prev.map((o) => byId.get(o.id) ?? o);
       queryClient.setQueryData(["/api/orders"], next);
       return next;
     });
@@ -1852,7 +1851,6 @@ export default function Dashboard() {
                     { id: "print", label: "Print" },
                     { id: "processing", label: "Processing" },
                     { id: "on_hold", label: "On Hold" },
-                    { id: "cancelled", label: "Cancelled" },
                   ].map((target) => (
                     <button
                       key={target.id}

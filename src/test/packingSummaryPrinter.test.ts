@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildPackingSummary, buildPackingSummaryHtml, printPackingSummary } from "@/utils/packingSummaryPrinter";
+import { amountToCollect, buildPackingSummary, buildPackingSummaryHtml, printPackingSummary } from "@/utils/packingSummaryPrinter";
 
 describe("buildPackingSummary", () => {
   it("groups by product and pack with order counts and kg totals", () => {
@@ -59,6 +59,36 @@ describe("buildPackingSummary", () => {
     expect(html).toContain("#1041");
     expect(html.match(/class="tick"/g)?.length).toBeGreaterThanOrEqual(2);
     expect(html).toContain("do not pack twice");
+  });
+
+  it("adds up the cash the courier collects, never below ৳0 per order", () => {
+    const summary = buildPackingSummary([
+      { id: "o1", order_number: "#1", product: "Honey", quantity: 1, price: 1200, delivery_rate: 120, advanced_payment: 0 },
+      { id: "o2", order_number: "#2", product: "Honey", quantity: 1, price: 800, delivery_rate: 60, advanced_payment: 300 },
+      { id: "o3", order_number: "#3", product: "Honey", quantity: 1, price: 500, delivery_rate: 0, advanced_payment: 900 },
+      { id: "o4", order_number: "#4", product: "Honey", quantity: 1 },
+    ]);
+
+    expect(summary.totalCollectTaka).toBe(1880);
+  });
+
+  it("shows the cash to collect in the header and the total line", () => {
+    const summary = buildPackingSummary([{
+      id: "o1", order_number: "#1", product: null, quantity: null, price: 67000, delivery_rate: 1500, advanced_payment: 0,
+      items: [{ product_name: "Honey", variant_name: "1KG", quantity: 2, weight_kg: 1 }],
+    }]);
+    const html = buildPackingSummaryHtml(summary, "Sera Khabar", "Sep 17, 2026");
+
+    expect(html).toContain("1 orders · 2kg to pack · ৳68,500 to collect");
+    expect(html).toContain("Total: 1 orders · 2kg · ৳68,500 to collect");
+  });
+});
+
+describe("amountToCollect", () => {
+  it("matches the courier COD formula", () => {
+    expect(amountToCollect({ price: 800, delivery_rate: 60, advanced_payment: 300 })).toBe(560);
+    expect(amountToCollect({ price: 500, delivery_rate: 0, advanced_payment: 900 })).toBe(0);
+    expect(amountToCollect({ price: null, delivery_rate: undefined, advanced_payment: null })).toBe(0);
   });
 });
 

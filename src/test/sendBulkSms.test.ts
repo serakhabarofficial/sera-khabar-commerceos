@@ -39,7 +39,7 @@ describe("sendBulkSms Helper and Courier Dispatch SMS Trigger", () => {
 
   it("formats recipients for the BulkSMSBD gateway and validates submission success", () => {
     expect(serverSource).toContain('const bulkSmsPhone = `880${phone.slice(1)}`;');
-    expect(serverSource).toContain("const response = await fetch(url);");
+    expect(serverSource).toContain("const response = await fetch(url, { signal: AbortSignal.timeout(BULK_SMS_TIMEOUT_MS) });");
     expect(serverSource).toContain("const responseCode = Number(data?.response_code);");
     expect(serverSource).toContain("response.ok && responseCode === 202");
   });

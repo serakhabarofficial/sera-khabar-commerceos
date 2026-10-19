@@ -7,6 +7,15 @@ import { convertMetaSpendToBdt } from "./metaAdCurrency.js";
 import { countsAsLivePresence, normalizeTrackerKind, shouldForwardTrackerHit } from "./trackerHits.js";
 import { analyticsSessionFromHeaders, isAnalyticsId, parseTrackerAnalyticsHit } from "./websiteAnalytics.js";
 import { planSteadfastDeliveryUpdate, steadfastCourierNote, verifySteadfastRequest } from "./steadfastWebhook.js";
+import {
+  STEADFAST_LOOKUP_CONCURRENCY,
+  STEADFAST_SEND_TIMEOUT_MS,
+  groupIdsByMessage,
+  lookupSteadfastInvoice,
+  planSteadfastCheck,
+  readBulkOrderReply,
+} from "./steadfastBulkSend.js";
+import { needsSteadfastLookup, steadfastInvoice, steadfastIssueMessage } from "../shared/steadfastSend.js";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { isIP } from "node:net";
@@ -85,6 +94,7 @@ import {
   parseAbandonedCheckoutStaffEdit,
 } from "./abandonedCheckouts.js";
 import { getOrderApprovalDetailsError } from "./orderApprovalDetails.js";
+import { parseBulkStatusRequest, planBulkStatusUpdate } from "./orderBulkStatus.js";
 import { normalizeAdvancePaymentProof } from "./advancePaymentProof.js";
 import {
   hashProtectionSignal,
@@ -867,6 +877,7 @@ function normalizeLandingPagePath(value) {
 }
 
 const MAX_MANUAL_SMS_LENGTH = 1000;
+const BULK_SMS_TIMEOUT_MS = 8_000;
 
 function bulkSmsError(message, statusCode) {
   const error = new Error(message);
@@ -884,7 +895,7 @@ async function submitBulkSmsMessage({ apiKey, senderId, phone: rawPhone, message
   const url = `https://bulksmsbd.net/api/smsapi?api_key=${encodeURIComponent(apiKey)}&type=text&number=${encodeURIComponent(bulkSmsPhone)}&senderid=${encodeURIComponent(senderId)}&message=${encodeURIComponent(message)}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(BULK_SMS_TIMEOUT_MS) });
     const data = await response.json().catch(() => null);
     const responseCode = Number(data?.response_code);
     const maskedPhone = `${bulkSmsPhone.slice(0, 5)}****${bulkSmsPhone.slice(-2)}`;
@@ -9667,6 +9678,64 @@ async function recordOrderActivity(supabase, event) {
   return { recorded: false, id: null };
 }
 
+// Batch versions of the writers above: one insert for many rows, with the same
+// retry rules. A duplicate key means part of the batch was already saved by an
+// earlier attempt, so the rows are then written one by one and only new rows
+// are added. Like the single writers, these never throw.
+async function recordStatusEvents(supabase, events) {
+  const rows = (events || []).filter(Boolean).map((event) => ({ ...event, id: event.id || crypto.randomUUID() }));
+  if (!rows.length) return true;
+  let lastError = null;
+  for (let attempt = 1; attempt <= MAX_EVENT_INSERT_ATTEMPTS; attempt += 1) {
+    try {
+      const { error } = await supabase.from("order_status_events").insert(rows);
+      if (!error) return true;
+      if (error.code === "23505") {
+        const results = await Promise.all(rows.map((row) => recordStatusEvent(supabase, row)));
+        return results.every(Boolean);
+      }
+      lastError = error;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < MAX_EVENT_INSERT_ATTEMPTS) await delay(50 * attempt);
+  }
+  console.error("[attribution] batch event insert failed:", errorMessage(lastError));
+  return false;
+}
+
+async function recordOrderActivities(supabase, events) {
+  const rows = (events || []).filter(Boolean).map((event) => ({ ...event, id: event.id || crypto.randomUUID() }));
+  if (!rows.length) return { recorded: 0 };
+  const unnamed = rows.filter((row) => row.actor_kind === "user" && row.actor_id && !row.actor_display_name);
+  for (const rowOrgId of new Set(unnamed.map((row) => row.org_id))) {
+    const orgRows = unnamed.filter((row) => row.org_id === rowOrgId);
+    const actorIds = [...new Set(orgRows.map((row) => row.actor_id))];
+    let names = new Map();
+    try {
+      const { data } = await supabase.from("user_roles").select("user_id, display_name").eq("org_id", rowOrgId).in("user_id", actorIds);
+      names = new Map((data || []).map((actor) => [actor.user_id, actor.display_name]));
+    } catch { /* fall back to "Unknown" below */ }
+    for (const row of orgRows) row.actor_display_name = names.get(row.actor_id) || "Unknown";
+  }
+  let lastError = null;
+  for (let attempt = 1; attempt <= MAX_EVENT_INSERT_ATTEMPTS; attempt += 1) {
+    try {
+      const { error } = await supabase.from("order_activity_events").insert(rows);
+      if (!error) return { recorded: rows.length };
+      if (error.code === "23505") {
+        const results = await Promise.all(rows.map((row) => recordOrderActivity(supabase, row)));
+        return { recorded: results.filter((result) => result.recorded).length };
+      }
+      if (isMissingDetailedActivityTable(error)) return { recorded: 0 };
+      lastError = error;
+    } catch (error) { lastError = error; }
+    if (attempt < MAX_EVENT_INSERT_ATTEMPTS) await delay(50 * attempt);
+  }
+  console.error("[order-activity] batch event insert failed:", errorMessage(lastError));
+  return { recorded: 0 };
+}
+
 function normalizeOperationalFailureCode(value, fallback = "provider_error") {
   const normalized = String(value || "").trim().toLowerCase();
   if (!normalized) return fallback;
@@ -10263,6 +10332,252 @@ app.delete("/api/orders", async (req, res) => {
   }
 });
 
+const BULK_STATUS_STALE_REASON = "Order changed before it could be saved. Refresh and try again.";
+const BULK_STATUS_WRITE_FAILED_REASON = "Could not save this order. Try again.";
+
+// Moves many orders to one status. Writes the same fields, status events and
+// activity events as PATCH /api/orders/:id, but with one update per stored
+// status and one insert per event table instead of several calls per order.
+app.post("/api/orders/bulk-status", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const parsed = parseBulkStatusRequest(req.body, { currentDate: getBangladeshDateKey() });
+    if (parsed.error) return res.status(400).json({ error: parsed.error, ...(parsed.code ? { code: parsed.code } : {}) });
+    const { orderIds, status, activityGroupId, holdDetails, cancellationReason } = parsed.value;
+
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+
+    const readBatches = await Promise.all(chunkIds(orderIds).map(async (batch) => {
+      const { data, error } = await supabase.from("orders").select("*").in("id", batch).eq("org_id", orgId);
+      if (error) throw error;
+      return data || [];
+    }));
+    const beforeRows = readBatches.flat();
+    const beforeById = new Map(beforeRows.map((row) => [row.id, row]));
+
+    const now = new Date().toISOString();
+    const { groups, failures } = planBulkStatusUpdate({ orderIds, orders: beforeRows, targetStatus: status, actorId: user.id, now, holdDetails, cancellationReason });
+
+    const writes = await Promise.all(groups.flatMap((group) => chunkIds(group.ids).map(async (ids) => {
+      try {
+        let query = supabase.from("orders").update(group.patch).in("id", ids).eq("org_id", orgId);
+        query = group.fromStatus === null ? query.is("status", null) : query.eq("status", group.fromStatus);
+        const { data, error } = await query.select("*");
+        if (error) throw error;
+        return { group, ids, rows: data || [], failed: false };
+      } catch (error) {
+        console.error("[bulk-status] update batch failed:", errorMessage(error));
+        return { group, ids, rows: [], failed: true };
+      }
+    })));
+
+    const updated = [];
+    const statusEvents = [];
+    const activityEvents = [];
+    for (const { group, ids, rows, failed } of writes) {
+      const savedIds = new Set(rows.map((row) => row.id));
+      for (const orderId of ids) {
+        if (savedIds.has(orderId)) continue;
+        failures.push({ orderId, orderNumber: beforeById.get(orderId)?.order_number ?? null, reason: failed ? BULK_STATUS_WRITE_FAILED_REASON : BULK_STATUS_STALE_REASON });
+      }
+      const fromBusinessStatus = normalizeBusinessStatus(group.fromStatus);
+      const toBusinessStatus = normalizeBusinessStatus(status);
+      const isStaffCancellation = toBusinessStatus === "cancelled" && fromBusinessStatus !== "cancelled";
+      const isReopening = fromBusinessStatus === "cancelled" && toBusinessStatus !== "cancelled";
+      let eventType = "order.status_changed";
+      if (isStaffCancellation) eventType = "order.cancelled";
+      if (isReopening) eventType = "order.reopened";
+      for (const row of rows) {
+        updated.push(row);
+        try {
+          const before = beforeById.get(row.id) || {};
+          const statusEvent = prepareStatusEvent({ orgId, orderId: row.id, orderTable: "orders", fromStatus: before.status, toStatus: status, actorId: user.id, actorKind: "user", occurredAt: now });
+          if (statusEvent) statusEvents.push(statusEvent);
+          const metadata = { from_status: before.status, to_status: status, legacy_status_event_id: statusEvent?.id };
+          if (holdDetails?.holdUntilDate) metadata.hold_until_date = holdDetails.holdUntilDate;
+          activityEvents.push(buildDetailedActivityEvent({
+            orgId,
+            orderId: row.id,
+            orderTable: "orders",
+            eventType,
+            category: "status",
+            actorId: user.id,
+            actorKind: "user",
+            groupId: activityGroupId,
+            requestId: buildOperationRequestId(activityGroupId, row.id, "bulk_status"),
+            sourceSurface: "order_editor",
+            summary: isStaffCancellation ? "Cancelled order" : isReopening ? "Reopened order" : `Status changed to ${status}`,
+            reasonCode: (isStaffCancellation ? cancellationReason?.code : null) || holdDetails?.reasonCode,
+            reasonNote: (isStaffCancellation ? cancellationReason?.note : null) || holdDetails?.reasonDetail,
+            changes: buildOrderChanges({ beforeOrder: before, afterOrder: row }),
+            metadata,
+            occurredAt: now,
+          }));
+        } catch (error) {
+          console.error("[bulk-status] event build failed:", errorMessage(error));
+        }
+      }
+    }
+
+    // Logging and risk labels never fail the request: every writer catches its own errors.
+    await recordStatusEvents(supabase, statusEvents);
+    await Promise.all([
+      recordOrderActivities(supabase, activityEvents),
+      ...updated.map((row) => labelOrderRiskAttempt(supabase, orgId, row).catch(() => {})),
+    ]);
+
+    const requestPosition = new Map(orderIds.map((id, index) => [id, index]));
+    failures.sort((a, b) => (requestPosition.get(a.orderId) ?? 0) - (requestPosition.get(b.orderId) ?? 0));
+    return res.json({ success: failures.length === 0, processed: updated.length, failed: failures.length, updated, failures });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// Saves a Steadfast send problem on each order, one update per message, and
+// returns the saved rows by id. A failed save is logged: the reason still goes
+// back to the browser, it just won't be there after a refresh.
+async function saveSteadfastIssues(supabase, orgId, entries, extra = {}) {
+  const savedById = new Map();
+  for (const [message, ids] of groupIdsByMessage(entries)) {
+    for (const idBatch of chunkIds(ids)) {
+      const { data, error } = await supabase
+        .from("orders")
+        .update({ ...extra, courier_message: message })
+        .in("id", idBatch)
+        .eq("org_id", orgId)
+        .select("*");
+      if (error) {
+        console.error("[Steadfast] could not save send problem:", errorMessage(error));
+        continue;
+      }
+      for (const row of data || []) savedById.set(row.id, row);
+    }
+  }
+  return savedById;
+}
+
+// Looks up orders that may already be at Steadfast. Found ones are marked sent
+// (without a tracking code), unknown ones keep the checking note, and missing
+// ones are returned so the caller can send them or call them safe.
+async function settleSteadfastLookups(supabase, orgId, credentials, orders) {
+  const lookups = await mapWithConcurrency(orders, STEADFAST_LOOKUP_CONCURRENCY, (order) =>
+    lookupSteadfastInvoice({ ...credentials, invoice: steadfastInvoice(order) }));
+  const found = [];
+  const unknown = [];
+  const missing = [];
+  orders.forEach((order, index) => {
+    if (lookups[index] === "found") found.push(order);
+    else if (lookups[index] === "missing") missing.push(order);
+    else unknown.push(order);
+  });
+
+  const noCodeMessage = steadfastIssueMessage("no_code");
+  const checkingMessage = steadfastIssueMessage("checking");
+  const [foundRows, unknownRows] = await Promise.all([
+    saveSteadfastIssues(supabase, orgId, found.map((order) => ({ orderId: order.id, message: noCodeMessage })), {
+      sent_to_courier: true,
+      courier_name: "steadfast",
+      courier_status: "in_review",
+    }),
+    saveSteadfastIssues(supabase, orgId, unknown.map((order) => ({ orderId: order.id, message: checkingMessage }))),
+  ]);
+  const failures = [
+    ...found.map((order) => ({ orderId: order.id, orderNumber: order.order_number || order.id, reason: noCodeMessage, code: "no_code", order: foundRows.get(order.id) })),
+    ...unknown.map((order) => ({ orderId: order.id, orderNumber: order.order_number || order.id, reason: checkingMessage, code: "checking", order: unknownRows.get(order.id) })),
+  ];
+  return { missing, failures };
+}
+
+function steadfastFailureEvents({ orgId, actorId, groupId, failures }) {
+  return failures
+    .filter((failure) => failure.code === "phone" || failure.code === "address" || failure.code === "rejected")
+    .map((failure) => buildDetailedActivityEvent({
+      orgId,
+      orderId: failure.orderId,
+      orderTable: "orders",
+      eventType: "courier.failed",
+      category: "courier",
+      actorId,
+      actorKind: "user",
+      groupId,
+      requestId: buildOperationRequestId(groupId, failure.orderId, "steadfast_bulk"),
+      sourceSurface: "order_editor",
+      summary: "Steadfast submission failed",
+      metadata: { courier: "steadfast", failure_reason: failure.code === "phone" ? "invalid_phone" : failure.code === "address" ? "missing_address" : "provider_rejected" },
+    }));
+}
+
+function sortByRequest(rows, orderIds) {
+  const position = new Map(orderIds.map((id, index) => [id, index]));
+  return rows.sort((a, b) => (position.get(a.orderId) ?? 0) - (position.get(b.orderId) ?? 0));
+}
+
+// Settles orders the browser left as "Checking with Steadfast" after a bulk send.
+app.post("/api/send-to-courier/bulk/check", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const rawOrderIds = req.body?.orderIds;
+    if (!Array.isArray(rawOrderIds) || rawOrderIds.some((id) => typeof id !== "string" || !id.trim())) {
+      return res.status(400).json({ error: "orderIds array of non-empty strings is required" });
+    }
+    const orderIds = [...new Set(rawOrderIds.map((id) => id.trim()))];
+    if (orderIds.length === 0) return res.status(400).json({ error: "At least one order ID is required" });
+    if (orderIds.length > 500) return res.status(400).json({ error: "A maximum of 500 orders can be checked at once" });
+
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const cfg = await getOrgSettings(orgId, ["steadfast_api_key", "steadfast_secret_key"]);
+    const apiKey = cfg["steadfast_api_key"];
+    const secretKey = cfg["steadfast_secret_key"];
+    if (!apiKey || !secretKey) {
+      return res.status(500).json({ error: "Steadfast credentials not configured. Go to Settings → Integrations." });
+    }
+
+    const orders = [];
+    for (const idBatch of chunkIds(orderIds)) {
+      const { data, error } = await supabase.from("orders").select("*").in("id", idBatch).eq("org_id", orgId);
+      if (error) throw error;
+      orders.push(...(data || []));
+    }
+    const foundIds = new Set(orders.map((order) => order.id));
+
+    const succeeded = [];
+    const failures = orderIds
+      .filter((orderId) => !foundIds.has(orderId))
+      .map((orderId) => ({ orderId, orderNumber: null, reason: "Order not found", code: "other" }));
+    const toLookUp = [];
+    for (const order of orders) {
+      const orderNumber = order.order_number || order.id;
+      const plan = planSteadfastCheck(order);
+      if (plan.action === "sent") succeeded.push({ orderId: order.id, orderNumber, order });
+      else if (plan.action === "lookup") toLookUp.push(order);
+      else failures.push({ orderId: order.id, orderNumber, reason: plan.reason, code: plan.code, order });
+    }
+
+    if (toLookUp.length > 0) {
+      const settled = await settleSteadfastLookups(supabase, orgId, { apiKey, secretKey }, toLookUp);
+      failures.push(...settled.failures);
+      const safeMessage = steadfastIssueMessage("not_received");
+      const safeRows = await saveSteadfastIssues(supabase, orgId, settled.missing.map((order) => ({ orderId: order.id, message: safeMessage })));
+      for (const order of settled.missing) {
+        failures.push({ orderId: order.id, orderNumber: order.order_number || order.id, reason: safeMessage, code: "not_received", order: safeRows.get(order.id) });
+      }
+    }
+
+    sortByRequest(succeeded, orderIds);
+    sortByRequest(failures, orderIds);
+    return res.json({ success: failures.length === 0, processed: succeeded.length, failed: failures.length, succeeded, failures });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
 app.post("/api/send-to-courier/bulk", async (req, res) => {
   try {
     const { user } = await getUser(getToken(req));
@@ -10297,37 +10612,57 @@ app.post("/api/send-to-courier/bulk", async (req, res) => {
       orderRows.push(...(batchOrders || []));
     }
     const orders = orderRows;
+    const activityGroupId = crypto.randomUUID();
 
     const failures = [];
     const succeeded = [];
     const ordersById = new Map((orders || []).map((order) => [order.id, order]));
     for (const orderId of orderIds) {
       if (!ordersById.has(orderId)) {
-        failures.push({ orderId, orderNumber: null, reason: "Order not found" });
+        failures.push({ orderId, orderNumber: null, reason: "Order not found", code: "other" });
+      }
+    }
+
+    // Orders a past send may have reached are looked up first, so they are never sent twice.
+    let sendable = [];
+    const toLookUp = [];
+    for (const order of orders || []) {
+      const orderNumber = order.order_number || order.id;
+      if (normalizeBusinessStatus(order.status) !== "print") {
+        failures.push({ orderId: order.id, orderNumber, reason: "Only Print orders can be sent to Steadfast", code: "other" });
+        continue;
+      }
+      if (isOrderDispatched(order)) {
+        failures.push({ orderId: order.id, orderNumber, reason: "Order already sent to courier", code: "other" });
+        continue;
+      }
+      if (needsSteadfastLookup(order)) toLookUp.push(order);
+      else sendable.push(order);
+    }
+    if (toLookUp.length > 0) {
+      const settled = await settleSteadfastLookups(supabase, orgId, { apiKey, secretKey }, toLookUp);
+      failures.push(...settled.failures);
+      sendable = [...sendable, ...settled.missing];
+    }
+
+    const issueEntries = [];
+    const candidates = [];
+    for (const order of sendable) {
+      const cleanedPhone = normalizeBdPhone(order.phone || "");
+      if (cleanedPhone === null || cleanedPhone.length !== 11 || !cleanedPhone.startsWith("01")) {
+        issueEntries.push({ orderId: order.id, code: "phone", message: steadfastIssueMessage("phone") });
+      } else if (!String(order.address || "").trim()) {
+        issueEntries.push({ orderId: order.id, code: "address", message: steadfastIssueMessage("address") });
+      } else {
+        candidates.push({ order, cleanedPhone });
       }
     }
 
     const prepared = [];
-    for (const order of orders || []) {
-      const orderNumber = order.order_number || order.id;
-      if (normalizeBusinessStatus(order.status) !== "print") {
-        failures.push({ orderId: order.id, orderNumber, reason: "Only Print orders can be sent to Steadfast" });
-        continue;
-      }
-      if (isOrderDispatched(order)) {
-        failures.push({ orderId: order.id, orderNumber, reason: "Order already sent to courier" });
-        continue;
-      }
-
-      const cleanedPhone = normalizeBdPhone(order.phone || "");
-      if (cleanedPhone === null || cleanedPhone.length !== 11 || !cleanedPhone.startsWith("01")) {
-        failures.push({ orderId: order.id, orderNumber, reason: "Invalid phone number. Must be 11 digits starting with 01." });
-        continue;
-      }
-
+    await mapWithConcurrency(candidates, 10, async ({ order, cleanedPhone }) => {
       try {
         const courierItems = await getCourierOrderItems(supabase, orgId, order);
-        const invoice = `ORD-${(order.order_number || order.id.slice(-8)).replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase()}`;
+        const invoice = steadfastInvoice(order);
         prepared.push({
           order,
           invoice,
@@ -10335,70 +10670,107 @@ app.post("/api/send-to-courier/bulk", async (req, res) => {
             invoice,
             recipient_name: (order.customer_name || "Customer").slice(0, 100),
             recipient_phone: cleanedPhone,
-            recipient_address: (order.address || "No address provided").slice(0, 250),
+            recipient_address: String(order.address).trim().slice(0, 250),
             cod_amount: Math.max(0, (parseFloat(order.price) || 0) + (parseFloat(order.delivery_rate) || 0) - (parseFloat(order.advanced_payment) || 0)),
             note: order.notes || "",
             item_description: formatCourierItems(courierItems),
           },
         });
       } catch (error) {
-        failures.push({ orderId: order.id, orderNumber, reason: error.message || "Could not prepare order items" });
+        failures.push({ orderId: order.id, orderNumber: order.order_number || order.id, reason: errorMessage(error) || "Could not prepare order items", code: "other" });
       }
-    }
+    });
 
     const invoiceCounts = new Map();
     for (const item of prepared) invoiceCounts.set(item.invoice, (invoiceCounts.get(item.invoice) || 0) + 1);
     const eligible = prepared.filter((item) => {
       if (invoiceCounts.get(item.invoice) === 1) return true;
-      failures.push({ orderId: item.order.id, orderNumber: item.order.order_number || item.order.id, reason: "Duplicate invoice number" });
+      failures.push({ orderId: item.order.id, orderNumber: item.order.order_number || item.order.id, reason: "Duplicate invoice number", code: "other" });
       return false;
     });
 
     if (eligible.length > 0) {
-      const sfRes = await fetch("https://portal.packzy.com/api/v1/create_order/bulk-order", {
-        method: "POST",
-        headers: { "Api-Key": apiKey, "Secret-Key": secretKey, "Content-Type": "application/json" },
-        body: JSON.stringify({ data: JSON.stringify(eligible.map((item) => item.payload)) }),
-      });
-      const sfData = await sfRes.json().catch(() => null);
-      const resultRows = Array.isArray(sfData) ? sfData : sfData?.data;
-      if (!sfRes.ok || !Array.isArray(resultRows)) {
-        const message = sfData?.message || "Steadfast bulk order request failed";
-        return res.status(502).json({ error: message });
+      // Write ahead: until Steadfast's reply is saved, these orders say "Checking with Steadfast".
+      const checkingMessage = steadfastIssueMessage("checking");
+      for (const idBatch of chunkIds(eligible.map((item) => item.order.id))) {
+        const { error: markError } = await supabase.from("orders").update({ courier_message: checkingMessage }).in("id", idBatch).eq("org_id", orgId);
+        if (markError) throw markError;
       }
 
-      const resultsByInvoice = new Map(resultRows.map((result) => [result.invoice, result]));
-      for (const item of eligible) {
-        const result = resultsByInvoice.get(item.invoice);
-        if (!result || result.status !== "success" || !result.consignment_id || !result.tracking_code) {
-          failures.push({
-            orderId: item.order.id,
-            orderNumber: item.order.order_number || item.order.id,
-            reason: result?.message || "Steadfast rejected the order",
-          });
-          continue;
-        }
+      let reply;
+      try {
+        const sfRes = await fetch("https://portal.packzy.com/api/v1/create_order/bulk-order", {
+          method: "POST",
+          headers: { "Api-Key": apiKey, "Secret-Key": secretKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ data: JSON.stringify(eligible.map((item) => item.payload)) }),
+          signal: AbortSignal.timeout(STEADFAST_SEND_TIMEOUT_MS),
+        });
+        reply = { httpStatus: sfRes.status, body: await sfRes.json().catch(() => null) };
+      } catch (error) {
+        console.error("[Steadfast] bulk-order request failed:", errorMessage(error));
+        reply = { failed: true };
+      }
 
+      const outcomes = readBulkOrderReply(eligible.map((item) => item.invoice), reply);
+      const accepted = [];
+      for (const item of eligible) {
+        const outcome = outcomes.get(item.invoice);
+        if (outcome.outcome === "sent") accepted.push({ item, outcome });
+        else if (outcome.outcome === "rejected") issueEntries.push({ orderId: item.order.id, code: "rejected", message: steadfastIssueMessage("rejected", outcome.detail) });
+        else failures.push({ orderId: item.order.id, orderNumber: item.order.order_number || item.order.id, reason: checkingMessage, code: "checking" });
+      }
+
+      const savedOrders = await mapWithConcurrency(accepted, 10, async ({ item, outcome }) => {
         const { data: updated, error: updateError } = await supabase.from("orders").update({
           status: "print",
           sent_to_courier: true,
-          consignment_id: String(result.consignment_id),
-          tracking_code: result.tracking_code,
+          consignment_id: outcome.consignmentId,
+          tracking_code: outcome.trackingCode,
           courier_status: "in_review",
           courier_message: "Sent to Steadfast successfully",
           courier_name: "steadfast",
         }).eq("id", item.order.id).eq("org_id", orgId).select("*").single();
         if (updateError || !updated) {
-          failures.push({ orderId: item.order.id, orderNumber: item.order.order_number || item.order.id, reason: "Courier accepted order but local save failed" });
-          continue;
+          // The checking note stays, so the next check finds this order at Steadfast.
+          console.error(`[Steadfast] accepted order ${item.order.id} (consignment ${outcome.consignmentId}, tracking ${outcome.trackingCode}) but the save failed:`, errorMessage(updateError));
+          failures.push({ orderId: item.order.id, orderNumber: item.order.order_number || item.order.id, reason: checkingMessage, code: "checking" });
+          return null;
         }
-
         succeeded.push({ orderId: item.order.id, orderNumber: item.order.order_number || item.order.id, order: updated });
-        // Submit dispatch SMS before completing the bulk dispatch request.
-        await sendBulkSms(orgId, "dispatch", updated);
+        return updated;
+      });
+      // Dispatch SMS goes out only for orders that are saved as sent.
+      await mapWithConcurrency(savedOrders.filter(Boolean), 10, (updated) => sendBulkSms(orgId, "dispatch", updated));
+    }
+
+    if (issueEntries.length > 0) {
+      const savedRows = await saveSteadfastIssues(supabase, orgId, issueEntries);
+      for (const entry of issueEntries) {
+        const order = ordersById.get(entry.orderId);
+        failures.push({ orderId: entry.orderId, orderNumber: order?.order_number || entry.orderId, reason: entry.message, code: entry.code, order: savedRows.get(entry.orderId) });
       }
     }
 
+    await recordOrderActivities(supabase, [
+      ...succeeded.map((result) => buildDetailedActivityEvent({
+        orgId,
+        orderId: result.orderId,
+        orderTable: "orders",
+        eventType: "courier.submitted",
+        category: "courier",
+        actorId: user.id,
+        actorKind: "user",
+        groupId: activityGroupId,
+        requestId: buildOperationRequestId(activityGroupId, result.orderId, "steadfast_bulk"),
+        sourceSurface: "order_editor",
+        summary: "Sent order to Steadfast",
+        metadata: { courier: "steadfast" },
+      })),
+      ...steadfastFailureEvents({ orgId, actorId: user.id, groupId: activityGroupId, failures }),
+    ]);
+
+    sortByRequest(succeeded, orderIds);
+    sortByRequest(failures, orderIds);
     return res.json({
       success: failures.length === 0,
       processed: succeeded.length,
@@ -10435,13 +10807,25 @@ app.post("/api/send-to-courier", async (req, res) => {
       return res.status(400).json({ error: "Move to Print first before sending to courier" });
     }
 
+    // A bulk send may already have reached Steadfast; look it up so it is never sent twice.
+    if (needsSteadfastLookup(order)) {
+      const settled = await settleSteadfastLookups(supabase, orgId, { apiKey, secretKey }, [order]);
+      const blocked = settled.failures[0];
+      if (blocked?.code === "no_code") {
+        return res.status(409).json({ error: "This order is already at Steadfast. Find its invoice in the Steadfast portal for the tracking code.", order: blocked.order });
+      }
+      if (blocked) {
+        return res.status(503).json({ error: "Couldn't confirm with Steadfast whether this order was already sent. Try again in a minute.", order: blocked.order });
+      }
+    }
+
     const cleanedPhone = normalizeBdPhone(order.phone || "");
     if (cleanedPhone === null || cleanedPhone.length !== 11 || !cleanedPhone.startsWith("01")) {
       return res.status(400).json({ error: "Invalid phone number. Must be 11 digits starting with 01." });
     }
 
     const courierItems = await getCourierOrderItems(supabase, orgId, order);
-    const invoice = `ORD-${(order.order_number || order.id.slice(-8)).replace(/[^a-zA-Z0-9_-]/g, "").toUpperCase()}`;
+    const invoice = steadfastInvoice(order);
     const payload = {
       invoice,
       recipient_name: order.customer_name || "Customer",

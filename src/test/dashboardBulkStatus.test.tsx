@@ -64,10 +64,19 @@ const baseOrders = [
 ];
 let orders = baseOrders;
 
-let bulkResponse: unknown = null;
+let bulkResponse: unknown | ((orderIds: string[]) => unknown) = null;
+let bulkStatusResponse: { body: unknown; ok?: boolean } | null = null;
 
 function jsonResponse(body: unknown, ok = true) {
   return { ok, json: async () => body };
+}
+
+function bulkStatusCalls() {
+  return apiFetch.mock.calls.filter(([url, init]) => url === "/api/orders/bulk-status" && init?.method === "POST");
+}
+
+function patchCalls() {
+  return apiFetch.mock.calls.filter(([, init]) => init?.method === "PATCH");
 }
 
 function renderDashboard() {
@@ -93,10 +102,21 @@ describe("dashboard bulk status button", () => {
     apiFetch.mockReset();
     orders = baseOrders;
     bulkResponse = null;
+    bulkStatusResponse = null;
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === "/api/orders" && !init?.method) return jsonResponse({ orders });
+      if (url === "/api/orders/bulk-status" && init?.method === "POST") {
+        if (bulkStatusResponse) return jsonResponse(bulkStatusResponse.body, bulkStatusResponse.ok ?? true);
+        const body = JSON.parse(String(init.body));
+        const updated = orders.filter((o) => body.orderIds.includes(o.id)).map((o) => ({ ...o, status: body.status }));
+        return jsonResponse({ success: true, processed: updated.length, failed: 0, updated, failures: [] });
+      }
       if (url === "/api/products") return jsonResponse({ products: [] });
-      if (url === "/api/send-to-courier/bulk") return jsonResponse(bulkResponse || { success: true, processed: 0, failed: 0, succeeded: [], failures: [] });
+      if (url === "/api/send-to-courier/bulk") {
+        const { orderIds } = JSON.parse(String(init?.body));
+        const reply = typeof bulkResponse === "function" ? await bulkResponse(orderIds) : bulkResponse;
+        return jsonResponse(reply || { success: true, processed: 0, failed: 0, succeeded: [], failures: [] });
+      }
       if (url.startsWith("/api/analytics")) {
         return jsonResponse({
           revenue: 0, shipping: 0, adSpend: 0, totalCog: 0, cogCoverage: { set: 0, total: 0 },
@@ -106,7 +126,7 @@ describe("dashboard bulk status button", () => {
       if (url.startsWith("/api/orders/") && init?.method === "PATCH") {
         const body = JSON.parse(String(init.body));
         const order = orders.find((o) => `/api/orders/${o.id}` === url);
-        return jsonResponse({ success: true, order: { ...order, status: body.status } });
+        return jsonResponse({ success: true, order: { ...order, ...body } });
       }
       return jsonResponse({ updated: 0 });
     });
@@ -134,14 +154,74 @@ describe("dashboard bulk status button", () => {
     await user.click(trigger);
     await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Print" }));
 
-    await waitFor(() => {
-      const patches = apiFetch.mock.calls.filter(([url, init]) => url === "/api/orders/approved-1" && init?.method === "PATCH");
-      expect(patches).toHaveLength(1);
-      expect(JSON.parse(String(patches[0][1]?.body))).toEqual({ status: "print" });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("1 order moved to Print"));
+    const calls = bulkStatusCalls();
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({
+      orderIds: ["approved-1"],
+      status: "print",
+      activity_group_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
-    expect(toastSuccess).toHaveBeenCalledWith("1 order moved to Print");
+    expect(patchCalls()).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Update Status" })).toBeDisabled();
     expect(await screen.findByRole("radio", { name: /Print.*1/ })).toBeInTheDocument();
+  });
+
+  it("does not offer Cancelled as a bulk status", async () => {
+    const user = userEvent.setup();
+    renderDashboard();
+
+    await screen.findByRole("button", { name: "Update Status" });
+    await user.click(screen.getByTestId("checkbox-order-pending-1"));
+    await user.click(screen.getByRole("button", { name: "Update Status" }));
+
+    const menu = screen.getByTestId("bulk-status-menu");
+    expect(within(menu).getByRole("button", { name: "On Hold" })).toBeInTheDocument();
+    expect(within(menu).queryByRole("button", { name: "Cancelled" })).not.toBeInTheDocument();
+  });
+
+  it("keeps only failed orders selected and shows the server's reason when nothing moved", async () => {
+    const user = userEvent.setup();
+    bulkStatusResponse = {
+      body: {
+        success: false, processed: 0, failed: 1, updated: [],
+        failures: [{ orderId: "pending-1", orderNumber: "#101", reason: "Add the phone number before approving this order." }],
+      },
+    };
+    renderDashboard();
+
+    await screen.findByRole("button", { name: "Update Status" });
+    await user.click(screen.getByTestId("checkbox-order-pending-1"));
+    await user.click(screen.getByRole("button", { name: "Update Status" }));
+    await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Approved" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Add the phone number before approving this order."));
+    expect(bulkStatusCalls()).toHaveLength(1);
+    expect(screen.getByTestId("checkbox-order-pending-1")).toHaveClass("bg-[#0285F7]");
+  });
+
+  it("reports moved and skipped orders and drops moved ones from the selection", async () => {
+    const user = userEvent.setup();
+    orders = [...baseOrders, baseOrder({ id: "approved-2", shopify_order_id: 4, order_number: "#104", status: "confirmed" })];
+    bulkStatusResponse = {
+      body: {
+        success: false, processed: 1, failed: 1,
+        updated: [{ ...orders[1], status: "print" }],
+        failures: [{ orderId: "approved-2", orderNumber: "#104", reason: "Order changed before it could be saved. Refresh and try again." }],
+      },
+    };
+    renderDashboard();
+
+    await screen.findByRole("button", { name: "Update Status" });
+    await user.click(screen.getByTestId("checkbox-order-approved-1"));
+    await user.click(screen.getByTestId("checkbox-order-approved-2"));
+    await user.click(screen.getByRole("button", { name: "Update Status" }));
+    await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Print" }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("1 order moved to Print, 1 skipped"));
+    expect(JSON.parse(String(bulkStatusCalls()[0][1]?.body)).orderIds).toEqual(["approved-1", "approved-2"]);
+    expect(await screen.findByRole("radio", { name: /Print.*1/ })).toBeInTheDocument();
+    expect(screen.getByTestId("checkbox-order-approved-2")).toHaveClass("bg-[#0285F7]");
   });
 
   it("skips selected orders that cannot take the target status", async () => {
@@ -155,8 +235,8 @@ describe("dashboard bulk status button", () => {
     await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Print" }));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Selected orders can't move to Print"));
-    const patches = apiFetch.mock.calls.filter(([, init]) => init?.method === "PATCH");
-    expect(patches).toHaveLength(0);
+    expect(bulkStatusCalls()).toHaveLength(0);
+    expect(patchCalls()).toHaveLength(0);
   });
 
   it("moves a Print order to Processing when selected manually", async () => {
@@ -169,12 +249,11 @@ describe("dashboard bulk status button", () => {
     await user.click(screen.getByRole("button", { name: "Update Status" }));
     await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Processing" }));
 
-    await waitFor(() => {
-      const patches = apiFetch.mock.calls.filter(([url, init]) => url === "/api/orders/print-1" && init?.method === "PATCH");
-      expect(patches).toHaveLength(1);
-      expect(JSON.parse(String(patches[0][1]?.body))).toEqual({ status: "processing" });
-    });
-    expect(toastSuccess).toHaveBeenCalledWith("1 order moved to Processing");
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("1 order moved to Processing"));
+    const calls = bulkStatusCalls();
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(String(calls[0][1]?.body))).toMatchObject({ orderIds: ["print-1"], status: "processing" });
+    expect(patchCalls()).toHaveLength(0);
   });
 
   it("requires one valid hold reason before sending bulk On Hold updates", async () => {
@@ -188,28 +267,25 @@ describe("dashboard bulk status button", () => {
     await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "On Hold" }));
 
     expect(await screen.findByRole("heading", { name: "Hold order" })).toBeInTheDocument();
-    expect(apiFetch.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(0);
+    expect(bulkStatusCalls()).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Hold orders" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Choose a hold reason");
-    expect(apiFetch.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(0);
+    expect(bulkStatusCalls()).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: /Hold reason/ }));
     await user.click(await screen.findByRole("option", { name: "Awaiting advance payment" }));
     await user.click(screen.getByRole("button", { name: "Hold orders" }));
 
-    await waitFor(() => {
-      const patches = apiFetch.mock.calls.filter(([, init]) => init?.method === "PATCH");
-      expect(patches).toHaveLength(2);
-      for (const [, init] of patches) {
-        expect(JSON.parse(String(init?.body))).toMatchObject({
-          status: "on_hold",
-          hold_reason_code: "advance_payment_pending",
-          hold_reason_detail: null,
-          hold_until_date: null,
-        });
-      }
+    await waitFor(() => expect(bulkStatusCalls()).toHaveLength(1));
+    expect(JSON.parse(String(bulkStatusCalls()[0][1]?.body))).toMatchObject({
+      orderIds: ["pending-1", "approved-1"],
+      status: "on_hold",
+      hold_reason_code: "advance_payment_pending",
+      hold_reason_detail: null,
+      hold_until_date: null,
     });
+    expect(patchCalls()).toHaveLength(0);
   });
 
   it("shows a dropdown chevron that rotates open", async () => {
@@ -241,51 +317,116 @@ describe("dashboard bulk status button", () => {
     expect(screen.getByTestId("button-clear-selection")).toBeInTheDocument();
   });
 
-  it("sends selected Print orders through Steadfast bulk dispatch", async () => {
+  it("sends selected Print orders through Steadfast bulk dispatch and counts them", async () => {
     const user = userEvent.setup();
     orders = [...baseOrders, baseOrder({ id: "print-1", shopify_order_id: 3, order_number: "#103", status: "print" })];
     const printOrder = orders[2];
-    bulkResponse = {
+    let answer: (value: unknown) => void = () => {};
+    bulkResponse = () => new Promise((resolve) => { answer = resolve; });
+    renderDashboard();
+
+    await user.click(await screen.findByRole("radio", { name: /Print.*1/ }));
+    await user.click(screen.getByTestId("checkbox-order-print-1"));
+    await user.click(screen.getByTestId("button-bulk-send-steadfast"));
+
+    // While the batch is out, the button and the banner both count.
+    expect(await screen.findByTestId("steadfast-send-progress")).toHaveTextContent("Sending 0/1");
+    expect(screen.getByTestId("button-bulk-send-steadfast")).toHaveTextContent("Sending 0/1");
+    const calls = apiFetch.mock.calls.filter(([url, init]) => url === "/api/send-to-courier/bulk" && init?.method === "POST");
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({ orderIds: ["print-1"] });
+
+    answer({
       success: true,
       processed: 1,
       failed: 0,
       succeeded: [{ orderId: printOrder.id, orderNumber: printOrder.order_number, order: { ...printOrder, status: "print", sent_to_courier: true } }],
       failures: [],
-    };
-    renderDashboard();
-
-    await user.click(await screen.findByRole("radio", { name: /Print.*1/ }));
-    await user.click(screen.getByTestId("checkbox-order-print-1"));
-    await user.click(screen.getByTestId("button-bulk-send-steadfast"));
-
-    await waitFor(() => {
-      const calls = apiFetch.mock.calls.filter(([url, init]) => url === "/api/send-to-courier/bulk" && init?.method === "POST");
-      expect(calls).toHaveLength(1);
-      expect(JSON.parse(String(calls[0][1]?.body))).toEqual({ orderIds: ["print-1"] });
     });
+
+    await waitFor(() => expect(screen.getByTestId("steadfast-send-banner")).toHaveTextContent("1 of 1 sent"));
     expect(await screen.findByRole("radio", { name: /Print.*1/ })).toBeInTheDocument();
     expect(await screen.findByRole("radio", { name: /Processing.*0/ })).toBeInTheDocument();
     expect(screen.getByText(printOrder.order_number)).toBeInTheDocument();
-    expect(screen.getByTestId("button-bulk-send-steadfast")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
-  it("keeps failed Print orders selected and reports their failures", async () => {
+  it("keeps failed Print orders selected and shows the reason with a fix", async () => {
     const user = userEvent.setup();
-    orders = [...baseOrders, baseOrder({ id: "print-1", shopify_order_id: 3, order_number: "#103", status: "print" })];
-    bulkResponse = {
-      success: false,
-      processed: 0,
-      failed: 1,
-      succeeded: [],
-      failures: [{ orderId: "print-1", orderNumber: "#103", reason: "Invalid phone number" }],
-    };
+    const wrongPhone = "Wrong phone: Steadfast needs 11 digits that start with 01.";
+    orders = [...baseOrders, baseOrder({ id: "print-1", shopify_order_id: 3, order_number: "#103", status: "print", phone: "01712" })];
+    const printOrder = orders[2];
+    bulkResponse = (orderIds: string[]) => (orderIds.length && patchCalls().length === 0
+      ? {
+        success: false,
+        processed: 0,
+        failed: 1,
+        succeeded: [],
+        failures: [{ orderId: "print-1", orderNumber: "#103", reason: wrongPhone, code: "phone", order: { ...printOrder, courier_message: wrongPhone } }],
+      }
+      : {
+        success: true,
+        processed: 1,
+        failed: 0,
+        succeeded: [{ orderId: "print-1", orderNumber: "#103", order: { ...printOrder, phone: "01712345678", sent_to_courier: true, courier_message: "Sent to Steadfast successfully" } }],
+        failures: [],
+      });
     renderDashboard();
 
     await user.click(await screen.findByRole("radio", { name: /Print.*1/ }));
     await user.click(screen.getByTestId("checkbox-order-print-1"));
     await user.click(screen.getByTestId("button-bulk-send-steadfast"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringContaining("#103")));
+    const banner = await screen.findByTestId("steadfast-send-banner");
+    await waitFor(() => expect(banner).toHaveTextContent("0 of 1 sent"));
+    expect(within(banner).getByTestId("steadfast-chip-phone")).toHaveTextContent("Wrong phone1");
+    const note = screen.getByTestId("steadfast-issue-print-1");
+    expect(note).toHaveTextContent("Wrong phone");
+    expect(note).toHaveTextContent("Steadfast needs 11 digits that start with 01.");
+    expect(toastError).not.toHaveBeenCalled();
     expect(screen.getByTestId("checkbox-order-print-1")).toHaveClass("bg-[#0285F7]");
+
+    await user.click(within(note).getByRole("button", { name: "Fix phone" }));
+    const input = screen.getByRole("textbox", { name: "Phone number" });
+    await user.clear(input);
+    await user.type(input, "01712345678{Enter}");
+
+    await waitFor(() => expect(screen.getByTestId("steadfast-issue-print-1")).toHaveTextContent("Fixed · ready to send again"));
+    expect(JSON.parse(String(patchCalls().at(-1)?.[1]?.body))).toEqual({ phone: "01712345678", courier_message: null });
+
+    await user.click(screen.getByTestId("button-steadfast-send-again"));
+    await waitFor(() => expect(screen.getByTestId("steadfast-send-banner")).toHaveTextContent("1 of 1 sent"));
+    const sends = apiFetch.mock.calls.filter(([url]) => url === "/api/send-to-courier/bulk");
+    expect(JSON.parse(String(sends.at(-1)?.[1]?.body))).toEqual({ orderIds: ["print-1"] });
+  });
+
+  it("filters the table to one reason from its chip", async () => {
+    const user = userEvent.setup();
+    const noAddress = "No address: Add the delivery address, then send again.";
+    orders = [
+      ...baseOrders,
+      baseOrder({ id: "print-1", shopify_order_id: 3, order_number: "#103", status: "print" }),
+      baseOrder({ id: "print-2", shopify_order_id: 4, order_number: "#104", status: "print", address: "" }),
+    ];
+    bulkResponse = {
+      success: false,
+      processed: 1,
+      failed: 1,
+      succeeded: [{ orderId: "print-1", orderNumber: "#103", order: { ...orders[2], sent_to_courier: true } }],
+      failures: [{ orderId: "print-2", orderNumber: "#104", reason: noAddress, code: "address", order: { ...orders[3], courier_message: noAddress } }],
+    };
+    renderDashboard();
+
+    await user.click(await screen.findByRole("radio", { name: /Print.*2/ }));
+    await user.click(screen.getByTestId("checkbox-orders-all"));
+    await user.click(screen.getByTestId("button-bulk-send-steadfast"));
+    await user.click(await screen.findByTestId("steadfast-chip-address"));
+
+    expect(screen.getByText("#104")).toBeInTheDocument();
+    expect(screen.queryByText("#103")).not.toBeInTheDocument();
+    expect(screen.getByTestId("steadfast-issue-print-2")).toHaveTextContent("Add address");
+
+    await user.click(screen.getByRole("button", { name: "All orders" }));
+    expect(screen.getByText("#103")).toBeInTheDocument();
   });
 });
