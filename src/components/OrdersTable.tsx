@@ -60,6 +60,21 @@ import { downloadOrderExcel } from "@/lib/orderExcelExport";
 import { isAbandonedCheckoutOrder, normalizeOrderSource, orderSourceDisplayLabel, type OrderSource } from "@/lib/orderSource";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileOrderCards } from "@/components/MobileOrderCards";
+import { SteadfastIssueNote, SteadfastSendBanner } from "@/components/orders/SteadfastSendBanner";
+import {
+  STEADFAST_CHECK_DELAY_MS,
+  applySteadfastReply,
+  checkSteadfastOrders,
+  resendSteadfastRun,
+  runSteadfastSend,
+  startSteadfastRun,
+  steadfastGroupIds,
+  steadfastRowFailure,
+  type SteadfastFailureCode,
+  type SteadfastIssueGroup,
+  type SteadfastRun,
+  type SteadfastSendReply,
+} from "@/lib/steadfastBulkSend";
 import { OrderIdLink } from "@/components/orders/OrderIdLink";
 import { OrderHoldDialog } from "@/components/orders/OrderHoldDialog";
 import type { OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
@@ -310,14 +325,6 @@ interface OrdersTableProps {
   onSelectionChange?: (ids: Set<string>) => void;
   orderLinkState?: Record<string, unknown>;
   enableOrderIdLinks?: boolean;
-}
-
-interface BulkSteadfastResponse {
-  success: boolean;
-  processed: number;
-  failed: number;
-  succeeded: Array<{ orderId: string; orderNumber: string; order: Order }>;
-  failures: Array<{ orderId: string | null; orderNumber: string | null; reason: string }>;
 }
 
 function SearchRiskIcon({ className }: { className?: string }) {
@@ -678,7 +685,17 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
   const { warehouses } = useWarehouses();
   // A 100-row page renders its first rows at once and the rest after the page's
   // entrance, so opening Orders doesn't freeze; print renders everything.
-  const renderedRowCount = useProgressiveCount(orders.length, { enabled: !isPrintView });
+  const [steadfastRun, setSteadfastRun] = useState<SteadfastRun | null>(null);
+  const [steadfastFilter, setSteadfastFilter] = useState<SteadfastIssueGroup | null>(null);
+  const steadfastCheckTimer = useRef<number | null>(null);
+  const showSteadfastBanner = isPrintView && steadfastRun !== null;
+  const activeSteadfastFilter = showSteadfastBanner ? steadfastFilter : null;
+  const bulkSelectionOrders = selectionOrders ?? orders;
+  // A reason chip shows that run's orders wherever they are now, even if they left the Print tab.
+  const displayOrders = steadfastRun && activeSteadfastFilter
+    ? ((ids) => bulkSelectionOrders.filter((order) => ids.has(order.id)))(steadfastGroupIds(steadfastRun, activeSteadfastFilter))
+    : orders;
+  const renderedRowCount = useProgressiveCount(displayOrders.length, { enabled: !isPrintView });
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const [sendingPathaoIds, setSendingPathaoIds] = useState<Set<string>>(new Set());
@@ -690,8 +707,11 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
     if (onSelectionChange) onSelectionChange(resolved);
     else setInternalSelectedIds(resolved);
   };
+  // A bulk send runs across several awaits; read the selection as it is now, not as it was.
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
   const [isBulkChecking, setIsBulkChecking] = useState(false);
-  const [isBulkSendingSteadfast, setIsBulkSendingSteadfast] = useState(false);
+  const isBulkSendingSteadfast = steadfastRun?.phase === "sending";
   const [isDeletingOrders, setIsDeletingOrders] = useState(false);
   const [cancellationTarget, setCancellationTarget] = useState<Order | null>(null);
   const [cancellationDialogContainer, setCancellationDialogContainer] = useState<HTMLDivElement | null>(null);
@@ -796,6 +816,8 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
       const data = await res.json();
 
       if (!res.ok) {
+        // An order found at Steadfast (409) or not confirmed (503) comes back with its saved reason.
+        if (data?.order && onOrderUpdate) onOrderUpdate(data.order);
         throw new Error(data.error || "Failed to send to courier");
       }
 
@@ -1030,59 +1052,100 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
     }
   };
 
-  const bulkSelectionOrders = selectionOrders ?? orders;
   const selectedPrintOrders = bulkSelectionOrders.filter(
     (order) => selectedIds.has(order.id) && isPrintStatus(order.status) && !order.sent_to_courier,
   );
 
+  useEffect(() => () => {
+    if (steadfastCheckTimer.current !== null) window.clearTimeout(steadfastCheckTimer.current);
+  }, []);
+
+  const applySteadfastRows = (reply: SteadfastSendReply<Order>) => {
+    if (!onOrderUpdate) return;
+    for (const row of [...reply.succeeded, ...reply.failures]) {
+      if (row.order) onOrderUpdate(row.order);
+    }
+  };
+
+  const checkSteadfastRun = async (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
+    setSteadfastRun((previous) => previous && { ...previous, checking: true });
+    try {
+      const reply = await checkSteadfastOrders<Order>(orderIds);
+      applySteadfastRows(reply);
+      setSteadfastRun((previous) => previous && { ...applySteadfastReply(previous, reply), checking: false });
+    } catch (error) {
+      setSteadfastRun((previous) => previous && { ...previous, checking: false });
+      toast.error(error instanceof Error ? error.message : "Couldn't check with Steadfast");
+    }
+  };
+
+  // One pass sends `orderIds` in batches and folds each answer into the run as it lands.
+  const runSteadfastPass = async (orderIds: string[], begin: (previous: SteadfastRun | null) => SteadfastRun) => {
+    if (steadfastCheckTimer.current !== null) window.clearTimeout(steadfastCheckTimer.current);
+    steadfastCheckTimer.current = null;
+    setSteadfastRun(begin);
+
+    const sentIds = new Set<string>();
+    const codes = new Map<string, SteadfastFailureCode>();
+    const { stoppedReason } = await runSteadfastSend<Order>(orderIds, {
+      onBatch: ({ done, reply }) => {
+        applySteadfastRows(reply);
+        for (const row of reply.succeeded) sentIds.add(row.orderId);
+        for (const row of reply.failures) codes.set(row.orderId, row.code);
+        setSteadfastRun((previous) => previous && {
+          ...applySteadfastReply(previous, reply),
+          progress: { done, total: orderIds.length },
+        });
+      },
+    });
+    setSteadfastRun((previous) => previous && { ...previous, phase: "done", stoppedReason });
+    setSelectedIds(new Set([...selectedIdsRef.current].filter((id) => !sentIds.has(id))));
+
+    const checkingIds = orderIds.filter((id) => codes.get(id) === "checking");
+    if (checkingIds.length > 0) {
+      steadfastCheckTimer.current = window.setTimeout(() => {
+        steadfastCheckTimer.current = null;
+        void checkSteadfastRun(checkingIds);
+      }, STEADFAST_CHECK_DELAY_MS);
+    }
+  };
+
   const handleBulkSendToSteadfast = async () => {
     if (selectedPrintOrders.length === 0 || isBulkSendingSteadfast) return;
+    const orderIds = selectedPrintOrders.map((order) => order.id);
+    setSteadfastFilter(null);
+    await runSteadfastPass(orderIds, () => startSteadfastRun(orderIds.length));
+  };
 
-    setIsBulkSendingSteadfast(true);
+  const handleSteadfastRetry = (orderIds: string[]) => {
+    if (orderIds.length === 0 || isBulkSendingSteadfast) return;
+    setSteadfastFilter(null);
+    void runSteadfastPass(orderIds, (previous) => (previous ? resendSteadfastRun(previous, orderIds.length) : startSteadfastRun(orderIds.length)));
+  };
+
+  const handleSteadfastFix = async (order: Order, kind: "phone" | "address", value: string) => {
     try {
-      const response = await apiFetch("/api/send-to-courier/bulk", {
-        method: "POST",
+      const response = await apiFetch(`/api/orders/${order.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderIds: selectedPrintOrders.map((order) => order.id) }),
+        body: JSON.stringify({ [kind]: value, courier_message: null }),
       });
-      const data = await response.json().catch(() => ({})) as Partial<BulkSteadfastResponse> & { error?: string };
-      if (!response.ok) throw new Error(data.error || "Failed to send orders to Steadfast");
-
-      const succeeded = Array.isArray(data.succeeded) ? data.succeeded : [];
-      const failures = Array.isArray(data.failures) ? data.failures : [];
-      succeeded.forEach((result) => {
-        if (result?.order && onOrderUpdate) onOrderUpdate(result.order);
-      });
-
-      const succeededIds = new Set(succeeded.map((result) => result.orderId));
-      setSelectedIds((previous) => {
-        const next = new Set(previous);
-        succeededIds.forEach((id) => next.delete(id));
-        return next;
-      });
-
-      if (succeeded.length > 0) {
-        toast.success(`${succeeded.length} order${succeeded.length === 1 ? "" : "s"} sent to Steadfast`);
-      }
-      if (failures.length > 0) {
-        const details = failures
-          .map((failure) => `${failure.orderNumber || failure.orderId || "Unknown order"}: ${failure.reason}`)
-          .join("; ");
-        toast.error(`${failures.length} order${failures.length === 1 ? "" : "s"} failed: ${details}`);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to send orders to Steadfast";
-      toast.error(message);
-    } finally {
-      setIsBulkSendingSteadfast(false);
+      const data = await response.json().catch(() => ({})) as { order?: Order; error?: string };
+      if (!response.ok) return data.error || "Couldn't save. Try again.";
+      if (data.order && onOrderUpdate) onOrderUpdate(data.order);
+      setSteadfastRun((previous) => previous && (previous.fixedIds.includes(order.id) ? previous : { ...previous, fixedIds: [...previous.fixedIds, order.id] }));
+      return null;
+    } catch {
+      return "Couldn't save. Check your connection.";
     }
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === orders.length && orders.length > 0) {
+    if (selectedIds.size === displayOrders.length && displayOrders.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(orders.map(o => o.id)));
+      setSelectedIds(new Set(displayOrders.map(o => o.id)));
     }
   };
 
@@ -1269,11 +1332,39 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
     );
   }
 
-  if (orders.length === 0) {
+  const steadfastBanner = showSteadfastBanner && steadfastRun && !isMobile ? (
+    <SteadfastSendBanner
+      run={steadfastRun}
+      filter={activeSteadfastFilter}
+      onFilter={setSteadfastFilter}
+      onRetry={handleSteadfastRetry}
+      onCheckAgain={() => void checkSteadfastRun(Object.entries(steadfastRun.failures).filter(([, failure]) => failure.code === "checking").map(([id]) => id))}
+      onDismiss={() => {
+        setSteadfastRun(null);
+        setSteadfastFilter(null);
+      }}
+    />
+  ) : null;
+
+  if (displayOrders.length === 0) {
     return (
-      <div className="text-center py-20 bg-white">
-        <Package className="w-12 h-12 text-black mx-auto mb-4" />
-        <p className="text-[10px] text-black tracking-[0.2em] font-bold uppercase">No records found</p>
+      <div>
+        {steadfastBanner}
+        <div className="text-center py-20 bg-white">
+          <Package className="w-12 h-12 text-black mx-auto mb-4" />
+          <p className="text-[10px] text-black tracking-[0.2em] font-bold uppercase">
+            {activeSteadfastFilter ? "Nothing left in this group" : "No records found"}
+          </p>
+          {activeSteadfastFilter && (
+            <button
+              type="button"
+              onClick={() => setSteadfastFilter(null)}
+              className="mt-3 text-[11px] font-medium text-black underline decoration-black/20 underline-offset-4 hover:decoration-black"
+            >
+              Show all orders
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -1310,6 +1401,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
 
   return (
     <div className="overflow-hidden">
+      {steadfastBanner}
       <Table className="[&_td]:px-2.5 [&_th]:px-2.5 [&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4">
         <TableHeader>
           <TableRow className="border-b border-black/[0.03] hover:bg-transparent">
@@ -1319,14 +1411,14 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                 data-testid="checkbox-orders-all"
                 className={cn(
                   "w-[18px] h-[18px] rounded-[5px] border-[1.5px] flex items-center justify-center cursor-pointer transition-all duration-200",
-                  selectedIds.size === orders.length && orders.length > 0
+                  selectedIds.size === displayOrders.length && displayOrders.length > 0
                     ? "bg-[#0285F7] border-[#0285F7]"
                     : selectedIds.size > 0
                       ? "bg-[#0285F7] border-[#0285F7]"
                       : "border-black/20 bg-white hover:border-black/40"
                 )}
               >
-                {selectedIds.size === orders.length && orders.length > 0 ? (
+                {selectedIds.size === displayOrders.length && displayOrders.length > 0 ? (
                   <Check className="w-3 h-3 text-white" />
                 ) : selectedIds.size > 0 ? (
                   <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none">
@@ -1349,7 +1441,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
           </TableRow>
         </TableHeader>
         <TableBody>
-            {orders.slice(0, renderedRowCount).map((order, idx) => {
+            {displayOrders.slice(0, renderedRowCount).map((order, idx) => {
               const { primary, lines, names } = productSummary(order);
               const statusOptions = isPrintStatus(order.status)
                 ? ["print", "confirmed", "processing", "on_hold", "cancelled"]
@@ -1695,6 +1787,20 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                       )}
                     </div>
                     {(() => {
+                      const failure = steadfastRowFailure(order, steadfastRun);
+                      if (!failure) return null;
+                      return (
+                        <SteadfastIssueNote
+                          orderId={order.id}
+                          failure={failure}
+                          fixed={steadfastRun?.fixedIds.includes(order.id) ?? false}
+                          phone={order.phone || ""}
+                          address={order.address || ""}
+                          onFix={(kind, value) => handleSteadfastFix(order, kind, value)}
+                        />
+                      );
+                    })()}
+                    {(() => {
                       const details = followUpDetails(order);
                       if (!details) return null;
                       // The other reasons already say how many days.
@@ -1748,15 +1854,17 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
               {/* Actions */}
               <div className="flex items-center px-3 gap-0.5">
 
-                {isPrintView && selectedPrintOrders.length > 0 && (
+                {isPrintView && (selectedPrintOrders.length > 0 || isBulkSendingSteadfast) && (
                   <button
                     onClick={() => void handleBulkSendToSteadfast()}
                     disabled={isBulkSendingSteadfast}
-                    className="flex items-center gap-1.5 h-8 px-3 text-[9px] font-medium tracking-[0.18em] uppercase text-black hover:text-black hover:bg-black/[0.03] transition-all disabled:opacity-30"
+                    className="flex items-center gap-1.5 h-8 px-3 text-[9px] font-medium tracking-[0.18em] uppercase text-black hover:text-black hover:bg-black/[0.03] transition-all disabled:opacity-60"
                     data-testid="button-bulk-send-steadfast"
                   >
                     {isBulkSendingSteadfast ? <Spinner size="sm" /> : <SteadfastLogo className="h-3.5 w-auto" />}
-                    Send to Steadfast
+                    {isBulkSendingSteadfast && steadfastRun
+                      ? <span className="tabular-nums">Sending {steadfastRun.progress.done}/{steadfastRun.progress.total}</span>
+                      : "Send to Steadfast"}
                   </button>
                 )}
 
