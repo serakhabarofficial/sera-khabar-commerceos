@@ -5,6 +5,7 @@ export const ABANDONED_CHECKOUT_SOURCE_PATHS = Object.freeze({
   sundarbans_honey: "/step/sundarbans-natural-honey",
   kalojira_mixed: "/step/kalojira-mixed",
   honey_nut: "/step/honey-nut",
+  am_sotto_achar: "/step/am-sotto-achar",
 });
 
 export const ACTIVE_ABANDONED_CHECKOUT_STATUSES = Object.freeze(["open", "contacted"]);
