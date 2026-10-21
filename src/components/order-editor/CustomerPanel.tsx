@@ -97,7 +97,7 @@ function CardMetric({ label, value }: { label: string; value: string | number | 
 
 const LANDING_PAGE_PATH_RE = /^\/step\/([a-z0-9]+(?:-[a-z0-9]+)*)$/i;
 
-function formatLandingPageLabel(value: string | null | undefined): string {
+export function formatLandingPageLabel(value: string | null | undefined): string {
   const path = value?.trim();
   if (!path) return "—";
 
@@ -110,12 +110,12 @@ function formatLandingPageLabel(value: string | null | undefined): string {
     .join(" ");
 }
 
-function landingPageHref(value: string | null | undefined): string | undefined {
+export function landingPageHref(value: string | null | undefined): string | undefined {
   const path = value?.trim();
   return path && LANDING_PAGE_PATH_RE.test(path) ? path : undefined;
 }
 
-const ORDER_SOURCE_ICONS: Record<OrderSource, Icon> = {
+export const ORDER_SOURCE_ICONS: Record<OrderSource, Icon> = {
   website: Globe,
   facebook: FacebookLogo,
   instagram: InstagramLogo,
@@ -133,7 +133,7 @@ function dateTime(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString("en-BD") : null;
 }
 
-function historyDateTime(value: string | null | undefined) {
+export function historyDateTime(value: string | null | undefined) {
   if (!value) return null;
   const time = new Date(value).getTime();
   if (!Number.isFinite(time)) return null;
@@ -147,7 +147,7 @@ function historyDateTime(value: string | null | undefined) {
   });
 }
 
-function historyStatusLabel(status: string | null | undefined): string {
+export function historyStatusLabel(status: string | null | undefined): string {
   const normalized = normalizeBusinessStatus(status);
   if (normalized === "confirmed" || normalized === "approved") return "Confirmed";
   if (normalized === "print") return "Ready to Ship";
@@ -158,7 +158,7 @@ function historyStatusLabel(status: string | null | undefined): string {
   return (status || "").trim() || "—";
 }
 
-function humanizeCourierStatus(status: string): string {
+export function humanizeCourierStatus(status: string): string {
   return status
     .split(/[_-\s]+/)
     .filter(Boolean)
@@ -166,7 +166,7 @@ function humanizeCourierStatus(status: string): string {
     .join(" ");
 }
 
-function courierStatusChipColor(status: string | null | undefined): "lime" | "rose" | "yellow" | "blue" | "neutral" {
+export function courierStatusChipColor(status: string | null | undefined): "lime" | "rose" | "yellow" | "blue" | "neutral" {
   const normalized = (status || "").toLowerCase().replace(/[-_\s]+/g, "");
   if (!normalized) return "neutral";
   if (/(delivered|complete|success)/.test(normalized)) return "lime";
@@ -176,7 +176,7 @@ function courierStatusChipColor(status: string | null | undefined): "lime" | "ro
   return "neutral";
 }
 
-function historyStatusPill(status: string | null | undefined): string {
+export function historyStatusPill(status: string | null | undefined): string {
   const normalized = normalizeBusinessStatus(status);
   if (normalized === "confirmed" || normalized === "approved" || normalized === "delivered") return "bg-[#e3f5e9] text-[#2e9e5b]";
   if (normalized === "print") return "bg-[#eceffd] text-[#5b6ee1]";
@@ -187,7 +187,7 @@ function historyStatusPill(status: string | null | undefined): string {
 
 const inputClass = "h-12 w-full rounded-lg bg-black/[0.04] px-3.5 text-[14px] text-black outline-none ring-1 ring-inset ring-black/[0.06] transition focus:bg-white focus:ring-black/20 disabled:opacity-50";
 
-async function copyTextToClipboard(value: string): Promise<boolean> {
+export async function copyTextToClipboard(value: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(value);

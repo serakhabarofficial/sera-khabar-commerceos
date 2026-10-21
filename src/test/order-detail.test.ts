@@ -211,6 +211,26 @@ describe("OrderDetail", () => {
     expect(within(customerSection).getByText("Last orders").parentElement?.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
   });
 
+  it("links the landing page to the live storefront", async () => {
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/orders/order-1") return response(detail);
+      if (url === "/api/products") return response(products);
+      if (url === "/api/storefront/provision") return response({ provisioned: true, url: "https://serakhabar.com/" });
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+    renderPage();
+
+    const landingPage = await screen.findByRole("link", { name: "Landing page: Katimon Mango" });
+    await waitFor(() => expect(landingPage).toHaveAttribute("href", "https://serakhabar.com/step/katimon-mango"));
+    expect(landingPage).toHaveAttribute("target", "_blank");
+  });
+
+  it("uses the new SMS icon on the customer's SMS button", async () => {
+    renderPage();
+    const sms = await screen.findByRole("button", { name: "Send SMS" });
+    expect(within(sms).getByTestId("sms-icon")).toBeInTheDocument();
+  });
+
   it("shows a readable linked originating landing page in the header", async () => {
     renderPage();
 
@@ -269,14 +289,13 @@ describe("OrderDetail", () => {
     const sourceControl = await screen.findByTestId("order-source-control");
     expect(sourceControl).toHaveTextContent("Website");
     expect(within(sourceControl).queryByRole("button")).not.toBeInTheDocument();
-    await user.click(within(screen.getByRole("region", { name: "Order cart" })).getByRole("button", { name: /order status/i }));
-    await user.click(await screen.findByRole("option", { name: "print" }));
+    await user.click(within(screen.getByRole("radiogroup", { name: "Order status" })).getByRole("radio", { name: "Pending" }));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       const patch = apiFetch.mock.calls.find(([url, init]) => url === "/api/orders/order-1" && init?.method === "PATCH");
       expect(patch).toBeDefined();
-      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ status: "print" });
+      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ status: "pending" });
       expect(JSON.parse(String(patch?.[1]?.body))).not.toHaveProperty("source");
     });
   });
@@ -296,15 +315,155 @@ describe("OrderDetail", () => {
     expect(apiFetch.mock.calls.some(([url]) => String(url).includes("/items"))).toBe(false);
   });
 
-  it("keeps the editor toolbar visible and limits inner scrolling to the catalog list", async () => {
+  it("fits the editor to one screen with the customer file and item list scrolling on their own", async () => {
     renderPage();
+    const user = userEvent.setup();
 
     expect(await screen.findByTestId("order-editor-toolbar")).toHaveClass("sticky");
-    expect(await screen.findByTestId("order-editor-workspace")).toHaveClass("items-start", "xl:h-[100vh]");
+    expect(await screen.findByTestId("order-editor-workspace")).toHaveClass("xl:h-[calc(100dvh-8.75rem)]", "xl:grid-cols-[380px_minmax(0,1fr)]");
+    expect(screen.getByRole("region", { name: "Customer and order" })).toHaveClass("rounded-2xl", "xl:overflow-y-auto");
+    expect(screen.getByRole("region", { name: "Order cart" })).toHaveClass("rounded-2xl");
+    expect(screen.getByTestId("order-items-scroll-region")).toHaveClass("flex-1", "xl:overflow-y-auto");
 
     const catalog = screen.getByRole("region", { name: "Product catalog" });
-    expect(catalog).not.toHaveClass("overflow-y-auto");
+    expect(within(catalog).queryByTestId("catalog-scroll-region")).not.toBeInTheDocument();
+    await user.click(within(catalog).getByRole("searchbox", { name: "Search products" }));
     expect(within(catalog).getByTestId("catalog-scroll-region")).toHaveClass("overflow-y-auto");
+  });
+
+  it("offers only Pending, Confirmed, On Hold and Cancel order for a pending order", async () => {
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/orders/order-1") return response({ ...detail, order: { ...order, status: "pending" } });
+      if (url === "/api/products") return response(products);
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+    renderPage();
+
+    const group = await screen.findByRole("radiogroup", { name: "Order status" });
+    await waitFor(() => expect(within(group).getByRole("radio", { name: "Pending" })).toBeChecked());
+    expect(within(group).getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["Pending", "Confirmed", "On Hold", "Cancel order"]);
+  });
+
+  it("keeps a Print order's current step visible", async () => {
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/orders/order-1") return response({ ...detail, order: { ...order, status: "print" } });
+      if (url === "/api/products") return response(products);
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+    renderPage();
+
+    const group = await screen.findByRole("radiogroup", { name: "Order status" });
+    await waitFor(() => expect(within(group).getByRole("radio", { name: "Print" })).toBeChecked());
+    expect(within(group).getByRole("radio", { name: "Pending" })).toBeDisabled();
+  });
+
+  it("marks the weights already in the order inside product search", async () => {
+    renderPage();
+    const search = await screen.findByRole("searchbox", { name: "Search products" });
+    await waitFor(() => expect(apiFetch.mock.calls.some(([url]) => url === "/api/products")).toBe(true));
+    fireEvent.focus(search);
+
+    const mango = await screen.findByRole("button", { name: "Add Premium Mango to cart" });
+    expect(mango).toHaveAttribute("data-picked");
+    expect(within(mango).getByText("×1")).toBeInTheDocument();
+    const honey = screen.getByRole("button", { name: "Add Honey Jar, 500g to cart" });
+    expect(honey).not.toHaveAttribute("data-picked");
+
+    fireEvent.click(honey);
+    expect(screen.getByRole("button", { name: "Add Honey Jar, 500g to cart" })).toHaveAttribute("data-picked");
+  });
+
+  it("opens the product list on click and closes it on the next click", async () => {
+    renderPage();
+    const user = userEvent.setup();
+    const search = await screen.findByRole("searchbox", { name: "Search products" });
+
+    await user.click(search);
+    expect(await screen.findByTestId("catalog-scroll-region")).toBeInTheDocument();
+    await user.click(search);
+    await waitFor(() => expect(screen.queryByTestId("catalog-scroll-region")).not.toBeInTheDocument());
+    await user.click(search);
+    expect(await screen.findByTestId("catalog-scroll-region")).toBeInTheDocument();
+  });
+
+  it("does not pre-highlight a weight when the product list opens", async () => {
+    renderPage();
+    const search = await screen.findByRole("searchbox", { name: "Search products" });
+    await waitFor(() => expect(apiFetch.mock.calls.some(([url]) => url === "/api/products")).toBe(true));
+    fireEvent.focus(search);
+    await screen.findByRole("button", { name: "Add Premium Mango to cart" });
+    expect(screen.getByTestId("catalog-scroll-region").querySelector("[data-highlighted]")).toBeNull();
+
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(screen.getByRole("button", { name: "Add Premium Mango to cart" })).toHaveAttribute("data-highlighted");
+  });
+
+  it("keeps Collect on delivery and Save on one shared row while status fields open", async () => {
+    renderPage();
+    const user = userEvent.setup();
+    const group = await screen.findByRole("radiogroup", { name: "Order status" });
+    await waitFor(() => expect(within(group).getByRole("radio", { name: "Cancel order" })).toBeEnabled());
+
+    const collect = screen.getByTestId("collect-on-delivery").parentElement as HTMLElement;
+    const save = screen.getByRole("button", { name: "Save changes" }).parentElement as HTMLElement;
+    expect(collect.parentElement).toBe(save.parentElement);
+    expect(collect.nextElementSibling).toBe(save);
+
+    await user.click(within(group).getByRole("radio", { name: "Cancel order" }));
+    expect(screen.getByTestId("collect-on-delivery").parentElement?.nextElementSibling).toBe(screen.getByRole("button", { name: "Save changes" }).parentElement);
+  });
+
+  it("keeps the advance proof on the advance line instead of adding a row", async () => {
+    renderPage();
+    const advance = await screen.findByRole("spinbutton", { name: "Advance payment" });
+    fireEvent.change(advance, { target: { value: "200" } });
+
+    const proof = await screen.findByTestId("advance-payment-proof");
+    expect(advance.closest("dd")).toContainElement(proof);
+    expect(within(proof).getByText("Paid via")).toHaveClass("sr-only");
+  });
+
+  it("stacks the cancellation reason above the optional note", async () => {
+    renderPage();
+    const user = userEvent.setup();
+    const group = await screen.findByRole("radiogroup", { name: "Order status" });
+    await waitFor(() => expect(within(group).getByRole("radio", { name: "Cancel order" })).toBeEnabled());
+
+    await user.click(within(group).getByRole("radio", { name: "Cancel order" }));
+
+    const fields = screen.getByTestId("cancellation-fields");
+    expect(fields).toHaveClass("grid-cols-1");
+    const reason = within(fields).getByRole("button", { name: /Cancellation reason/ });
+    const note = within(fields).getByRole("textbox", { name: "Cancellation note" });
+    expect(reason.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("switches a line to another weight and keeps its quantity", async () => {
+    const honeyProduct = {
+      ...products.products[1],
+      stock_quantity: 0,
+      variants: [
+        { id: "variant-2", product_id: "product-2", attributes: { size: "500g" }, price_adjustment: 25, stock_quantity: 3, weight_kg: 0.5 },
+        { id: "variant-3", product_id: "product-2", attributes: { size: "1kg" }, price_adjustment: 225, stock_quantity: 6, weight_kg: 1 },
+      ],
+    };
+    const honeyLine = { ...detail.items[0], id: "item-honey", product_id: "product-2", variant_id: "variant-2", product_name: "Honey Jar", variant_name: "500g", unit_price: 275, quantity: 2, available_stock: 3 };
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/orders/order-1") return response({ ...detail, items: [honeyLine] });
+      if (url === "/api/products") return response({ products: [products.products[0], honeyProduct] });
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    const line = await screen.findByTestId("order-item-item-honey");
+    await waitFor(() => expect(within(line).getByRole("button", { name: /Weight for Honey Jar/ })).toBeEnabled());
+    await user.click(within(line).getByRole("button", { name: /Weight for Honey Jar/ }));
+    await user.click(await screen.findByRole("option", { name: /1kg/ }));
+
+    const swapped = await screen.findByTestId("order-item-draft-product-2-variant-3");
+    expect(within(swapped).getByRole("spinbutton")).toHaveValue(2);
+    expect(within(swapped).getByText("৳950")).toBeInTheDocument();
   });
 
   it("stages the order status in the cart and saves before returning to the order table", async () => {
@@ -321,10 +480,11 @@ describe("OrderDetail", () => {
     const user = userEvent.setup();
 
     const cart = await screen.findByRole("region", { name: "Order cart" });
-    expect(within(cart).getByRole("button", { name: /order status/i })).toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: "Customer and order" })).queryByRole("button", { name: /order status/i })).not.toBeInTheDocument();
-    await user.click(within(cart).getByRole("button", { name: /order status/i }));
-    await user.click(await screen.findByRole("option", { name: "print" }));
+    const statusGroup = within(cart).getByRole("radiogroup", { name: "Order status" });
+    expect(within(statusGroup).getByRole("radio", { name: "Confirmed" })).toBeChecked();
+    expect(within(screen.getByRole("region", { name: "Customer and order" })).queryByRole("radiogroup", { name: "Order status" })).not.toBeInTheDocument();
+    expect(within(statusGroup).queryByRole("radio", { name: "Print" })).not.toBeInTheDocument();
+    await user.click(within(statusGroup).getByRole("radio", { name: "Pending" }));
 
     expect(apiFetch.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
     await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -332,7 +492,7 @@ describe("OrderDetail", () => {
     await waitFor(() => {
       const patch = apiFetch.mock.calls.find(([url, init]) => url === "/api/orders/order-1" && init?.method === "PATCH");
       expect(patch).toBeDefined();
-      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ status: "print" });
+      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ status: "pending" });
     });
     expect(await screen.findByText("Orders dashboard")).toBeInTheDocument();
   });
@@ -358,9 +518,8 @@ describe("OrderDetail", () => {
     const user = userEvent.setup();
 
     const cart = await screen.findByRole("region", { name: "Order cart" });
-    await waitFor(() => expect(within(cart).getByRole("button", { name: /order status/i })).toBeEnabled());
-    await user.click(within(cart).getByRole("button", { name: /order status/i }));
-    await user.click(await screen.findByRole("option", { name: "On Hold" }));
+    await waitFor(() => expect(within(cart).getByRole("radio", { name: "On Hold" })).toBeEnabled());
+    await user.click(within(cart).getByRole("radio", { name: "On Hold" }));
     await user.click(within(cart).getByRole("button", { name: /Hold reason/ }));
     await user.click(await screen.findByRole("option", { name: "অগ্রিম পেমেন্টের জন্য অর্ডার হোল্ডে রাখা হয়েছে" }));
     await user.click(within(cart).getByRole("button", { name: "Save changes" }));
@@ -383,9 +542,8 @@ describe("OrderDetail", () => {
     renderPage();
     const user = userEvent.setup();
     const cart = await screen.findByRole("region", { name: "Order cart" });
-    await waitFor(() => expect(within(cart).getByRole("button", { name: /order status/i })).toBeEnabled());
-    await user.click(within(cart).getByRole("button", { name: /order status/i }));
-    await user.click(await screen.findByRole("option", { name: "On Hold" }));
+    await waitFor(() => expect(within(cart).getByRole("radio", { name: "On Hold" })).toBeEnabled());
+    await user.click(within(cart).getByRole("radio", { name: "On Hold" }));
     await user.click(within(cart).getByRole("button", { name: /Hold reason/ }));
     await user.click(await screen.findByRole("option", { name: "গ্রাহক নির্দিষ্ট তারিখের পরে পার্সেল নিতে চান" }));
     await user.click(within(cart).getByRole("button", { name: "Save changes" }));
@@ -396,18 +554,18 @@ describe("OrderDetail", () => {
 
   it("keeps customer details read-only until Edit and supports Apply and Cancel", async () => {
     renderPage();
-    expect(await screen.findAllByText("Ayesha Rahman")).toHaveLength(2);
+    expect(await screen.findAllByText("Ayesha Rahman")).toHaveLength(1);
     expect(screen.queryByLabelText("Customer name")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit customer" }));
     fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Nusrat Jahan" } });
     fireEvent.click(screen.getByRole("button", { name: "Cancel customer edit" }));
-    expect(await screen.findAllByText("Ayesha Rahman")).toHaveLength(2);
+    expect(await screen.findAllByText("Ayesha Rahman")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Edit customer" }));
     fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Nusrat Jahan" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply customer changes" }));
-    expect(await screen.findAllByText("Nusrat Jahan")).toHaveLength(2);
+    expect(await screen.findAllByText("Nusrat Jahan")).toHaveLength(1);
   });
 
   it("filters the catalog by slug and variant and increments duplicate cart items", async () => {
@@ -507,7 +665,7 @@ describe("OrderDetail", () => {
     });
     renderPage("order-1", [{ ...order, items: [{ product_id: "product-1", product_name: "Premium Mango", variant_name: '{"size":"1 kg"}', unit_price: 500, quantity: 1 }] }]);
     expect(screen.queryByTestId("order-detail-loading")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Ayesha Rahman")).toHaveLength(2);
+    expect(screen.getAllByText("Ayesha Rahman")).toHaveLength(1);
     expect(screen.getByRole("region", { name: "Customer and order" })).toBeInTheDocument();
     expect(screen.queryByText(/Editing is locked after courier dispatch/i)).not.toBeInTheDocument();
   });
@@ -531,14 +689,14 @@ describe("OrderDetail", () => {
 
   it("renders the order summary and current line items", async () => {
     renderPage();
-    expect(await screen.findAllByText("Ayesha Rahman")).toHaveLength(2);
+    expect(await screen.findAllByText("Ayesha Rahman")).toHaveLength(1);
     expect(screen.getByText("#ML-1001")).toBeInTheDocument();
     expect(screen.getByText("Dhanmondi, Dhaka")).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Order cart" })).getByText("Premium Mango")).toBeInTheDocument();
     expect(screen.getByText("1 kg")).toBeInTheDocument();
     expect(screen.getAllByText("৳580")).toHaveLength(2);
     expect(screen.getByText("Updated")).toBeInTheDocument();
-    expect(screen.getAllByText("৳80")).toHaveLength(2);
+    expect(screen.getByText("৳80")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("order-detail-animated-content")).toHaveStyle({ opacity: "1" }));
   });
 
@@ -756,7 +914,7 @@ describe("OrderDetail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Insufficient stock");
-    expect(await screen.findAllByText("Nusrat Jahan")).toHaveLength(2);
+    expect(await screen.findAllByText("Nusrat Jahan")).toHaveLength(1);
     expect(within(line).getByRole("spinbutton")).toHaveValue(2);
   });
 
@@ -785,11 +943,11 @@ describe("OrderDetail", () => {
       throw new Error(`Unexpected API request: ${url}`);
     });
     renderPage();
-    expect(await screen.findAllByText(/Editing is locked after courier dispatch/i)).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Add Premium Mango to cart" })).toBeDisabled();
+    expect(await screen.findAllByText(/Editing is locked after courier dispatch/i)).toHaveLength(1);
+    expect(screen.getByRole("searchbox", { name: "Search products" })).toBeDisabled();
     expect(within(screen.getByTestId("order-item-item-1")).getByRole("spinbutton")).toBeDisabled();
     expect(within(screen.getByTestId("order-item-item-1")).getByRole("button", { name: "Remove Premium Mango" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /order status/i })).not.toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Pending" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: /Save changes/i })).not.toBeDisabled();
   });
 
@@ -809,13 +967,15 @@ describe("OrderDetail", () => {
     fireEvent.change(screen.getByLabelText("Delivery address"), { target: { value: "Gulshan, Dhaka" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply customer changes" }));
     fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
-    await waitFor(() => expect(screen.getAllByText("Nusrat Jahan")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText("Nusrat Jahan")).toHaveLength(1));
     const updateCall = apiFetch.mock.calls.find(([, init]) => init?.method === "PATCH" && String(init?.body).includes("customer_name"));
     expect(JSON.parse(updateCall[1].body)).toMatchObject({ customer_name: "Nusrat Jahan", phone: "01822222222", address: "Gulshan, Dhaka" });
   });
 
   it("eagerly loads the catalog and shows the product default image", async () => {
     renderPage();
+    await waitFor(() => expect(apiFetch.mock.calls.some(([url]) => url === "/api/products")).toBe(true));
+    fireEvent.focus(await screen.findByRole("searchbox", { name: "Search products" }));
     expect(await screen.findByAltText("Honey Jar")).toHaveAttribute("src", "https://cdn.example/honey.jpg");
     expect(apiFetch.mock.calls.some(([url]) => url === "/api/products")).toBe(true);
   });

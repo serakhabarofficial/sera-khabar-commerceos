@@ -61,7 +61,7 @@ function CourierLogo({ src }: { src: string | null }) {
   );
 }
 
-export function FraudPanel({ phone, className = "", defaultExpanded = false, compact = false, alignHeader = "center" }: { phone?: string | null; className?: string; defaultExpanded?: boolean; compact?: boolean; alignHeader?: "left" | "center" }) {
+export function FraudPanel({ phone, className = "", defaultExpanded = false, compact = false, alignHeader = "center", showReviews = true }: { phone?: string | null; className?: string; defaultExpanded?: boolean; compact?: boolean; alignHeader?: "left" | "center"; showReviews?: boolean }) {
   const normalized = normalizeBdPhone(phone);
   const lookup = useFraudLookup(phone);
   const check = useFraudCheckMutation(phone);
@@ -92,7 +92,7 @@ export function FraudPanel({ phone, className = "", defaultExpanded = false, com
 
   const reviews = payload?.reviews;
   const couriers = courierRows(payload);
-  const hasReviews = Array.isArray(reviews) && reviews.length > 0;
+  const hasReviews = showReviews && Array.isArray(reviews) && reviews.length > 0;
   // Couriers with real parcel history float to the top; only the first 4 show
   // by default so the list never dwarfs the summary above it. The rest are a
   // hover-away, not a scroll — see the "+N more" trigger below.

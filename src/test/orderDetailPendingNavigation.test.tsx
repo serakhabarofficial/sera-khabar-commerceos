@@ -8,9 +8,11 @@ import OrderDetail from "@/pages/OrderDetail";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock("@/lib/api", () => ({ apiFetch }));
-vi.mock("@/components/order-editor/CatalogPanel", () => ({ CatalogPanel: () => null }));
-vi.mock("@/components/order-editor/CustomerPanel", () => ({
-  CustomerPanel: (props: {
+vi.mock("@/components/order-editor/ProductPicker", () => ({ ProductPicker: () => null }));
+vi.mock("@/components/order-editor/OrderItemsTable", () => ({ OrderItemsTable: () => null }));
+vi.mock("@/components/order-editor/OrderPaymentPanel", () => ({ OrderPaymentPanel: () => null, CollectOnDeliveryBar: () => null }));
+vi.mock("@/components/order-editor/CustomerDossier", () => ({
+  CustomerDossier: (props: {
     order: { customer_name?: string };
     customer: { customerName: string; phone: string; address: string };
     onApply: (customer: { customerName: string; phone: string; address: string }) => void;
@@ -26,8 +28,9 @@ vi.mock("@/components/order-editor/CustomerPanel", () => ({
       ),
     ),
 }));
-vi.mock("@/components/order-editor/CartPanel", () => ({
-  CartPanel: (props: { onSave: () => void }) => createElement("button", { onClick: props.onSave }, "Save"),
+vi.mock("@/components/order-editor/OrderSavePanel", () => ({
+  OrderSavePanel: () => null,
+  OrderSaveActions: (props: { onSave: () => void }) => createElement("button", { onClick: props.onSave }, "Save"),
 }));
 
 const orderOne = {

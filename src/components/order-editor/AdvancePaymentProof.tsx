@@ -16,6 +16,7 @@ export function AdvancePaymentProof({
   onMethodChange,
   onReferenceChange,
   disabled = false,
+  hideLabel = false,
   className,
 }: {
   method: string;
@@ -23,16 +24,18 @@ export function AdvancePaymentProof({
   onMethodChange: (method: string) => void;
   onReferenceChange: (reference: string) => void;
   disabled?: boolean;
+  /** Keeps "Paid via" for screen readers only, for layouts that sit the proof inline. */
+  hideLabel?: boolean;
   className?: string;
 }) {
   return (
     <div data-testid="advance-payment-proof" className={cn("flex items-center justify-between gap-2", className)}>
-      <span className="text-[11px] text-black">Paid via</span>
-      <span className="flex items-center gap-1.5">
+      <span className={hideLabel ? "sr-only" : "text-[11px] text-black"}>Paid via</span>
+      <span className="flex min-w-0 items-center gap-1.5">
         <Select value={method} onValueChange={onMethodChange} disabled={disabled}>
           <SelectTrigger
             aria-label="Advance paid via"
-            className="h-7 w-[92px] rounded-lg border-0 bg-black/[0.04] px-2 text-[12px] shadow-none ring-1 ring-inset ring-black/[0.06]"
+            className="h-7 w-[92px] shrink-0 rounded-lg border-0 bg-black/[0.04] px-2 text-[12px] shadow-none ring-1 ring-inset ring-black/[0.06]"
           >
             <SelectValue placeholder="Method" />
           </SelectTrigger>
@@ -52,7 +55,7 @@ export function AdvancePaymentProof({
           title="Transaction ID, or the last 4 digits of the sender's number"
           onChange={(event) => onReferenceChange(event.target.value.toUpperCase())}
           disabled={disabled}
-          className="h-7 w-[118px] rounded-lg bg-black/[0.04] px-2 font-mono text-[12px] uppercase tabular-nums outline-none ring-1 ring-inset ring-black/[0.06] transition placeholder:font-sans placeholder:normal-case placeholder:text-black/30 focus:bg-white focus:ring-black/20 disabled:opacity-40"
+          className="h-7 w-[118px] min-w-[64px] shrink rounded-lg bg-black/[0.04] px-2 font-mono text-[12px] uppercase tabular-nums outline-none ring-1 ring-inset ring-black/[0.06] transition placeholder:font-sans placeholder:normal-case placeholder:text-black/30 focus:bg-white focus:ring-black/20 disabled:opacity-40"
         />
       </span>
     </div>

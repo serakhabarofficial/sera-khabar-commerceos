@@ -10,9 +10,11 @@ import { prefetchPageData } from "@/lib/pageQueries";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock("@/lib/api", () => ({ apiFetch }));
-vi.mock("@/components/order-editor/CustomerPanel", () => ({ CustomerPanel: () => null }));
-vi.mock("@/components/order-editor/CatalogPanel", () => ({ CatalogPanel: () => null }));
-vi.mock("@/components/order-editor/CartPanel", () => ({ CartPanel: (props: { onSave: () => void }) => createElement("button", { onClick: props.onSave }, "Save") }));
+vi.mock("@/components/order-editor/CustomerDossier", () => ({ CustomerDossier: () => null }));
+vi.mock("@/components/order-editor/ProductPicker", () => ({ ProductPicker: () => null }));
+vi.mock("@/components/order-editor/OrderItemsTable", () => ({ OrderItemsTable: () => null }));
+vi.mock("@/components/order-editor/OrderPaymentPanel", () => ({ OrderPaymentPanel: () => null, CollectOnDeliveryBar: () => null }));
+vi.mock("@/components/order-editor/OrderSavePanel", () => ({ OrderSavePanel: () => null, OrderSaveActions: (props: { onSave: () => void }) => createElement("button", { onClick: props.onSave }, "Save") }));
 
 const order = {
   id: "order-1", order_number: "ML-1001", customer_name: "Ayesha Rahman", phone: "01711111111",

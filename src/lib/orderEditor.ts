@@ -139,6 +139,50 @@ export function matchesCatalogSearch(product: CatalogProduct, search: string): b
   return searchable.includes(query);
 }
 
+export function formatWeight(weightKg: number | null | undefined): string | null {
+  if (weightKg == null || !Number.isFinite(Number(weightKg)) || Number(weightKg) <= 0) return null;
+  const kg = Number(weightKg);
+  return kg < 1 ? `${roundTaka(kg * 1000)} g` : `${roundTaka(kg)} kg`;
+}
+
+/** The name staff pick by: the variant's attributes, else the sold weight. */
+export function catalogOptionLabel(product: CatalogProduct, variant?: CatalogVariant): string {
+  const attributes = variant ? variantLabel(variant.attributes) : "";
+  return attributes || formatWeight(variant?.weight_kg ?? product.weight_kg) || "Standard";
+}
+
+export function catalogOptionPrice(product: CatalogProduct, variant?: CatalogVariant): number {
+  return roundTaka(finiteNonNegative(product.selling_price || 0) + finiteNonNegative(variant?.price_adjustment || 0));
+}
+
+export function catalogOptionStock(product: CatalogProduct, variant?: CatalogVariant): number {
+  return variant?.stock_quantity ?? product.stock_quantity;
+}
+
+function cartItemFromCatalog(product: CatalogProduct, variant?: CatalogVariant): OrderEditorItem {
+  const variantId = variant?.id || null;
+  return {
+    id: `draft-${product.id}-${variantId || "product"}`,
+    product_id: product.id,
+    variant_id: variantId,
+    product_name: product.name,
+    variant_name: variant ? variantLabel(variant.attributes) : null,
+    product_slug: product.slug || null,
+    image_url: catalogImage(product),
+    weight_kg: variant?.weight_kg ?? product.weight_kg ?? null,
+    available_stock: catalogOptionStock(product, variant),
+    unit_price: catalogOptionPrice(product, variant),
+    discount_type: null,
+    discount_value: 0,
+    unit_discount: 0,
+    quantity: 1,
+  };
+}
+
+function clampToStock(quantity: number, stock: number | null | undefined): number {
+  return stock == null ? quantity : Math.max(1, Math.min(stock, quantity));
+}
+
 export function upsertCartItem(
   items: OrderEditorItem[],
   product: CatalogProduct,
@@ -159,22 +203,35 @@ export function upsertCartItem(
       : item);
   }
 
-  const basePrice = finiteNonNegative(product.selling_price || 0);
-  const unitPrice = roundTaka(basePrice + finiteNonNegative(variant?.price_adjustment || 0));
-  return [...items, {
-    id: `draft-${product.id}-${variantId || "product"}`,
-    product_id: product.id,
-    variant_id: variantId,
-    product_name: product.name,
-    variant_name: variant ? variantLabel(variant.attributes) : null,
-    product_slug: product.slug || null,
-    image_url: catalogImage(product),
-    weight_kg: variant?.weight_kg ?? product.weight_kg ?? null,
-    available_stock: variant?.stock_quantity ?? product.stock_quantity,
-    unit_price: unitPrice,
-    discount_type: null,
-    discount_value: 0,
-    unit_discount: 0,
-    quantity: 1,
-  }];
+  return [...items, cartItemFromCatalog(product, variant)];
+}
+
+/**
+ * Switches a cart line to another weight of the same product. Quantity and
+ * discount intent carry over; a line that already holds the chosen weight
+ * absorbs the quantity instead of creating a duplicate.
+ */
+export function changeCartItemVariant(
+  items: OrderEditorItem[],
+  itemId: string,
+  product: CatalogProduct,
+  variant: CatalogVariant,
+): OrderEditorItem[] {
+  const current = items.find((item) => item.id === itemId);
+  if (!current) return items;
+  const twin = items.find((item) => item.id !== itemId && item.product_id === product.id && item.variant_id === variant.id);
+  if (twin) {
+    return items
+      .filter((item) => item.id !== itemId)
+      .map((item) => item === twin ? { ...item, quantity: clampToStock(item.quantity + current.quantity, item.available_stock) } : item);
+  }
+
+  const next = cartItemFromCatalog(product, variant);
+  return items.map((item) => item.id === itemId ? {
+    ...next,
+    quantity: clampToStock(current.quantity, next.available_stock),
+    discount_type: current.discount_type,
+    discount_value: current.discount_value,
+    unit_discount: calculateUnitDiscount(next.unit_price, current.discount_type, current.discount_value),
+  } : item);
 }
