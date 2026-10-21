@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 import { classifyOrderStatus, canShowConsignmentCopy, followUpDetails } from "@/lib/orderStatusFilters";
 import { formatProductLine } from "@/lib/orderItemDisplay";
 import { formatTooltipProductLine } from "@/lib/orderItemDisplay";
-import { canEnterPrint, courierSendBlockReason, displayStatusLabel, isOnHoldStatus, isPrintStatus } from "@/lib/orderTransitions";
+import { canEnterPrint, courierSendBlockReason, displayStatusLabel, isOnHoldStatus, isPrintStatus, normalizeBusinessStatus } from "@/lib/orderTransitions";
 import { holdDays } from "@/lib/orderHoldFilters";
 import { ORDER_HOLD_REASONS } from "../../shared/orderHold.js";
 import { useOrgName } from "@/hooks/useOrgName";
@@ -1680,7 +1680,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                         <PopoverTrigger asChild>
                           <button
                             className={cn(
-                              "group/status status-pill relative inline-flex h-8 w-[112px] items-center overflow-hidden rounded-full border px-3 font-extrabold text-xs capitalize transition-all duration-200 active:scale-95",
+                              "group/status status-pill relative inline-flex h-8 w-[136px] items-center overflow-hidden rounded-full border px-3 font-extrabold text-xs capitalize transition-all duration-200 active:scale-95",
                               orderStatusClasses(order.status)
                             )}
                           >
@@ -1688,7 +1688,8 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                                 <OrderStatusIcon status={order.status} />
                             </span>
                             <span className="status-pill-label ml-6 whitespace-nowrap transition-all duration-500 ease-out group-hover/status:translate-x-[155%] group-hover/status:opacity-0">
-                              {displayStatusLabel(order.status)}
+                              {/* The table pill uses a compact name for the one status too long to fit. */}
+                              {normalizeBusinessStatus(order.status) === "processing" ? "Ready_Transit" : displayStatusLabel(order.status)}
                             </span>
                           </button>
                         </PopoverTrigger>
