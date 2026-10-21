@@ -47,6 +47,7 @@ const SOURCE_LABELS: Record<string, string> = {
   sundarbans_honey: "Sundarbans Honey",
   kalojira_mixed: "Kalojira Mixed",
   honey_nut: "Honey Nut",
+  am_sotto_achar: "আমসত্ত্ব আচার",
 };
 
 function normalizedPhone(phone: string | null | undefined) {
