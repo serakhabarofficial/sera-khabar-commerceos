@@ -8,6 +8,16 @@ export const ABANDONED_CHECKOUT_SOURCE_PATHS = Object.freeze({
   am_sotto_achar: "/step/am-sotto-achar",
 });
 
+// Any storefront landing page (/step/<name>) captures under "landing" with its own
+// address, so a new landing needs no change here to be accepted and named.
+export const LANDING_SOURCE = "landing";
+const LANDING_SOURCE_PATH_RE = /^\/step\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export function isValidAbandonedCheckoutSource(source, sourcePath) {
+  if (source === LANDING_SOURCE) return LANDING_SOURCE_PATH_RE.test(sourcePath);
+  return Object.hasOwn(ABANDONED_CHECKOUT_SOURCE_PATHS, source) && ABANDONED_CHECKOUT_SOURCE_PATHS[source] === sourcePath;
+}
+
 export const ACTIVE_ABANDONED_CHECKOUT_STATUSES = Object.freeze(["open", "contacted"]);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -142,7 +152,7 @@ export function parseAbandonedCheckoutCapture(body) {
 
   const source = requiredString(body.source, 1, 40);
   const sourcePath = requiredString(body.sourcePath, 1, 120);
-  if (ABANDONED_CHECKOUT_SOURCE_PATHS[source] !== sourcePath) invalidCapture();
+  if (!isValidAbandonedCheckoutSource(source, sourcePath)) invalidCapture();
 
   const phone = normalizeBdMobileInput(body.phone);
   if (!phone) invalidCapture();
