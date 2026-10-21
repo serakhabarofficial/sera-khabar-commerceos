@@ -40,6 +40,8 @@ import { classifyOrderStatus, canShowConsignmentCopy, followUpDetails } from "@/
 import { formatProductLine } from "@/lib/orderItemDisplay";
 import { formatTooltipProductLine } from "@/lib/orderItemDisplay";
 import { canEnterPrint, courierSendBlockReason, displayStatusLabel, isOnHoldStatus, isPrintStatus } from "@/lib/orderTransitions";
+import { holdDays } from "@/lib/orderHoldFilters";
+import { ORDER_HOLD_REASONS } from "../../shared/orderHold.js";
 import { useOrgName } from "@/hooks/useOrgName";
 import { CANCELLATION_DIALOG_REASON_OPTIONS, createActivityGroupId, type CancellationReason } from "@/lib/orderActivity";
 import {
@@ -295,6 +297,7 @@ export interface Order {
   hold_reason_code?: string | null;
   hold_reason_detail?: string | null;
   hold_until_date?: string | null;
+  hold_started_at?: string | null;
   cancelled_at?: string | null;
   cancellation_reason_code?: string | null;
   cancellation_reason_note?: string | null;
@@ -321,6 +324,8 @@ interface OrdersTableProps {
   showRiskColumn?: boolean;
   /** Cancelled tab: show the reason and cancel time in place of warehouse, shipping, state and fulfillment. */
   showCancellationReason?: boolean;
+  /** Hold tab: show each held order's reason and days on hold under its status. */
+  showHoldDetails?: boolean;
   selectedIds?: Set<string>;
   onSelectionChange?: (ids: Set<string>) => void;
   orderLinkState?: Record<string, unknown>;
@@ -667,7 +672,7 @@ function NotesPopover({ order, onOrderUpdate }: { order: Order; onOrderUpdate?: 
   );
 }
 
-export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false }: OrdersTableProps) {
+export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, showHoldDetails = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false }: OrdersTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -1670,6 +1675,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                   {!showCancellationReason && (<>
                   <TableCell className="text-center py-3">
                     <div className="flex items-center justify-center gap-2">
+                      <div className="flex flex-col items-center gap-1">
                       <Popover>
                         <PopoverTrigger asChild>
                           <button
@@ -1709,6 +1715,17 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                           </div>
                         </PopoverContent>
                       </Popover>
+                      {showHoldDetails && isOnHoldStatus(order.status) && (() => {
+                        const days = holdDays(order);
+                        const reason = ORDER_HOLD_REASONS.find((option) => option.code === order.hold_reason_code)?.label;
+                        return (
+                          <p data-testid="hold-details" className="flex max-w-[160px] items-center gap-1 text-[11px] text-black/60" title={reason ?? undefined}>
+                            <span className="min-w-0 truncate">{reason ?? "No reason"}</span>
+                            <span className={cn("shrink-0", days >= 5 && "font-semibold text-red-600")}>· {days}d</span>
+                          </p>
+                        );
+                      })()}
+                      </div>
                       <NotesPopover order={order} onOrderUpdate={onOrderUpdate} />
                     </div>
                   </TableCell>

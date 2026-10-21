@@ -1,3 +1,4 @@
+import { attachHoldStartedAt } from "./orderHoldStart.js";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -6773,7 +6774,8 @@ app.get("/api/orders", async (req, res) => {
         list.push(item);
         itemsByOrder.set(item.order_id, list);
       }
-      const ordersWithItems = allOrders.map((order) => {
+      const ordersWithHoldStart = await attachHoldStartedAt(supabase, orgId, allOrders);
+      const ordersWithItems = ordersWithHoldStart.map((order) => {
         const storedItems = itemsByOrder.get(order.id);
         if (storedItems?.length) return { ...order, items: storedItems };
 
