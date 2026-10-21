@@ -70,6 +70,8 @@ import { DateRangePicker } from "@/components/DateRangePicker";
 import { DATE_FILTER_TABS, filterOrdersByDateRange, orderDateRangeBounds } from "@/lib/orderDateFilter";
 import { CancellationInsights } from "@/components/orders/CancellationInsights";
 import { FollowUpPanel, sortFollowUpNewestFirst } from "@/components/orders/FollowUpPanel";
+import { HoldPanel } from "@/components/orders/HoldPanel";
+import { countHoldAges, countHoldReasons, filterHeldOrders, type HoldAgeKey } from "@/lib/orderHoldFilters";
 import {
   cancellationDate,
   filterCancelledByDate,
@@ -181,6 +183,7 @@ interface Order {
   hold_reason_code?: string | null;
   hold_reason_detail?: string | null;
   hold_until_date?: string | null;
+  hold_started_at?: string | null;
   fulfillment_status: string | null;
   sent_to_courier?: boolean | null;
   courier_status?: string | null;
@@ -1122,6 +1125,9 @@ export default function Dashboard() {
   // Follow up tab: the reasons picked in the breakdown.
   const isFollowUpTab = activeOrderStatusFilter === "stuck";
   const [followUpReasons, setFollowUpReasons] = useState<ReadonlySet<FollowUpReasonKey>>(new Set());
+  const isHoldTab = activeOrderStatusFilter === "on_hold";
+  const [holdAge, setHoldAge] = useState<HoldAgeKey | null>(null);
+  const [holdReason, setHoldReason] = useState<string | null>(null);
   // Each of the Processing and Delivered tabs keeps its own order-date range; both clear when leaving them.
   const [ordersDateRanges, setOrdersDateRanges] = useState<Partial<Record<OrderStatusFilter, DateRange | null>>>({});
   const showOrdersDateFilter = DATE_FILTER_TABS.includes(activeOrderStatusFilter);
@@ -1274,11 +1280,24 @@ export default function Dashboard() {
     return { ranked, unknown };
   }, [filteredOrders]);
 
+  // Held orders before the Hold tab's own filters; the cards and reason counts read these.
+  const holdBaseOrders = useMemo(() => {
+    if (!isHoldTab) return [];
+    return showOrdersDateFilter ? filterOrdersByDateRange(filteredOrders, ordersDateRange) : filteredOrders;
+  }, [filteredOrders, isHoldTab, ordersDateRange, showOrdersDateFilter]);
+  const holdAgeCounts = useMemo(() => countHoldAges(holdBaseOrders), [holdBaseOrders]);
+  const holdReasonCounts = useMemo(() => countHoldReasons(holdBaseOrders), [holdBaseOrders]);
+  const holdListOrders = useMemo(
+    () => filterHeldOrders(holdBaseOrders, { reason: holdReason, age: holdAge }),
+    [holdAge, holdBaseOrders, holdReason],
+  );
+
   const dateFilteredOrders = useMemo(() => {
     if (isCancelledTab) return cancelledListOrders;
     if (isFollowUpTab) return followUpListOrders;
+    if (isHoldTab) return holdListOrders;
     return showOrdersDateFilter ? filterOrdersByDateRange(filteredOrders, ordersDateRange) : filteredOrders;
-  }, [cancelledListOrders, filteredOrders, followUpListOrders, isCancelledTab, isFollowUpTab, ordersDateRange, showOrdersDateFilter]);
+  }, [cancelledListOrders, filteredOrders, followUpListOrders, holdListOrders, isCancelledTab, isFollowUpTab, isHoldTab, ordersDateRange, showOrdersDateFilter]);
 
   const districtFilteredOrders = useMemo(() => {
     if (activeOrderStatusFilter !== "approved" || districtFilter === "all") return dateFilteredOrders;
@@ -1922,6 +1941,7 @@ export default function Dashboard() {
             if (nextTab === "abandoned" || !DATE_FILTER_TABS.includes(nextTab)) setOrdersDateRanges({});
             if (nextTab !== "cancelled") setCancelReasons(new Set());
             if (nextTab !== "stuck") setFollowUpReasons(new Set());
+            if (nextTab !== "on_hold") { setHoldAge(null); setHoldReason(null); }
             setSelectedAbandonedIds(new Set());
             if (nextTab === "abandoned") setSelectedOrderIds(new Set());
           }}
@@ -1977,6 +1997,17 @@ export default function Dashboard() {
                 onClearReasons={() => { setCancelReasons(new Set()); setOrderPage(0); }}
               />
             )}
+            {isHoldTab && (
+              <HoldPanel
+                ageCounts={holdAgeCounts}
+                reasonCounts={holdReasonCounts}
+                listCount={holdListOrders.length}
+                age={holdAge}
+                reason={holdReason}
+                onAgeChange={(age) => { setHoldAge(age); setOrderPage(0); }}
+                onReasonChange={(reason) => { setHoldReason(reason); setOrderPage(0); }}
+              />
+            )}
             {isFollowUpTab && (
               <FollowUpPanel
                 reasonCounts={followUpReasonCounts}
@@ -2005,6 +2036,7 @@ export default function Dashboard() {
               isPrintView={activeOrderStatusFilter === "print"}
               showRiskColumn={false}
               showCancellationReason={isCancelledTab}
+              showHoldDetails={isHoldTab}
               selectedIds={selectedOrderIds}
               onSelectionChange={setSelectedOrderIds}
               enableOrderIdLinks
