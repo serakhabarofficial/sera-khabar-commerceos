@@ -20,7 +20,7 @@ const STATUS_PRESENTATION: Record<FulfillmentQueueTab, StatusPresentation> = {
     dotClassName: "bg-black/60",
   },
   abandoned: {
-    label: "Abandoned",
+    label: "Incomplete orders",
     dotClassName: "bg-rose-400",
   },
   pending: {
@@ -32,7 +32,7 @@ const STATUS_PRESENTATION: Record<FulfillmentQueueTab, StatusPresentation> = {
     dotClassName: "bg-orange-400",
   },
   approved: {
-    label: "Approved",
+    label: "Confirmed",
     dotClassName: "bg-sky-500",
   },
   print: {
@@ -40,7 +40,7 @@ const STATUS_PRESENTATION: Record<FulfillmentQueueTab, StatusPresentation> = {
     dotClassName: "bg-lime-500",
   },
   processing: {
-    label: "Processing",
+    label: "Ready to Transit",
     dotClassName: "bg-violet-500",
   },
   ready_to_ship: {
@@ -67,8 +67,9 @@ const STATUS_PRESENTATION: Record<FulfillmentQueueTab, StatusPresentation> = {
 
 export const FULFILLMENT_QUEUE_TABS: FulfillmentQueueTab[] = [
   "all",
+  "pending",
   "abandoned",
-  ...ORDER_STATUS_FILTERS.filter((status) => status !== "all"),
+  ...ORDER_STATUS_FILTERS.filter((status) => status !== "all" && status !== "pending"),
 ];
 
 export type OrderStatusSegmentedControlProps = {
@@ -101,8 +102,9 @@ export function OrderStatusSegmentedControl({
           const selected = [...keys][0];
           if (selected) onChange(String(selected) as FulfillmentQueueTab);
         }}
-        thumbClassName="rounded-lg border border-black/[0.08] bg-white shadow-sm"
-        className="w-max min-w-full rounded-lg bg-black/[0.055] p-1 ring-1 ring-black/[0.035] xl:flex xl:w-full"
+        // Strong ease-out over 240ms so the thumb glides into place instead of easing in.
+        thumbClassName="rounded-[9px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.05)] duration-[240ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
+        className="w-max min-w-full rounded-xl bg-black/[0.045] p-1 ring-1 ring-black/[0.03] xl:flex xl:w-full"
       >
         {FULFILLMENT_QUEUE_TABS.filter((status) => status === "abandoned" || !hiddenStatuses.includes(status)).map((status) => {
           const presentation = STATUS_PRESENTATION[status];
@@ -115,25 +117,27 @@ export function OrderStatusSegmentedControl({
               id={status}
               aria-label={`${presentation.label}: ${loading ? "loading" : formattedCount}`}
               className={({ isSelected }) => [
-                "group min-w-[112px] rounded-lg px-3 py-2 xl:min-w-0 xl:flex-1",
-                "hover:bg-white/45 data-[pressed]:scale-[0.99]",
-                isSelected ? "text-black" : "text-black/55",
+                "group min-w-[96px] flex-auto flex-col items-center justify-start rounded-[9px] px-3.5 pb-[11px] pt-3 text-center",
+                "transition-[background-color,color] duration-150 ease-out data-[pressed]:scale-[0.98]",
+                isSelected ? "text-black" : "text-black/60 hover:bg-white/40",
               ].join(" ")}
             >
-              <span className="flex min-w-0 flex-col items-start gap-1">
-                <span className="flex items-center gap-1.5 text-[8px] font-semibold uppercase leading-none tracking-[0.16em]">
-                  <span
-                    aria-hidden
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${presentation.dotClassName}`}
-                  />
-                  {presentation.label}
-                </span>
+              <span
+                data-testid={`order-status-count-${status}`}
+                className={[
+                  "block text-[22px] font-medium leading-none tabular-nums tracking-[-0.02em] transition-colors duration-150 ease-out",
+                  "group-data-[selected]:text-black",
+                  count === 0 && !loading ? "text-black/[0.28]" : "text-black/55",
+                ].join(" ")}
+              >
+                {loading ? "—" : formattedCount}
+              </span>
+              <span className="mt-[9px] flex items-center gap-1.5 whitespace-nowrap text-[11px] font-medium leading-none text-black/60 transition-colors duration-150 ease-out group-data-[selected]:text-black/60">
                 <span
-                  data-testid={`order-status-count-${status}`}
-                  className="pl-3 text-[14px] font-semibold leading-none tabular-nums tracking-tight text-black/80 group-data-[selected]:text-black"
-                >
-                  {loading ? "—" : formattedCount}
-                </span>
+                  aria-hidden
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${presentation.dotClassName}`}
+                />
+                {presentation.label}
               </span>
             </SegmentedControlItem>
           );

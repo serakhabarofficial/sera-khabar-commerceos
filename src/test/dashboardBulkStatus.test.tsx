@@ -193,7 +193,7 @@ describe("dashboard bulk status button", () => {
     await screen.findByRole("button", { name: "Update Status" });
     await user.click(screen.getByTestId("checkbox-order-pending-1"));
     await user.click(screen.getByRole("button", { name: "Update Status" }));
-    await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Approved" }));
+    await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Confirmed" }));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Add the phone number before approving this order."));
     expect(bulkStatusCalls()).toHaveLength(1);
@@ -247,9 +247,9 @@ describe("dashboard bulk status button", () => {
     await user.click(await screen.findByRole("radio", { name: /Print.*1/ }));
     await user.click(screen.getByTestId("checkbox-order-print-1"));
     await user.click(screen.getByRole("button", { name: "Update Status" }));
-    await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Processing" }));
+    await user.click(within(screen.getByTestId("bulk-status-menu")).getByRole("button", { name: "Ready to Transit" }));
 
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("1 order moved to Processing"));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("1 order moved to Ready to Transit"));
     const calls = bulkStatusCalls();
     expect(calls).toHaveLength(1);
     expect(JSON.parse(String(calls[0][1]?.body))).toMatchObject({ orderIds: ["print-1"], status: "processing" });
@@ -346,7 +346,7 @@ describe("dashboard bulk status button", () => {
 
     await waitFor(() => expect(screen.getByTestId("steadfast-send-banner")).toHaveTextContent("1 of 1 sent"));
     expect(await screen.findByRole("radio", { name: /Print.*1/ })).toBeInTheDocument();
-    expect(await screen.findByRole("radio", { name: /Processing.*0/ })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /Ready to Transit.*0/ })).toBeInTheDocument();
     expect(screen.getByText(printOrder.order_number)).toBeInTheDocument();
     expect(toastError).not.toHaveBeenCalled();
   });

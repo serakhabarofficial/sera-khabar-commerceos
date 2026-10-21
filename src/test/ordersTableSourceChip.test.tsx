@@ -74,7 +74,7 @@ describe("OrdersTable order source chip", () => {
   it("labels website orders converted from an abandoned checkout as Abandoned in rose", () => {
     const row = renderRow({ ...order, source: "website", origin_source: "abandoned_checkout" });
     const chip = within(row).getByTestId("order-source-chip");
-    expect(chip).toHaveTextContent("Abandoned");
+    expect(chip).toHaveTextContent("Incomplete");
     expect(chip).toHaveClass("bg-status-rose-background");
   });
 

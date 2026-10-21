@@ -27,7 +27,7 @@ describe("bulk status transition rules", () => {
     expect(bulkStatusTransitionError(order("a", "confirmed"), "print")).toBeNull();
     expect(bulkStatusTransitionError(order("a", "approved"), "print")).toBeNull();
     for (const status of ["pending", "processing", "on_hold", "cancelled", null]) {
-      expect(bulkStatusTransitionError(order("a", status), "print")).toBe("Only Approved orders can move to Print");
+      expect(bulkStatusTransitionError(order("a", status), "print")).toBe("Only Confirmed orders can move to Print");
     }
   });
 
@@ -35,7 +35,7 @@ describe("bulk status transition rules", () => {
     for (const target of ["processing", "confirmed", "approved", "on_hold", "cancelled"]) {
       expect(bulkStatusTransitionError(order("a", "print"), target)).toBeNull();
     }
-    expect(bulkStatusTransitionError(order("a", "print"), "pending")).toBe("Print orders can only move to Processing, Approved, On Hold, or Cancelled");
+    expect(bulkStatusTransitionError(order("a", "print"), "pending")).toBe("Print orders can only move to Ready to Transit, Confirmed, On Hold, or Cancelled");
   });
 
   it("requires customer details before approving", () => {
@@ -95,8 +95,8 @@ describe("bulk status plan", () => {
     expect(groups.map((group) => [group.fromStatus, group.ids])).toEqual([["confirmed", ["a", "c"]], ["approved", ["b"]]]);
     expect(groups[0].patch).toEqual({ status: "print", updated_at: now });
     expect(failures).toEqual([
-      { orderId: "d", orderNumber: "#d", reason: "Only Approved orders can move to Print" },
-      { orderId: "e", orderNumber: "#e", reason: "Only Approved orders can move to Print" },
+      { orderId: "d", orderNumber: "#d", reason: "Only Confirmed orders can move to Print" },
+      { orderId: "e", orderNumber: "#e", reason: "Only Confirmed orders can move to Print" },
       { orderId: "missing", orderNumber: null, reason: "Order not found" },
     ]);
   });

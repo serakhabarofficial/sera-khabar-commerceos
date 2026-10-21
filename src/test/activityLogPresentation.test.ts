@@ -25,7 +25,7 @@ function makeEvent(overrides: Partial<ActivityEvent>): ActivityEvent {
 
 describe("activityActionLabel / activityActionColor", () => {
   it("labels every action with a human-readable string", () => {
-    expect(activityActionLabel("confirmed")).toBe("Approved");
+    expect(activityActionLabel("confirmed")).toBe("Confirmed");
     expect(activityActionLabel("converted")).toBe("Converted to order");
     expect(activityActionLabel("status_changed")).toBe("Status changed");
   });
@@ -42,7 +42,7 @@ describe("activityTableLabel", () => {
   it("labels each order table", () => {
     expect(activityTableLabel("orders")).toBe("Order");
     expect(activityTableLabel("social_inbox_orders")).toBe("Inbox order");
-    expect(activityTableLabel("abandoned_checkouts")).toBe("Abandoned cart");
+    expect(activityTableLabel("abandoned_checkouts")).toBe("Incomplete order");
   });
 });
 

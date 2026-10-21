@@ -458,7 +458,7 @@ export default function ActivityLog() {
             <SegmentedControlItem id="all">All</SegmentedControlItem>
             <SegmentedControlItem id="orders">Orders</SegmentedControlItem>
             <SegmentedControlItem id="social_inbox_orders">Inbox orders</SegmentedControlItem>
-            <SegmentedControlItem id="abandoned_checkouts">Abandoned carts</SegmentedControlItem>
+            <SegmentedControlItem id="abandoned_checkouts">Incomplete orders</SegmentedControlItem>
           </SegmentedControl>
         </div>
       </motion.div>

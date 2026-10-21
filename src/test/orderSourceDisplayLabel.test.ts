@@ -3,8 +3,8 @@ import { orderSourceDisplayLabel } from "@/lib/orderSource";
 
 describe("orderSourceDisplayLabel", () => {
   it("labels website orders converted from an abandoned checkout as Abandoned", () => {
-    expect(orderSourceDisplayLabel("website", "abandoned_checkout")).toBe("Abandoned");
-    expect(orderSourceDisplayLabel("storefront", "abandoned_checkout")).toBe("Abandoned");
+    expect(orderSourceDisplayLabel("website", "abandoned_checkout")).toBe("Incomplete");
+    expect(orderSourceDisplayLabel("storefront", "abandoned_checkout")).toBe("Incomplete");
   });
 
   it("respects a source staff changed away from website", () => {

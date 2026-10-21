@@ -263,7 +263,7 @@ function Profile({ item, sourceRows, rank, shownCount, teamValue, teamAov, avera
           <p className="mt-auto flex justify-between border-t border-black/[0.08] pt-2 font-medium"><span>Total</span><span>{formatTaka(extra.total)}</span></p>
         </div>
         <div className={`${CARD} flex flex-col gap-2 text-[12px] tabular-nums`}>
-          <p className={EYEBROW}>Abandoned carts</p>
+          <p className={EYEBROW}>Incomplete orders</p>
           <p className="flex justify-between"><span className="text-black/60">Contacted</span><span>{formatNumber(carts.contacted_count)}</span></p>
           <p className="flex justify-between"><span className="text-black/60">Dismissed</span><span>{formatNumber(carts.dismissed_count)}</span></p>
           <p className="flex justify-between"><span className="text-black/60">Reopened</span><span>{formatNumber(carts.reopened_count)}</span></p>

@@ -6,8 +6,8 @@ describe("print status wiring", () => {
   it("enforces the Print state machine on the server", () => {
     const server = readFileSync(resolve(process.cwd(), "server/index.js"), "utf8");
 
-    expect(server).toContain("Only Approved orders can move to Print");
-    expect(server).toContain("Print orders can only move to Processing, Approved, On Hold, or Cancelled");
+    expect(server).toContain("Only Confirmed orders can move to Print");
+    expect(server).toContain("Print orders can only move to Ready to Transit, Confirmed, On Hold, or Cancelled");
     expect(server).toContain('toStatus === "processing"');
     expect(server).toContain("Move to Print first before sending to courier");
     // Both main-order courier routes gate Approved sends.

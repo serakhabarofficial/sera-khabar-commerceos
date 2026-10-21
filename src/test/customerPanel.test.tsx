@@ -118,7 +118,7 @@ describe("CustomerPanel messaging actions", () => {
 describe("CustomerPanel order source label", () => {
   it("labels a website order converted from an abandoned checkout as Abandoned", () => {
     render(<CustomerPanel order={baseOrder} customer={baseCustomer} onApply={vi.fn()} source="website" originSource="abandoned_checkout" />);
-    expect(screen.getByTestId("order-source-control")).toHaveTextContent("Abandoned");
+    expect(screen.getByTestId("order-source-control")).toHaveTextContent("Incomplete");
   });
 
   it("keeps the Website label without an abandoned origin", () => {

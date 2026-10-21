@@ -216,7 +216,7 @@ describe("AbandonedDetail", () => {
 
     expect(await screen.findByText("Checkout not found.")).toBeInTheDocument();
     expect(apiFetch.mock.calls.some(([url]) => url === "/api/products")).toBe(false);
-    await user.click(screen.getByRole("button", { name: /back to abandoned/i }));
+    await user.click(screen.getByRole("button", { name: /back to incomplete orders/i }));
     expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();
   });
 
@@ -252,7 +252,7 @@ describe("AbandonedDetail", () => {
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
       const bar = screen.getByTestId("abandoned-action-bar");
-      expect(within(bar).getByRole("button", { name: "Abandoned" })).toHaveAttribute("aria-pressed", "true");
+      expect(within(bar).getByRole("button", { name: "Incomplete" })).toHaveAttribute("aria-pressed", "true");
       expect(within(bar).getByRole("button", { name: "Save changes" })).toBeInTheDocument();
 
       await editName(user);
@@ -269,9 +269,9 @@ describe("AbandonedDetail", () => {
       renderDetail();
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
-      await user.click(screen.getByRole("button", { name: "Approved" }));
-      expect(screen.getByRole("button", { name: "Approved" })).toHaveAttribute("aria-pressed", "true");
-      await user.click(screen.getByRole("button", { name: "Save & move to Approved" }));
+      await user.click(screen.getByRole("button", { name: "Confirmed" }));
+      expect(screen.getByRole("button", { name: "Confirmed" })).toHaveAttribute("aria-pressed", "true");
+      await user.click(screen.getByRole("button", { name: "Save & move to Confirmed" }));
 
       expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();
       const calls = mutationCalls();

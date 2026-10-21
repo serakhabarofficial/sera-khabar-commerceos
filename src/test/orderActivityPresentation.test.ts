@@ -15,7 +15,7 @@ import {
 describe("order activity presentation", () => {
   it("uses the app's status names and semantic colors", () => {
     expect(activityStatusLabel("pending")).toBe("Pending");
-    expect(activityStatusLabel("confirmed")).toBe("Approved");
+    expect(activityStatusLabel("confirmed")).toBe("Confirmed");
     expect(activityStatusLabel("on_hold")).toBe("On Hold");
     expect(activityStatusLabel("ready_to_ship")).toBe("Ready To Ship");
     expect(activityStatusLabel(null)).toBe("Not set");
@@ -177,11 +177,11 @@ describe("order activity presentation", () => {
 
 describe("readableActivitySummary", () => {
   it("names approvals and status moves in plain words", () => {
-    expect(readableActivitySummary("Status changed to confirmed")).toBe("Approved order");
-    expect(readableActivitySummary("Status changed to approved")).toBe("Approved order");
+    expect(readableActivitySummary("Status changed to confirmed")).toBe("Confirmed order");
+    expect(readableActivitySummary("Status changed to approved")).toBe("Confirmed order");
     expect(readableActivitySummary("Status changed to cancelled")).toBe("Cancelled order");
     expect(readableActivitySummary("Status changed to print")).toBe("Moved to Print");
-    expect(readableActivitySummary("Status changed to processing")).toBe("Moved to Processing");
+    expect(readableActivitySummary("Status changed to processing")).toBe("Moved to Ready to Transit");
     expect(readableActivitySummary("Status changed to on_hold")).toBe("Moved to On Hold");
   });
 
@@ -194,13 +194,13 @@ describe("readableActivitySummary", () => {
   it("names where an order was created", () => {
     expect(readableActivitySummary("Order created through manual_other")).toBe("Created order · Manual entry");
     expect(readableActivitySummary("Order created through facebook")).toBe("Created order · Facebook");
-    expect(readableActivitySummary("Order created from abandoned checkout")).toBe("Created order from abandoned cart");
+    expect(readableActivitySummary("Order created from abandoned checkout")).toBe("Created order from incomplete order");
   });
 
   it("describes abandoned-cart follow-ups", () => {
-    expect(readableActivitySummary("Checkout marked dismissed")).toBe("Dismissed abandoned cart");
+    expect(readableActivitySummary("Checkout marked dismissed")).toBe("Dismissed incomplete order");
     expect(readableActivitySummary("Checkout marked contacted")).toBe("Contacted cart customer");
-    expect(readableActivitySummary("Checkout marked open")).toBe("Reopened abandoned cart");
+    expect(readableActivitySummary("Checkout marked open")).toBe("Reopened incomplete order");
   });
 
   it("keeps summaries that are already readable, and falls back when empty", () => {

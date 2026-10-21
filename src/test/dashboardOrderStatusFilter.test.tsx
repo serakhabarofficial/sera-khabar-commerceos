@@ -180,7 +180,7 @@ describe("dashboard order status filter", () => {
 
     // Delivered's count follows its own dates; Processing keeps its own (unset) range.
     expect(screen.getByRole("radio", { name: /Delivered.*2/ })).toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: /Processing/ }));
+    await user.click(screen.getByRole("radio", { name: /Ready to Transit/ }));
     expect(within(screen.getByTestId("orders-date-filter")).getByTestId("button-date-range-picker")).toHaveTextContent("All time");
     // Switching back restores Delivered's range.
     await user.click(screen.getByRole("radio", { name: /Delivered/ }));
@@ -252,7 +252,7 @@ describe("dashboard order status filter", () => {
     );
 
     expect(await screen.findByRole("radio", { name: /All Orders.*3/ })).toBeInTheDocument();
-    const abandonedTab = await screen.findByRole("radio", { name: /^Abandoned:.*1/ });
+    const abandonedTab = await screen.findByRole("radio", { name: /^Incomplete orders:.*1/ });
     await user.click(abandonedTab);
 
     expect(await screen.findByTestId("abandoned-checkout-queue")).toHaveTextContent("Abandoned Customer");
@@ -286,7 +286,7 @@ describe("dashboard order status filter", () => {
     );
 
     expect(await screen.findByRole("radio", { name: /All Orders.*3/ })).toBeInTheDocument();
-    await user.click(await screen.findByRole("radio", { name: /^Abandoned:.*1/ }));
+    await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:.*1/ }));
 
     const badge = await screen.findByRole("link", { name: "Already ordered · #101" });
     expect(badge).toHaveAttribute("href", "/orders/pending");
@@ -303,7 +303,7 @@ describe("dashboard order status filter", () => {
       </QueryClientProvider>,
     );
 
-    await user.click(await screen.findByRole("radio", { name: /^Abandoned:.*1/ }));
+    await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:.*1/ }));
     await user.click(await screen.findByRole("button", { name: "Contact status: Awaiting contact" }));
     await user.click(await screen.findByRole("menuitemradio", { name: "Contacted" }));
 
@@ -458,7 +458,7 @@ describe("dashboard order status filter", () => {
         </QueryClientProvider>,
       );
 
-      await user.click(await screen.findByRole("radio", { name: /^Abandoned:.*1/ }));
+      await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:.*1/ }));
       expect(await screen.findByText("Abandoned Customer")).toBeInTheDocument();
       await user.click(screen.getByTestId(`checkbox-abandoned-${abandonedCheckouts[0].id}`));
       await user.click(screen.getByTestId("button-bulk-abandoned-status"));
@@ -525,7 +525,7 @@ describe("dashboard order status filter", () => {
         </QueryClientProvider>,
       );
 
-      await user.click(await screen.findByRole("radio", { name: /^Abandoned:/ }));
+      await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:/ }));
       expect(await screen.findByText("Bulk Customer One")).toBeInTheDocument();
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-draft-1"));
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-draft-2"));
@@ -610,16 +610,16 @@ describe("dashboard order status filter", () => {
         </QueryClientProvider>,
       );
 
-      await user.click(await screen.findByRole("radio", { name: /^Abandoned:/ }));
+      await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:/ }));
       expect(await screen.findByText("Bulk Customer One")).toBeInTheDocument();
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-draft-1"));
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-draft-2"));
       await user.click(screen.getByTestId("button-bulk-abandoned-status"));
       const menu = await screen.findByTestId("bulk-abandoned-status-menu");
-      await user.click(within(menu).getByRole("button", { name: "Approved" }));
+      await user.click(within(menu).getByRole("button", { name: "Confirmed" }));
 
       await waitFor(() => {
-        expect(successSpy).toHaveBeenCalledWith("1 order moved to Approved");
+        expect(successSpy).toHaveBeenCalledWith("1 order moved to Confirmed");
         expect(errorSpy).toHaveBeenCalledWith("1 failed — kept selected. Add the delivery address before approving this order.");
       });
       await waitFor(() => {
@@ -658,7 +658,7 @@ describe("dashboard order status filter", () => {
       </QueryClientProvider>,
     );
 
-    await user.click(await screen.findByRole("radio", { name: /^Abandoned:/ }));
+    await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:/ }));
     await user.click(await screen.findByTestId(`checkbox-abandoned-${draft.id}`));
     await user.click(screen.getByTestId("button-bulk-abandoned-status"));
     await user.click(within(await screen.findByTestId("bulk-abandoned-status-menu")).getByRole("button", { name: "On Hold" }));
@@ -720,7 +720,7 @@ describe("dashboard order status filter", () => {
         </QueryClientProvider>,
       );
 
-      await user.click(await screen.findByRole("radio", { name: /^Abandoned:/ }));
+      await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:/ }));
       expect(await screen.findByText("Open Customer")).toBeInTheDocument();
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-open-1"));
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-contacted-1"));
@@ -791,7 +791,7 @@ describe("dashboard order status filter", () => {
         </QueryClientProvider>,
       );
 
-      await user.click(await screen.findByRole("radio", { name: /^Abandoned:/ }));
+      await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:/ }));
       expect(await screen.findByText("Fail Customer One")).toBeInTheDocument();
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-fail-1"));
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-fail-2"));
@@ -871,7 +871,7 @@ describe("dashboard order status filter", () => {
         </QueryClientProvider>,
       );
 
-      await user.click(await screen.findByRole("radio", { name: /^Abandoned:/ }));
+      await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:/ }));
       expect(await screen.findByText("Gone Customer One")).toBeInTheDocument();
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-gone-1"));
       await user.click(screen.getByTestId("checkbox-abandoned-bulk-gone-2"));
@@ -926,7 +926,7 @@ describe("dashboard order status filter", () => {
       </QueryClientProvider>,
     );
 
-    await user.click(await screen.findByRole("radio", { name: /^Abandoned:/ }));
+    await user.click(await screen.findByRole("radio", { name: /^Incomplete orders:/ }));
     expect(await screen.findByText("Dismiss Customer One")).toBeInTheDocument();
     await user.click(screen.getByTestId("checkbox-abandoned-bulk-dismiss-1"));
     await user.click(screen.getByTestId("checkbox-abandoned-bulk-dismiss-2"));

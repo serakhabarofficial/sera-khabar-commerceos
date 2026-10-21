@@ -687,7 +687,7 @@ export default function Dashboard() {
     try {
       const res = await apiFetch("/api/abandoned-checkouts");
       const data: Partial<AbandonedCheckoutResponse> = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error("Failed to load abandoned checkouts");
+      if (!res.ok) throw new Error("Failed to load incomplete orders");
 
       const checkouts = Array.isArray(data.checkouts) ? data.checkouts : [];
       const activeCount = typeof data.activeCount === "number" ? data.activeCount : checkouts.length;
@@ -697,7 +697,7 @@ export default function Dashboard() {
       setAbandonedActiveCount(activeCount);
       setAbandonedError(null);
     } catch {
-      setAbandonedError("Could not load abandoned checkouts");
+      setAbandonedError("Could not load incomplete orders");
     } finally {
       if (!silent) setAbandonedLoading(false);
     }
@@ -901,7 +901,7 @@ export default function Dashboard() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.checkout) {
-      throw new AbandonedCheckoutActionError("Could not update abandoned checkout", res.status);
+      throw new AbandonedCheckoutActionError("Could not update incomplete order", res.status);
     }
 
     const cached = queryClient.getQueryData<AbandonedCheckoutResponse>(["/api/abandoned-checkouts"])
@@ -922,7 +922,7 @@ export default function Dashboard() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.checkout) {
-      throw new AbandonedCheckoutActionError("Could not update abandoned checkout", res.status);
+      throw new AbandonedCheckoutActionError("Could not update incomplete order", res.status);
     }
 
     const cached = queryClient.getQueryData<AbandonedCheckoutResponse>(["/api/abandoned-checkouts"])
@@ -954,7 +954,7 @@ export default function Dashboard() {
         toast.success("Checkout dismissed");
       }
     } catch {
-      toast.error("Could not update abandoned checkout");
+      toast.error("Could not update incomplete order");
     } finally {
       setAbandonedActionInFlightId(null);
     }
@@ -1061,7 +1061,7 @@ export default function Dashboard() {
           toast(skippedContacted === 1 ? "1 already contacted — skipped" : `${skippedContacted} already contacted — skipped`);
         }
       } else if (succeeded > 0) {
-        const statusLabel = target === "on_hold" ? "On Hold" : target === "approved" ? "Approved" : "Pending";
+        const statusLabel = target === "on_hold" ? "On Hold" : target === "approved" ? "Confirmed" : "Pending";
         toast.success(succeeded === 1 ? `1 order moved to ${statusLabel}` : `${succeeded} orders moved to ${statusLabel}`);
       }
       if (failed.length > 0) {
@@ -1686,7 +1686,7 @@ export default function Dashboard() {
               }}
               className="font-sf-display text-[15px] font-semibold tracking-normal text-foreground"
             >
-              {isAbandonedQueue ? "Abandoned Carts" : "Fulfillment Queue"}
+              {isAbandonedQueue ? "Incomplete Orders" : "Fulfillment Queue"}
             </TextEffect>
             <div className="w-px h-3.5 bg-black/10" />
             {(isAbandonedQueue ? abandonedLoading : loading) ? (
@@ -1847,9 +1847,9 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-1">
                   {[
                     { id: "pending", label: "Pending" },
-                    { id: "confirmed", label: "Approved" },
+                    { id: "confirmed", label: "Confirmed" },
                     { id: "print", label: "Print" },
-                    { id: "processing", label: "Processing" },
+                    { id: "processing", label: "Ready to Transit" },
                     { id: "on_hold", label: "On Hold" },
                   ].map((target) => (
                     <button
@@ -1889,7 +1889,7 @@ export default function Dashboard() {
                       { id: "contacted", label: "Mark contacted" },
                       { id: "pending", label: "Pending" },
                       { id: "on_hold", label: "On Hold" },
-                      { id: "approved", label: "Approved" },
+                      { id: "approved", label: "Confirmed" },
                       { id: "dismiss", label: "Dismiss" },
                     ].map((target) => (
                       <button

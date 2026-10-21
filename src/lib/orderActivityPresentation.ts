@@ -28,10 +28,10 @@ const STATUS_PRESENTATION: Record<string, { label: string; color: ActivityChipCo
   pending: { label: "Pending", color: "yellow" },
   on_hold: { label: "On Hold", color: "purple" },
   hold: { label: "On Hold", color: "purple" },
-  confirmed: { label: "Approved", color: "blue" },
-  approved: { label: "Approved", color: "blue" },
+  confirmed: { label: "Confirmed", color: "blue" },
+  approved: { label: "Confirmed", color: "blue" },
   print: { label: "Print", color: "cyan" },
-  processing: { label: "Processing", color: "cyan" },
+  processing: { label: "Ready to Transit", color: "cyan" },
   ready_to_ship: { label: "Ready To Ship", color: "cyan" },
   in_transit: { label: "In-Transit", color: "blue" },
   delivered: { label: "Delivered", color: "lime" },
@@ -90,11 +90,11 @@ const ORDER_SOURCE_LABELS: Record<string, string> = {
 };
 
 const CHECKOUT_FOLLOW_UP_LABELS: Record<string, string> = {
-  dismissed: "Dismissed abandoned cart",
+  dismissed: "Dismissed incomplete order",
   contacted: "Contacted cart customer",
-  open: "Reopened abandoned cart",
+  open: "Reopened incomplete order",
   recovered: "Converted cart to order",
-  expired: "Abandoned cart expired",
+  expired: "Incomplete order expired",
 };
 
 function courierStatusLabel(code: string): string {
@@ -111,7 +111,7 @@ export function readableActivitySummary(summary: string | null | undefined, fall
   const status = text.match(/^Status changed to (\S+)$/i);
   if (status) {
     const normalized = normalizeBusinessStatus(status[1]);
-    if (normalized === "confirmed" || normalized === "approved") return "Approved order";
+    if (normalized === "confirmed" || normalized === "approved") return "Confirmed order";
     if (normalized === "cancelled" || normalized === "canceled") return "Cancelled order";
     return `Moved to ${activityStatusLabel(status[1])}`;
   }
@@ -121,7 +121,7 @@ export function readableActivitySummary(summary: string | null | undefined, fall
 
   const created = text.match(/^Order created through (\S+)$/i);
   if (created) return `Created order · ${ORDER_SOURCE_LABELS[created[1]] || humanize(created[1])}`;
-  if (/^Order created from abandoned checkout$/i.test(text)) return "Created order from abandoned cart";
+  if (/^Order created from abandoned checkout$/i.test(text)) return "Created order from incomplete order";
 
   const source = text.match(/^Order source changed from (\S+) to (\S+)$/i);
   if (source) return `Changed source from ${orderSourceLabel(source[1])} to ${orderSourceLabel(source[2])}`;

@@ -350,7 +350,7 @@ export default function WarehouseDetail() {
                   <div className="flex flex-col gap-1">
                     {[
                       { id: "pending", label: "Pending" },
-                      { id: "confirmed", label: "Approved" },
+                      { id: "confirmed", label: "Confirmed" },
                       { id: "print", label: "Print" },
                       { id: "on_hold", label: "On Hold" },
                     ].map((target) => (

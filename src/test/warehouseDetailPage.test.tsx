@@ -223,7 +223,7 @@ describe("warehouse detail", () => {
     await user.click(trigger);
     const menu = screen.getByTestId("bulk-status-menu");
     expect(within(menu).queryByRole("button", { name: "Cancelled" })).not.toBeInTheDocument();
-    await user.click(within(menu).getByRole("button", { name: "Approved" }));
+    await user.click(within(menu).getByRole("button", { name: "Confirmed" }));
 
     await waitFor(() => expect(bulkStatusCalls()).toHaveLength(1));
     expect(JSON.parse(String(bulkStatusCalls()[0][1]?.body))).toEqual({

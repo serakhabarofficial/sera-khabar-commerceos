@@ -78,7 +78,7 @@ describe("CartPanel order status", () => {
     await user.click(screen.getByRole("button", { name: /order status/i }));
 
     expect(screen.queryByRole("option", { name: "print" })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Approved" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Confirmed" })).toBeInTheDocument();
   });
 
   it("offers approved and cancelled for a print order", async () => {
@@ -87,10 +87,10 @@ describe("CartPanel order status", () => {
 
     await user.click(screen.getByRole("button", { name: /order status/i }));
 
-    expect(screen.getByRole("option", { name: "Approved" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Confirmed" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "cancelled" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("option", { name: "Approved" }));
+    await user.click(screen.getByRole("option", { name: "Confirmed" }));
     expect(onStatusChange).toHaveBeenCalledWith("confirmed");
   });
 

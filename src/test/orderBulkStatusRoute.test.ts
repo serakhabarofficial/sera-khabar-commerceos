@@ -136,8 +136,8 @@ describe("POST /api/orders/bulk-status", () => {
     const { app } = fixture([order(1, "confirmed"), order(2, "pending"), order(3, "pending", { address: "" })]);
     const result = await http(app, "POST", ROUTE, { orderIds: [uuid(1), uuid(2), uuid(3)], status: "print" });
     expect(result.body).toMatchObject({ processed: 1, failed: 2, failures: [
-      { orderId: uuid(2), reason: "Only Approved orders can move to Print" },
-      { orderId: uuid(3), reason: "Only Approved orders can move to Print" },
+      { orderId: uuid(2), reason: "Only Confirmed orders can move to Print" },
+      { orderId: uuid(3), reason: "Only Confirmed orders can move to Print" },
     ] });
     const approve = await http(fixture([order(3, "pending", { address: "" })]).app, "POST", ROUTE, { orderIds: [uuid(3)], status: "confirmed" });
     expect(approve.body.failures).toEqual([{ orderId: uuid(3), orderNumber: "#3", reason: "Add the delivery address before approving this order." }]);

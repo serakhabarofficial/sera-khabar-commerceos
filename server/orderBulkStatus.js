@@ -40,9 +40,9 @@ export function bulkStatusTransitionError(order, targetStatus) {
 
   const fromApproved = from === "approved" || from === "confirmed";
   const toApproved = to === "approved" || to === "confirmed";
-  if (to === "print" && !fromApproved) return "Only Approved orders can move to Print";
+  if (to === "print" && !fromApproved) return "Only Confirmed orders can move to Print";
   if (from === "print" && !(to === "processing" || toApproved || to === "cancelled" || to === "canceled" || isOnHold(to))) {
-    return "Print orders can only move to Processing, Approved, On Hold, or Cancelled";
+    return "Print orders can only move to Ready to Transit, Confirmed, On Hold, or Cancelled";
   }
 
   if (isApprovedStatus(targetStatus) && !isApprovedStatus(order?.status)) {

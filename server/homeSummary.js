@@ -197,7 +197,7 @@ const ATTENTION_CARDS = [
   {
     kind: "stuck_parcels", signal: "stuck", preview: "orders",
     title: (n) => `${plural(n, "parcel")} to follow up`,
-    body: "In Processing for more than 4 days without moving, in transit for more than 5 days, or a courier status nobody can act on. Call the courier or the customer.",
+    body: "In Ready to Transit for more than 4 days without moving, in transit for more than 5 days, or a courier status nobody can act on. Call the courier or the customer.",
     cta: { label: "Follow up parcels", to: "/orders", state: { fulfillmentTab: "stuck" } },
   },
   {

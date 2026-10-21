@@ -10193,10 +10193,10 @@ app.patch("/api/orders/:id", async (req, res) => {
       const toCancelled = toStatus === "cancelled" || toStatus === "canceled";
       const toOnHold = toStatus === "on_hold" || toStatus === "hold";
       if (toStatus === "print" && !fromApproved && fromStatus !== "print") {
-        return res.status(400).json({ error: "Only Approved orders can move to Print" });
+        return res.status(400).json({ error: "Only Confirmed orders can move to Print" });
       }
       if (fromStatus === "print" && !(toStatus === "print" || toStatus === "processing" || toApproved || toCancelled || toOnHold)) {
-        return res.status(400).json({ error: "Print orders can only move to Processing, Approved, On Hold, or Cancelled" });
+        return res.status(400).json({ error: "Print orders can only move to Ready to Transit, Confirmed, On Hold, or Cancelled" });
       }
     }
 

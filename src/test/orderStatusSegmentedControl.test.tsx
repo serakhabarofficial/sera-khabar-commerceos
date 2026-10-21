@@ -24,12 +24,12 @@ describe("OrderStatusSegmentedControl", () => {
     expect(labels.slice(labels.indexOf("In-Transit"), labels.indexOf("In-Transit") + 3)).toEqual(["In-Transit", "Follow up", "Delivered"]);
   });
 
-  it("renders Abandoned immediately after All Orders without adding it to order status counts", () => {
+  it("renders Incomplete orders right after All Orders and Pending without adding it to order status counts", () => {
     render(<OrderStatusSegmentedControl counts={counts} abandonedCount={15} value="all" onChange={vi.fn()} />);
 
     expect(screen.getByRole("radiogroup", { name: "Filter orders by status" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /All Orders.*127,939/ })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("radio", { name: /^Abandoned:.*15/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^Incomplete orders:.*15/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Ready To Ship.*57,432/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /In-Transit.*2/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Cancelled.*30,676/ })).toBeInTheDocument();
@@ -39,7 +39,8 @@ describe("OrderStatusSegmentedControl", () => {
     const radios = screen.getAllByRole("radio");
     expect(radios).toHaveLength(12);
     expect(radios[0]).toHaveAccessibleName(/All Orders/);
-    expect(radios[1]).toHaveAccessibleName(/^Abandoned:/);
+    expect(radios[1]).toHaveAccessibleName(/^Pending:/);
+    expect(radios[2]).toHaveAccessibleName(/^Incomplete orders:/);
   });
 
   it("hides Ready To Ship when requested", () => {
@@ -73,12 +74,12 @@ describe("OrderStatusSegmentedControl", () => {
     expect(screen.getByTestId("order-status-control")).toHaveClass(
       "xl:flex",
       "xl:w-full",
-      "rounded-lg",
-      "bg-black/[0.055]",
+      "rounded-xl",
+      "bg-black/[0.045]",
       "p-1",
     );
-    expect(screen.getByRole("radio", { name: /Delivered.*37,678/ })).toHaveClass("xl:min-w-0", "xl:flex-1");
-    expect(screen.getByTestId("order-status-count-delivered")).toHaveClass("text-black/80");
+    expect(screen.getByRole("radio", { name: /Delivered.*37,678/ })).toHaveClass("flex-auto", "items-center");
+    expect(screen.getByTestId("order-status-count-delivered")).toHaveClass("text-black/55");
     expect(screen.getByTestId("order-status-count-delivered").className).not.toMatch(/text-emerald/);
   });
 });

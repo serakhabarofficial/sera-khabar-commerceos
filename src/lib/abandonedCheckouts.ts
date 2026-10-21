@@ -102,7 +102,7 @@ export function abandonedCheckoutWhatsAppHref(phone: string | null | undefined) 
 
 export function abandonedCheckoutCopySummary(checkout: AbandonedCheckout) {
   return [
-    "Abandoned checkout",
+    "Incomplete order",
     `Source: ${abandonedCheckoutSourceLabel(checkout.source)}`,
     `Name: ${checkout.customer_name || "Not provided"}`,
     `Phone: ${checkout.phone || "Not provided"}`,

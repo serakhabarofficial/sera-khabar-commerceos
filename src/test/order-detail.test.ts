@@ -159,7 +159,7 @@ describe("OrderDetail", () => {
     expect(screen.getByRole("radio", { name: "Order details" })).toBeChecked();
 
     await user.click(screen.getByRole("radio", { name: "Logs" }));
-    expect((await screen.findAllByText("Approved order")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Confirmed order")).length).toBeGreaterThan(0);
     expect(screen.getByTestId("activity-live-indicator")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Order cart" })).not.toBeInTheDocument();
     const logsParams = new URLSearchParams(screen.getByTestId("location-search").textContent || "");
@@ -190,7 +190,7 @@ describe("OrderDetail", () => {
     await user.click(screen.getByRole("radio", { name: "Logs" }));
 
     expect(screen.queryByText("Loading activity")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Approved order").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Confirmed order").length).toBeGreaterThan(0);
   });
 
   it("places the read-only order source in the customer section header", async () => {
@@ -650,7 +650,7 @@ describe("OrderDetail", () => {
     expect(screen.queryByText("ML-999")).not.toBeInTheDocument();
     expect(screen.getAllByText("#ML-1001")).toHaveLength(1);
     const latestRow = screen.getByText("ML-1002").closest("li");
-    expect(within(latestRow).getByText("Approved")).toBeInTheDocument();
+    expect(within(latestRow).getByText("Confirmed")).toBeInTheDocument();
     expect(within(latestRow).getByText(/Sep 1, 2026/)).toBeInTheDocument();
   });
 

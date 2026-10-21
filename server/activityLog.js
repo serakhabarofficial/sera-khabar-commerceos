@@ -162,7 +162,7 @@ export function buildOrderLookup({ orders, socialInboxOrders, abandonedCheckouts
   for (const checkout of abandonedCheckouts || []) {
     if (!checkout?.id) continue;
     lookup.set(orderReferenceKey("abandoned_checkouts", checkout.id), {
-      label: checkout.customer_name || "Abandoned cart",
+      label: checkout.customer_name || "Incomplete order",
       value: checkout.total ?? null,
     });
   }

@@ -123,7 +123,7 @@ describe("OrderActivityTimeline", () => {
     expect(within(row).getByText("গ্রাহক মত পরিবর্তন করেছেন")).toBeInTheDocument();
     expect(within(row).getByText("Customer called after confirmation")).toBeInTheDocument();
     const status = within(row).getByTestId("activity-status-change");
-    expect(status).toHaveTextContent("Approved");
+    expect(status).toHaveTextContent("Confirmed");
     expect(status).toHaveTextContent("Cancelled");
     expect(within(row).queryByRole("button")).not.toBeInTheDocument();
   });
@@ -139,10 +139,10 @@ describe("OrderActivityTimeline", () => {
     }], "full");
 
     const row = await screen.findByTestId("activity-event");
-    expect(within(row).getByTestId("activity-event-heading")).toHaveTextContent("Approved order");
+    expect(within(row).getByTestId("activity-event-heading")).toHaveTextContent("Confirmed order");
     const status = within(row).getByTestId("activity-status-change");
     expect(within(status).getByText("Pending")).toBeInTheDocument();
-    expect(within(status).getByText("Approved")).toBeInTheDocument();
+    expect(within(status).getByText("Confirmed")).toBeInTheDocument();
     expect(row).not.toHaveTextContent("pending");
   });
 

@@ -50,16 +50,16 @@ type PendingMatchOrder = SyncableOrder & StatusFilterOrder & { order_number?: st
 type MoveTarget = "keep" | "pending" | "on_hold" | "approved";
 
 const MOVE_OPTIONS: { value: MoveTarget; label: string }[] = [
-  { value: "keep", label: "Abandoned" },
+  { value: "keep", label: "Incomplete" },
   { value: "pending", label: "Pending" },
   { value: "on_hold", label: "On hold" },
-  { value: "approved", label: "Approved" },
+  { value: "approved", label: "Confirmed" },
 ];
 
 const MOVE_TARGET_LABELS: Record<Exclude<MoveTarget, "keep">, string> = {
   pending: "Pending",
   on_hold: "On Hold",
-  approved: "Approved",
+  approved: "Confirmed",
 };
 
 const EMPTY_HOLD_DETAILS: OrderHoldMetadata = { hold_reason_code: null, hold_reason_detail: null, hold_until_date: null };
@@ -499,7 +499,7 @@ export default function AbandonedDetail() {
       <div data-testid="abandoned-editor-toolbar" className="sticky top-0 z-30 flex flex-wrap items-center gap-3 bg-[#FAFAF8]/95 py-2 backdrop-blur-sm">
         <BuiButton variant="ghost" size="small" iconOnly leadingIcon={ArrowLeft} aria-label="Back" onClick={goBack} />
         <div className="flex min-w-0 items-baseline gap-2.5">
-          <h1 style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }} className="text-[28px] font-medium tracking-tight text-black">Abandoned editor</h1>
+          <h1 style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }} className="text-[28px] font-medium tracking-tight text-black">Incomplete order editor</h1>
           {checkout && (
             <span className="truncate text-[13px] text-black">
               Captured {capturedLabel(checkout.created_at)}{checkout.phone ? ` · ${checkout.phone}` : ""}
@@ -544,7 +544,7 @@ export default function AbandonedDetail() {
         ) : (
           <div className="py-24 text-center">
             <p className="text-[15px] font-medium text-black">Checkout not found.</p>
-            <button type="button" aria-label="Back to abandoned checkouts" onClick={goBack} className="mt-2 text-[13px] text-black underline">Back to abandoned checkouts</button>
+            <button type="button" aria-label="Back to incomplete orders" onClick={goBack} className="mt-2 text-[13px] text-black underline">Back to incomplete orders</button>
           </div>
         )
       ) : (

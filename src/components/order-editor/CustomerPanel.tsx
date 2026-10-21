@@ -149,7 +149,7 @@ function historyDateTime(value: string | null | undefined) {
 
 function historyStatusLabel(status: string | null | undefined): string {
   const normalized = normalizeBusinessStatus(status);
-  if (normalized === "confirmed" || normalized === "approved") return "Approved";
+  if (normalized === "confirmed" || normalized === "approved") return "Confirmed";
   if (normalized === "print") return "Ready to Ship";
   if (normalized === "on_hold" || normalized === "hold") return "On Hold";
   if (normalized === "cancelled" || normalized === "canceled") return "Cancelled";

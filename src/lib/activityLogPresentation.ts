@@ -51,7 +51,7 @@ export type ActivityLogResponse = {
 
 const ACTION_LABELS: Record<ActivityAction, string> = {
   created: "Created",
-  confirmed: "Approved",
+  confirmed: "Confirmed",
   cancelled: "Cancelled",
   status_changed: "Status changed",
   contacted: "Contacted",
@@ -100,7 +100,7 @@ export function activityActionColor(action: ActivityAction): ChipColor {
 const TABLE_LABELS: Record<ActivityOrderTable, string> = {
   orders: "Order",
   social_inbox_orders: "Inbox order",
-  abandoned_checkouts: "Abandoned cart",
+  abandoned_checkouts: "Incomplete order",
 };
 
 export function activityTableLabel(table: ActivityOrderTable): string {

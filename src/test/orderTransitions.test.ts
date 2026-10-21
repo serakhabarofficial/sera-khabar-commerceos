@@ -51,8 +51,8 @@ describe("orderTransitions", () => {
   });
 
   it("labels confirmed as Approved and leaves other statuses untouched", () => {
-    expect(displayStatusLabel("confirmed")).toBe("Approved");
-    expect(displayStatusLabel("Confirmed")).toBe("Approved");
+    expect(displayStatusLabel("confirmed")).toBe("Confirmed");
+    expect(displayStatusLabel("Confirmed")).toBe("Confirmed");
     expect(displayStatusLabel("pending")).toBe("pending");
     expect(displayStatusLabel("print")).toBe("print");
     expect(displayStatusLabel("on_hold")).toBe("On Hold");

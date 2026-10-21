@@ -44,7 +44,8 @@ export function courierSendBlockReason(status: string | null | undefined): strin
 
 export function displayStatusLabel(status: string | null | undefined): string {
   const normalized = normalizeBusinessStatus(status);
-  if (normalized === "confirmed") return "Approved";
+  if (normalized === "confirmed") return "Confirmed";
+  if (normalized === "processing") return "Ready to Transit";
   if (normalized === "on_hold" || normalized === "hold") return "On Hold";
   return (status || "").trim();
 }
