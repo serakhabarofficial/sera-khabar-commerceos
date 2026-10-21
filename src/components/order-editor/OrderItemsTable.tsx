@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Minus, Package, Plus, Trash } from "@phosphor-icons/react";
 import { Select as BuiSelect, SelectItem as BuiSelectItem } from "@/components/base/select/select";
 import { DiscountEditor } from "./DiscountEditor";
@@ -29,12 +30,16 @@ type OrderItemsTableProps = {
   requiredAdditionReasonKeys?: string[];
   additionReasons?: Record<string, AdditionReason | "">;
   onAdditionReasonChange?: (itemKey: string, reason: AdditionReason) => void;
+  /** Replaces the read-only unit price, e.g. New Order's editable price. */
+  renderUnitPrice?: (item: OrderEditorItem) => ReactNode;
 };
 
 const COLUMNS = "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.6fr)_minmax(128px,0.9fr)_88px_auto_auto_92px_32px]";
+const COLUMNS_EDITABLE_PRICE = "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.4fr)_minmax(120px,0.8fr)_136px_auto_auto_92px_32px]";
 
 /** The order lines as an editable table: weight, discount, quantity and line total per row. */
-export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, onRemove, onDiscount, onChangeVariant, requiredAdditionReasonKeys = [], additionReasons = {}, onAdditionReasonChange }: OrderItemsTableProps) {
+export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, onRemove, onDiscount, onChangeVariant, requiredAdditionReasonKeys = [], additionReasons = {}, onAdditionReasonChange, renderUnitPrice }: OrderItemsTableProps) {
+  const columns = renderUnitPrice ? COLUMNS_EDITABLE_PRICE : COLUMNS;
   if (items.length === 0) {
     return (
       <div className="grid place-items-center gap-2 py-14 text-center">
@@ -46,7 +51,7 @@ export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, 
 
   return (
     <div role="table" aria-label="Order items" className="min-w-0">
-      <div role="row" className={`sticky top-0 z-10 hidden gap-3 bg-white pb-2.5 md:grid ${COLUMNS}`}>
+      <div role="row" className={`sticky top-0 z-10 hidden gap-3 bg-white pb-2.5 md:grid ${columns}`}>
         {["Product", "Weight", "Unit", "Discount", "Qty", "Line", ""].map((heading, index) => (
           <span key={index} role="columnheader" className={`text-[8px] font-medium uppercase tracking-[0.3em] text-black ${index >= 2 && index !== 3 ? "text-right" : ""}`}>{heading}</span>
         ))}
@@ -63,7 +68,7 @@ export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, 
         const canPickWeight = Boolean(product && item.variant_id && product.variants.length > 1);
         return (
           <div key={item.id} role="row" data-testid={`order-item-${item.id}`} className="border-t border-black/[0.06] py-3">
-            <div className={`grid items-center gap-x-3 gap-y-2.5 ${COLUMNS}`}>
+            <div className={`grid items-center gap-x-3 gap-y-2.5 ${columns}`}>
               <div role="cell" className="flex min-w-0 items-center gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-black/[0.04]">{item.image_url ? <img src={item.image_url} alt={name} className="h-full w-full object-cover" /> : <Package weight="light" size={16} className="text-black/25" />}</div>
                 <div className="min-w-0 leading-snug">
@@ -95,10 +100,14 @@ export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, 
                   <span className="inline-flex h-8 items-center rounded-lg bg-black/[0.04] px-2.5 text-[12px] text-black">{weightText}</span>
                 )}
               </div>
-              <div role="cell" className="hidden text-right md:block">
-                <p className="font-mono text-[12.5px] tabular-nums text-black">{formatTaka(netUnit)}</p>
-                {unitDiscount > 0 && <p className="font-mono text-[10px] tabular-nums text-black/35 line-through">{formatTaka(item.unit_price)}</p>}
-              </div>
+              {renderUnitPrice ? (
+                <div role="cell" className="col-span-2 min-w-0 md:col-span-1">{renderUnitPrice(item)}</div>
+              ) : (
+                <div role="cell" className="hidden text-right md:block">
+                  <p className="font-mono text-[12.5px] tabular-nums text-black">{formatTaka(netUnit)}</p>
+                  {unitDiscount > 0 && <p className="font-mono text-[10px] tabular-nums text-black/35 line-through">{formatTaka(item.unit_price)}</p>}
+                </div>
+              )}
               <div role="cell" className="min-w-0">
                 <DiscountEditor item={item} disabled={!canEdit || isLegacy} onApply={(type, value) => onDiscount(item.id, type, value)} onRemove={() => onDiscount(item.id, null, 0)} />
               </div>
