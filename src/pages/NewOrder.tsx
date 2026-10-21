@@ -28,7 +28,7 @@ import type { HistoryEntry } from "@/components/order-editor/CustomerPanel";
 import { OrderSourceSelect } from "@/components/order-editor/OrderSourceSelect";
 import { FraudPanel } from "@/components/order-editor/FraudPanel";
 import { useFraudCheckMutation } from "@/hooks/useFraudCheck";
-import { normalizeBdMobileInput } from "@/lib/bdPhone";
+import { normalizeBdMobileInput, normalizeBdPhone } from "@/lib/bdPhone";
 import { StaffSelect } from "@/components/order-editor/StaffSelect";
 import { useAuth } from "@/hooks/useAuth";
 import type { OrderSource } from "@/lib/orderSource";
@@ -388,9 +388,11 @@ export default function NewOrder() {
             <textarea aria-label="Delivery address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="House 12, Road 5, Dhanmondi, Dhaka" rows={3} className={`${fieldClass} h-auto resize-none py-2 leading-relaxed`} />
           </label>
 
-          <div className="rounded-[14px] bg-white p-3.5 ring-1 ring-inset ring-black/[0.06]">
-            <FraudPanel phone={phone} defaultExpanded compact alignHeader="left" showReviews={false} />
-          </div>
+          {normalizeBdPhone(phone) && (
+            <div className="rounded-[14px] bg-white p-3.5 ring-1 ring-inset ring-black/[0.06]">
+              <FraudPanel phone={phone} defaultExpanded compact alignHeader="left" showReviews={false} />
+            </div>
+          )}
           {normalizedPhone && <LastOrdersCard history={history} loading={ordersQuery.isPending} />}
         </section>
 

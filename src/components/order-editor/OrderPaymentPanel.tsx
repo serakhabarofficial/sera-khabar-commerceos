@@ -45,16 +45,16 @@ export function OrderPaymentPanel({ items, totals, canEdit, overallDiscountType,
           <dt className="flex items-center gap-2.5 text-black/60"><Switch size="sm" aria-label="Toggle delivery charge" isSelected={deliveryOn} onChange={onToggleDelivery} isDisabled={!canEdit} />Delivery</dt>
           <dd className="font-mono tabular-nums">{totals.deliveryFee > 0 ? formatTaka(totals.deliveryFee) : "Free"}</dd>
         </div>
-        <div className="grid min-h-9 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+        <div className="flex min-h-9 items-center justify-between gap-3">
           <dt className="text-black/60">Advance / partial</dt>
-          <dd className="flex min-w-0 items-center justify-end gap-1.5">
-            {advance > 0 && <AdvancePaymentProof hideLabel className="min-w-0 shrink" method={advanceMethod} reference={advanceReference} onMethodChange={onAdvanceMethodChange} onReferenceChange={onAdvanceReferenceChange} disabled={!canEdit} />}
+          <dd className="flex items-center">
             <span className="flex shrink-0 items-center gap-1 rounded-lg bg-black/[0.04] py-1 pl-2.5 pr-1 ring-1 ring-inset ring-black/[0.06] transition focus-within:bg-white focus-within:ring-black/20">
               <span className="font-mono text-[12px] text-black/40">৳</span>
               <input aria-label="Advance payment" type="number" onWheel={blurOnWheel} min={0} max={totals.finalTotal} value={advance > 0 ? advance : ""} placeholder="0" onChange={(event) => onAdvanceChange(Math.min(totals.finalTotal, Math.max(0, Number(event.target.value) || 0)))} disabled={!canEdit} className="w-20 bg-transparent text-right font-mono text-[12px] font-medium tabular-nums outline-none placeholder:text-black/30 disabled:opacity-40" />
             </span>
           </dd>
         </div>
+        {advance > 0 && <div className="flex min-h-9 items-center justify-between gap-3"><dt className="text-black/60">Paid via</dt><dd><AdvancePaymentProof hideLabel method={advanceMethod} reference={advanceReference} onMethodChange={onAdvanceMethodChange} onReferenceChange={onAdvanceReferenceChange} disabled={!canEdit} /></dd></div>}
         <div className="mt-1 flex min-h-9 items-center justify-between border-t border-black/[0.07] pt-1"><dt className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">Final total</dt><dd className="font-mono text-[20px] font-light tabular-nums">{formatTaka(totals.finalTotal)}</dd></div>
       </dl>
     </section>

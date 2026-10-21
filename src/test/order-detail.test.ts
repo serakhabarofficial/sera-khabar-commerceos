@@ -413,14 +413,14 @@ describe("OrderDetail", () => {
     expect(screen.getByTestId("collect-on-delivery").parentElement?.nextElementSibling).toBe(screen.getByRole("button", { name: "Save changes" }).parentElement);
   });
 
-  it("keeps the advance proof on the advance line instead of adding a row", async () => {
+  it("gives the advance proof its own Paid via row so it never crowds the amount", async () => {
     renderPage();
     const advance = await screen.findByRole("spinbutton", { name: "Advance payment" });
     fireEvent.change(advance, { target: { value: "200" } });
 
     const proof = await screen.findByTestId("advance-payment-proof");
-    expect(advance.closest("dd")).toContainElement(proof);
-    expect(within(proof).getByText("Paid via")).toHaveClass("sr-only");
+    expect(advance.closest("dd")).not.toContainElement(proof);
+    expect(proof.closest("dd")?.previousElementSibling).toHaveTextContent("Paid via");
   });
 
   it("stacks the cancellation reason above the optional note", async () => {
