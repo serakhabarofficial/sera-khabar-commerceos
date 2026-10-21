@@ -80,12 +80,12 @@ describe("OrderActivityTimeline", () => {
     expect(within(row).getByText(/Order cancelled/)).toBeInTheDocument();
     expect(within(row).getByText("Order cancelled")).toHaveClass("bg-status-rose-background");
     expect(within(row).getByText(/by Rakib/)).toBeInTheDocument();
-    expect(within(row).queryByText("Customer changed their mind")).not.toBeInTheDocument();
+    expect(within(row).queryByText("গ্রাহক মত পরিবর্তন করেছেন")).not.toBeInTheDocument();
     expect(within(row).queryByText("confirmed")).not.toBeInTheDocument();
 
     fireEvent.click(within(row).getByRole("button", { name: "Expand: Order cancelled" }));
 
-    expect(within(row).getByText("Customer changed their mind")).toBeInTheDocument();
+    expect(within(row).getByText("গ্রাহক মত পরিবর্তন করেছেন")).toBeInTheDocument();
     expect(within(row).getByText("Customer called after confirmation")).toBeInTheDocument();
     expect(within(row).getByText("confirmed")).toBeInTheDocument();
     expect(within(row).getByText("cancelled")).toBeInTheDocument();
@@ -120,7 +120,7 @@ describe("OrderActivityTimeline", () => {
     renderTimeline([detailedEvent], "full");
 
     const row = await screen.findByTestId("activity-event");
-    expect(within(row).getByText("Customer changed their mind")).toBeInTheDocument();
+    expect(within(row).getByText("গ্রাহক মত পরিবর্তন করেছেন")).toBeInTheDocument();
     expect(within(row).getByText("Customer called after confirmation")).toBeInTheDocument();
     const status = within(row).getByTestId("activity-status-change");
     expect(status).toHaveTextContent("Approved");
@@ -160,7 +160,7 @@ describe("OrderActivityTimeline", () => {
     const row = await screen.findByTestId("activity-event");
     const inline = within(row).getByTestId("activity-event-inline");
     expect(within(inline).getByTestId("activity-status-change")).toHaveTextContent("On Hold");
-    expect(inline).toHaveTextContent("Awaiting advance payment");
+    expect(inline).toHaveTextContent("অগ্রিম পেমেন্টের জন্য অর্ডার হোল্ডে রাখা হয়েছে");
   });
 
   it("shows a scheduled hold's Bengali reason and return date beside its status change", async () => {
@@ -177,8 +177,8 @@ describe("OrderActivityTimeline", () => {
 
     const row = await screen.findByTestId("activity-event");
     const inline = within(row).getByTestId("activity-event-inline");
-    expect(inline).toHaveTextContent("Customer wants delivery after a specific date");
-    expect(inline).toHaveTextContent("Until: 2026-10-02");
+    expect(inline).toHaveTextContent("গ্রাহক নির্দিষ্ট তারিখের পরে পার্সেল নিতে চান");
+    expect(inline).toHaveTextContent("থাকবে: 2026-10-02");
     expect(within(inline).getByTestId("activity-status-change")).toHaveTextContent("On Hold");
   });
 

@@ -29,7 +29,7 @@ describe("CancellationInsights", () => {
     expect(screen.getByTestId("cancellation-stat-cancelled")).toHaveTextContent("3");
     expect(screen.getByTestId("cancellation-stat-customers")).toHaveTextContent("2");
     expect(screen.getByTestId("cancellation-stat-repeat-cancellers")).toHaveTextContent("1");
-    expect(screen.getByTestId("cancellation-reason-customer_unreachable")).toHaveTextContent("Customer unreachable2 · 67%");
+    expect(screen.getByTestId("cancellation-reason-customer_unreachable")).toHaveTextContent("গ্রাহকের সাথে যোগাযোগ করা যায়নি2 · 67%");
     expect(screen.getByTestId("cancellation-reason-none")).toHaveTextContent("No reason recorded1 · 33%");
   });
 
@@ -37,7 +37,7 @@ describe("CancellationInsights", () => {
     const props = renderPanel({ reasons: new Set(["customer_unreachable"]) });
     fireEvent.click(screen.getByTestId("cancellation-reason-none"));
     expect(props.onToggleReason).toHaveBeenCalledWith("none");
-    fireEvent.click(screen.getByRole("button", { name: "Remove filter Customer unreachable" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter গ্রাহকের সাথে যোগাযোগ করা যায়নি" }));
     expect(props.onToggleReason).toHaveBeenCalledWith("customer_unreachable");
     fireEvent.click(screen.getByRole("button", { name: "7 days" }));
     expect(props.onPresetChange).toHaveBeenCalledWith("7d");
@@ -57,7 +57,7 @@ describe("CancellationInsights", () => {
   it("shows the reason and note in the table cell", () => {
     render(<CancellationReasonCell order={{ ...orders[0], cancellation_reason_note: "3 calls, no answer" }} />);
     const cell = screen.getByTestId("cancellation-reason-cell-1");
-    expect(cell).toHaveTextContent("Customer unreachable");
+    expect(cell).toHaveTextContent("গ্রাহকের সাথে যোগাযোগ করা যায়নি");
     expect(cell).toHaveTextContent("3 calls, no answer");
   });
 

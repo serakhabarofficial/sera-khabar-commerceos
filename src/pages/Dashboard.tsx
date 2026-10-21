@@ -2057,7 +2057,7 @@ export default function Dashboard() {
           setHoldDialogOpen(open);
           if (!open) setPendingHoldSelection(null);
         }}
-        title="Hold order"
+        title="অর্ডার হোল্ড করুন"
         submitLabel="Hold orders"
         onSubmit={(metadata) => pendingHoldSelection
           ? applyBulkStatus("on_hold", "On Hold", metadata, pendingHoldSelection)
@@ -2066,7 +2066,7 @@ export default function Dashboard() {
       <OrderHoldDialog
         open={abandonedHoldDialogOpen}
         onOpenChange={setAbandonedHoldDialogOpen}
-        title="Hold order"
+        title="অর্ডার হোল্ড করুন"
         submitLabel="Hold checkouts"
         onSubmit={async (metadata) => {
           await applyBulkAbandoned("on_hold", metadata);

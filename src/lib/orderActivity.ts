@@ -5,12 +5,12 @@ export const ADDITION_REASON_OPTIONS = [
   { value: "correction", label: "Correction" }, { value: "replacement", label: "Replacement" }, { value: "other", label: "Other" },
 ] as const;
 export const CANCELLATION_REASON_OPTIONS = [
-  { value: "customer_changed_mind", label: "Customer changed their mind" }, { value: "customer_unreachable", label: "Customer unreachable" },
-  { value: "duplicate_order", label: "Duplicate order" }, { value: "wrong_product_or_quantity", label: "Wrong product or quantity" },
-  { value: "pricing_issue", label: "Pricing issue" }, { value: "delivery_charge_objection", label: "Delivery-charge objection" },
-  { value: "delivery_delay", label: "Delivery delay" }, { value: "out_of_stock", label: "Out of stock" },
-  { value: "fraud_or_suspicious", label: "Fraud or suspicious order" }, { value: "invalid_contact_information", label: "Invalid contact information" },
-  { value: "service_area_unavailable", label: "Service area unavailable" }, { value: "test_or_fake_order", label: "Test or fake order" }, { value: "zone_change", label: "Zone change" }, { value: "other", label: "Other" },
+  { value: "customer_changed_mind", label: "গ্রাহক মত পরিবর্তন করেছেন" }, { value: "customer_unreachable", label: "গ্রাহকের সাথে যোগাযোগ করা যায়নি" },
+  { value: "duplicate_order", label: "ডুপ্লিকেট অর্ডার" }, { value: "wrong_product_or_quantity", label: "ভুল পণ্য বা পরিমাণ" },
+  { value: "pricing_issue", label: "মূল্যসংক্রান্ত সমস্যা" }, { value: "delivery_charge_objection", label: "ডেলিভারি চার্জ নিয়ে আপত্তি" },
+  { value: "delivery_delay", label: "ডেলিভারিতে দেরি" }, { value: "out_of_stock", label: "পণ্য স্টকে নেই" },
+  { value: "fraud_or_suspicious", label: "জালিয়াতি বা সন্দেহজনক অর্ডার" }, { value: "invalid_contact_information", label: "ভুল যোগাযোগের তথ্য" },
+  { value: "service_area_unavailable", label: "ডেলিভারি এলাকা সেবার বাইরে" }, { value: "test_or_fake_order", label: "পরীক্ষামূলক বা ভুয়া অর্ডার" }, { value: "zone_change", label: "এলাকা পরিবর্তন" }, { value: "other", label: "অন্যান্য" },
 ] as const;
 export type AdditionReason = (typeof ADDITION_REASON_OPTIONS)[number]["value"];
 export type CancellationReason = (typeof CANCELLATION_REASON_OPTIONS)[number]["value"];

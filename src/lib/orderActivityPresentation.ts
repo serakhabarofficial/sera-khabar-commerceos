@@ -3,6 +3,7 @@ import type { OrderActivityChange } from "@/lib/orderActivityQuery";
 import { normalizeBusinessStatus } from "@/lib/orderTransitions";
 import { orderSourceLabel } from "@/lib/orderSource";
 import { ORDER_HOLD_REASONS } from "../../shared/orderHold.js";
+import { CANCELLATION_REASON_OPTIONS } from "@/lib/orderActivity";
 
 export type ActivityChipColor = "lime" | "rose" | "yellow" | "cyan" | "blue" | "purple" | "neutral";
 
@@ -52,19 +53,7 @@ const MONEY_FIELDS = new Set([
 const TOTAL_FIELDS = ["total_price", "total", "price"];
 
 const ACTIVITY_REASONS: Record<string, string> = {
-  customer_changed_mind: "Customer changed their mind",
-  customer_unreachable: "Customer unreachable",
-  duplicate_order: "Duplicate order",
-  wrong_product_or_quantity: "Wrong product or quantity",
-  pricing_issue: "Pricing issue",
-  delivery_charge_objection: "Delivery-charge objection",
-  delivery_delay: "Delivery delay",
-  out_of_stock: "Out of stock",
-  fraud_or_suspicious: "Fraud or suspicious order",
-  invalid_contact_information: "Invalid contact information",
-  service_area_unavailable: "Service area unavailable",
-  test_or_fake_order: "Test or fake order",
-  zone_change: "Zone change",
+  ...Object.fromEntries(CANCELLATION_REASON_OPTIONS.map(({ value, label }) => [value, label])),
   upsell: "Upsell",
   customer_request: "Customer request",
   correction: "Correction",

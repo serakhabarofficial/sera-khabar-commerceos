@@ -366,7 +366,7 @@ describe("AbandonedDetail", () => {
 
       await user.click(screen.getByRole("button", { name: "On hold" }));
       await user.click(screen.getByRole("button", { name: /Hold reason/ }));
-      await user.click(await screen.findByRole("option", { name: "Customer asked to be contacted later" }));
+      await user.click(await screen.findByRole("option", { name: "গ্রাহক পরে যোগাযোগ করতে বলেছেন" }));
       await user.click(screen.getByRole("button", { name: "Save & move to On hold" }));
 
       expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();

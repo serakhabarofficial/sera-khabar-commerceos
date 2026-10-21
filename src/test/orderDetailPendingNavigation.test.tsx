@@ -255,7 +255,7 @@ describe("order editor cancellation reason", () => {
     renderNewTabOrderDetail("/orders/order-1");
 
     const reason = await screen.findByTestId("order-editor-cancellation-reason");
-    expect(reason).toHaveTextContent(/^Cancelled: Customer unreachable$/);
+    expect(reason).toHaveTextContent(/^Cancelled: গ্রাহকের সাথে যোগাযোগ করা যায়নি$/);
     expect(reason).toHaveClass("bg-status-yellow-background");
   });
 

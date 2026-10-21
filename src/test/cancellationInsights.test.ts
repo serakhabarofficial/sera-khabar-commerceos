@@ -73,7 +73,7 @@ describe("cancellation insights", () => {
       order({ id: "1", order_number: "#1001", customer_name: "রহিমা", cancellation_reason_code: "other", cancellation_reason_note: '=HYPERLINK("x"), said "no"' }),
     ]);
     expect(csv.startsWith("\uFEFFOrder,Customer,Phone,Reason,Note")).toBe(true);
-    expect(csv).toContain("#1001,রহিমা,01712345678,Other,");
+    expect(csv).toContain("#1001,রহিমা,01712345678,অন্যান্য,");
     expect(csv).toContain(`"'=HYPERLINK(""x""), said ""no"""`);
   });
 });

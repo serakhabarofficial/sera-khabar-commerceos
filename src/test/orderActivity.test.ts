@@ -19,7 +19,7 @@ describe("detailed order activity", () => {
   it("accepts Zone change as a cancellation reason on both client and server", async () => {
     const { CANCELLATION_REASON_OPTIONS } = await import("@/lib/orderActivity");
     const { CANCELLATION_REASON_CODES } = await import("../../server/orderActivity.js");
-    expect(CANCELLATION_REASON_OPTIONS).toContainEqual({ value: "zone_change", label: "Zone change" });
+    expect(CANCELLATION_REASON_OPTIONS).toContainEqual({ value: "zone_change", label: "এলাকা পরিবর্তন" });
     expect(CANCELLATION_REASON_OPTIONS.map((option) => option.value)).toEqual([...CANCELLATION_REASON_CODES]);
     expect(validateCancellationReason({ code: "zone_change", note: "" })).toEqual({ code: "zone_change", note: null });
   });
