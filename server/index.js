@@ -4830,7 +4830,11 @@ async function recordMeaningfulOrderView(req, res, config) {
     if (!entity) return res.status(404).json({ error: config.notFound });
     const occurredAt = new Date().toISOString();
     const viewBucket = meaningfulViewBucket(occurredAt);
-    const result = await recordOrderActivity(supabase, buildDetailedActivityEvent({ orgId, orderId: entity.id, orderTable: config.table, eventType: "order.viewed", category: "view", actorId: user.id, actorKind: "user", sourceSurface, summary: "Viewed order", metadata: { view_bucket: viewBucket }, viewBucket, occurredAt }));
+    const viewEvent = buildDetailedActivityEvent({ orgId, orderId: entity.id, orderTable: config.table, eventType: "order.viewed", category: "view", actorId: user.id, actorKind: "user", sourceSurface, summary: "Viewed order", metadata: { view_bucket: viewBucket }, viewBucket, occurredAt });
+    // Skip the insert when this view is already logged, so repeat opens don't hit the unique index.
+    const { data: existingView } = await supabase.from("order_activity_events").select("id").eq("org_id", orgId).eq("order_table", config.table).eq("order_id", entity.id).eq("actor_id", user.id).eq("event_type", "order.viewed").eq("view_bucket", viewEvent.view_bucket).maybeSingle();
+    if (existingView) return res.json({ recorded: false, view_bucket: viewBucket });
+    const result = await recordOrderActivity(supabase, viewEvent);
     if (result.recorded && !entity.detailed_activity_started_at) await supabase.from(config.table).update({ detailed_activity_started_at: occurredAt }).eq("id", entity.id).eq("org_id", orgId).is("detailed_activity_started_at", null);
     return res.json({ recorded: result.recorded, view_bucket: viewBucket });
   } catch (error) { return sendError(res, error); }
