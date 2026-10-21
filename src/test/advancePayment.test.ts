@@ -8,6 +8,11 @@ const cartPanel = readFileSync(
   resolve(process.cwd(), "src/components/order-editor/CartPanel.tsx"),
   "utf8",
 );
+// New Order uses the shared payment panel for the advance row and its proof.
+const paymentPanel = readFileSync(
+  resolve(process.cwd(), "src/components/order-editor/OrderPaymentPanel.tsx"),
+  "utf8",
+);
 const orderDetail = readFileSync(
   resolve(process.cwd(), "src/pages/OrderDetail.tsx"),
   "utf8",
@@ -48,8 +53,9 @@ describe("advance payment (TDD RED)", () => {
   });
 
   it("New Order clamps advance to the total with no Full button", () => {
-    expect(newOrder).toContain("Advance");
-    expect(newOrder).toContain("max={total}");
+    expect(newOrder).toContain("advance={Math.min(advance, total)}");
+    expect(paymentPanel).toContain("Advance");
+    expect(paymentPanel).toContain("max={totals.finalTotal}");
     expect(newOrder).not.toContain(">Full<");
     expect(cartPanel).not.toContain(">Full<");
   });
@@ -62,7 +68,7 @@ describe("advance payment (TDD RED)", () => {
   });
 
   it("advance input stays empty at zero and due shows as a chip", () => {
-    for (const [name, source] of [["new-order", newOrder], ["cart-panel", cartPanel]] as const) {
+    for (const [name, source] of [["new-order payment panel", paymentPanel], ["cart-panel", cartPanel]] as const) {
       expect(source, `${name} blank-at-zero`).toContain('placeholder="0"');
       expect(source, `${name} chip due`).toContain("Chip");
     }
@@ -98,7 +104,8 @@ describe("advance payment proof wiring", () => {
   });
 
   it("every advance editor offers the proof row", () => {
-    expect(newOrder).toContain("<AdvancePaymentProof");
+    expect(newOrder).toContain("onAdvanceReferenceChange={setAdvanceReference}");
+    expect(paymentPanel).toContain("<AdvancePaymentProof");
     expect(cartPanel).toContain("<AdvancePaymentProof");
     expect(orderDetail).toContain("onAdvanceReferenceChange={setAdvanceReferenceDraft}");
     expect(abandonedDetail).toContain("onAdvanceChange={setAdvanceDraft}");

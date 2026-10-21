@@ -17,6 +17,12 @@ vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ user: { id: "user-1", email: "operator@example.com" } }),
 }));
 
+// Products are added from the search list: open it, then tap the product.
+async function addFromSearch(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByRole("searchbox", { name: "Search products" }));
+  await user.click(await screen.findByRole("button", { name: `Add ${name} to cart` }));
+}
+
 describe("NewOrder", () => {
   beforeEach(() => {
     apiFetch.mockReset();
@@ -42,7 +48,7 @@ describe("NewOrder", () => {
     expect(screen.getByRole("region", { name: "Product catalog" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Order cart" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create order/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancel" })).toHaveClass("bg-button-ghost-background");
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveClass("rounded-[20px]");
     expect(screen.getByLabelText("Order source")).toHaveTextContent("Manual / Other");
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/products"));
     expect(screen.getByLabelText("Telesales staff")).toBeInTheDocument();
@@ -235,7 +241,7 @@ describe("NewOrder", () => {
     await user.type(screen.getByRole("textbox", { name: "Customer name" }), "Rahim Uddin");
     await user.type(screen.getByRole("textbox", { name: "Phone" }), "01712345678");
     await user.type(screen.getByRole("textbox", { name: "Delivery address" }), "Dhanmondi, Dhaka");
-    await user.click(await screen.findByRole("button", { name: "Add Sundarbans Honey to cart" }));
+    await addFromSearch(user, "Sundarbans Honey");
     await user.click(screen.getByRole("button", { name: /create order/i }));
 
     await waitFor(() => {
@@ -245,7 +251,7 @@ describe("NewOrder", () => {
     });
   });
 
-  it("adds a catalog product into the cart without opening a picker", async () => {
+  it("adds a product from the search list straight into the cart", async () => {
     const user = userEvent.setup();
     apiFetch.mockResolvedValue({
       ok: true,
@@ -263,8 +269,9 @@ describe("NewOrder", () => {
     );
 
     const catalog = await screen.findByRole("region", { name: "Product catalog" });
+    await user.click(within(catalog).getByRole("searchbox", { name: "Search products" }));
     await user.click(await within(catalog).findByRole("button", { name: "Add Sundarbans Honey to cart" }));
-    expect(within(screen.getByRole("region", { name: "Order cart" })).getByText("Sundarbans Honey")).toBeInTheDocument();
+    expect(within(screen.getByTestId("new-order-items")).getByText("Sundarbans Honey")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /add a product/i })).not.toBeInTheDocument();
   });
 
@@ -288,7 +295,7 @@ describe("NewOrder", () => {
       </QueryClientProvider>,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Add Sundarbans Honey to cart" }));
+    await addFromSearch(user, "Sundarbans Honey");
     const cart = screen.getByRole("region", { name: "Order cart" });
     const price = within(cart).getByRole("spinbutton", { name: "Unit price for Sundarbans Honey" });
     expect(price).toHaveValue(850);
@@ -297,7 +304,7 @@ describe("NewOrder", () => {
     await user.clear(price);
     await user.type(price, "780");
     expect(within(cart).getByText("Catalog ৳850")).toBeInTheDocument();
-    expect(within(cart).getByText("Line total ৳780")).toBeInTheDocument();
+    expect(within(screen.getByTestId("new-order-items")).getByText("৳780")).toBeInTheDocument();
 
     await user.click(within(cart).getByRole("button", { name: "Reset Sundarbans Honey to catalog price" }));
     expect(price).toHaveValue(850);
@@ -336,7 +343,7 @@ describe("NewOrder", () => {
       </QueryClientProvider>,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Add Sundarbans Honey to cart" }));
+    await addFromSearch(user, "Sundarbans Honey");
     const cart = screen.getByRole("region", { name: "Order cart" });
     for (const input of [
       within(cart).getByRole("spinbutton", { name: "Unit price for Sundarbans Honey" }),

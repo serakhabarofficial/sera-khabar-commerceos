@@ -64,7 +64,14 @@ function formatTaka(amount: number | null) {
   return `৳${amount.toLocaleString("en-BD", { maximumFractionDigits: 0 })}`;
 }
 
-export function abandonedCheckoutSourceLabel(source: string) {
+/** "/step/katimon-mango" → "Katimon Mango": landing pages are named from their address. */
+function landingPageName(sourcePath: string | null | undefined) {
+  const slug = /^\/step\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(sourcePath || "")?.[1];
+  return slug ? slug.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ") : null;
+}
+
+export function abandonedCheckoutSourceLabel(source: string, sourcePath?: string | null) {
+  if (source === "landing") return landingPageName(sourcePath) || "Landing page";
   return SOURCE_LABELS[source] || "Checkout";
 }
 
@@ -83,7 +90,7 @@ export function matchesAbandonedCheckoutSearch(checkout: AbandonedCheckout, quer
     checkout.customer_name,
     checkout.phone,
     checkout.address,
-    abandonedCheckoutSourceLabel(checkout.source),
+    abandonedCheckoutSourceLabel(checkout.source, checkout.source_path),
     checkout.source_path,
     ...checkout.cart.flatMap((item) => [item.productName, item.variantName]),
   ];
@@ -104,7 +111,7 @@ export function abandonedCheckoutWhatsAppHref(phone: string | null | undefined) 
 export function abandonedCheckoutCopySummary(checkout: AbandonedCheckout) {
   return [
     "Incomplete order",
-    `Source: ${abandonedCheckoutSourceLabel(checkout.source)}`,
+    `Source: ${abandonedCheckoutSourceLabel(checkout.source, checkout.source_path)}`,
     `Name: ${checkout.customer_name || "Not provided"}`,
     `Phone: ${checkout.phone || "Not provided"}`,
     `Address: ${checkout.address || "Not provided"}`,

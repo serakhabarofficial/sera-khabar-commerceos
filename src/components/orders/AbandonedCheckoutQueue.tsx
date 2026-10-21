@@ -361,7 +361,7 @@ export function AbandonedCheckoutQueue({
                   )}
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-black">
-                  <span>{abandonedCheckoutSourceLabel(checkout.source)}</span>
+                  <span>{abandonedCheckoutSourceLabel(checkout.source, checkout.source_path)}</span>
                   <span aria-hidden>·</span>
                   <span>{captureTime(checkout.created_at)}</span>
                   <Chip variant="subtle" color="gray" className="tabular-nums">

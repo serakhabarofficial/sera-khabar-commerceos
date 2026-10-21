@@ -75,6 +75,53 @@ function dateTime(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString("en-BD") : null;
 }
 
+/** The customer's previous orders with this store, newest first. */
+export function LastOrdersCard({ history, loading = false, onOpenOrder }: { history: HistoryEntry[]; loading?: boolean; onOpenOrder?: (orderId: string) => void }) {
+  return (
+    <div className="min-w-0 rounded-[14px] bg-white p-3.5 ring-1 ring-inset ring-black/[0.06]">
+      <div className="flex items-center gap-2">
+        <h3 className="text-[14px] font-semibold text-black">Last orders</h3>
+        {history.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#FBBB14] px-1.5 text-[11px] font-bold tabular-nums text-black">{history.length}</span>}
+      </div>
+      {loading ? (
+        <p className="mt-2 text-[12px] text-black/55">Loading…</p>
+      ) : history.length === 0 ? (
+        <p className="mt-2 text-[12px] text-black/55">No previous orders.</p>
+      ) : (
+        <ul className="mt-1.5 divide-y divide-black/[0.06]">
+          {history.map((entry) => {
+            const number = String(entry.order_number ?? "").replace(/^#+/, "");
+            const body = (
+              <div className="flex min-w-0 items-start justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1 font-mono text-[12.5px] font-medium text-black">{number}{onOpenOrder && <ArrowUpRight weight="light" size={12} className="text-black/30" />}</p>
+                  <p className="mt-0.5 truncate text-[11.5px] text-black/55"><span className="font-medium tabular-nums text-black">{formatTaka(entry.price)}</span> · {historyDateTime(entry.created_at) || "—"}</p>
+                  {entry.product && <p className="mt-0.5 truncate text-[11.5px] text-black/45" title={entry.product}>{entry.product}</p>}
+                  {(entry.consignment_id || entry.courier_name || entry.courier_status) && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {entry.courier_name && <Chip variant="caption" color="cyan">{humanizeCourierStatus(entry.courier_name)}</Chip>}
+                      {entry.consignment_id && <Chip variant="caption" color="blue" title={`CN No:${entry.consignment_id}`}>CN {entry.consignment_id}</Chip>}
+                      {entry.courier_status && <Chip variant="caption" color={courierStatusChipColor(entry.courier_status)}>{humanizeCourierStatus(entry.courier_status)}</Chip>}
+                    </div>
+                  )}
+                </div>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${historyStatusPill(entry.status)}`}>{historyStatusLabel(entry.status)}</span>
+              </div>
+            );
+            return (
+              <li key={entry.id} className="min-w-0">
+                {onOpenOrder ? (
+                  <button type="button" onClick={() => onOpenOrder(entry.id)} aria-label={`Open order ${number} in the order editor`} className="-mx-2 block w-[calc(100%+1rem)] rounded-lg px-2 text-left transition hover:bg-black/[0.03]">{body}</button>
+                ) : body}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** The customer file: who this is, whether they can be trusted, and what they ordered before. */
 export function CustomerDossier({ order, customer, disabled = false, history = [], historyLoading = false, onOpenOrder, onApply, source, originSource, onSourceChange, smsAmount, smsAdvancePaid, className = "" }: CustomerDossierProps) {
   const [editing, setEditing] = useState(false);
@@ -187,47 +234,7 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
         <FraudPanel phone={customer.phone} defaultExpanded compact alignHeader="left" showReviews={false} />
       </div>
 
-      <div className="min-w-0 rounded-[14px] bg-white p-3.5 ring-1 ring-inset ring-black/[0.06]">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[14px] font-semibold text-black">Last orders</h3>
-          {history.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#FBBB14] px-1.5 text-[11px] font-bold tabular-nums text-black">{history.length}</span>}
-        </div>
-        {historyLoading ? (
-          <p className="mt-2 text-[12px] text-black/55">Loading…</p>
-        ) : history.length === 0 ? (
-          <p className="mt-2 text-[12px] text-black/55">No previous orders.</p>
-        ) : (
-          <ul className="mt-1.5 divide-y divide-black/[0.06]">
-            {history.map((entry) => {
-              const number = String(entry.order_number ?? "").replace(/^#+/, "");
-              const body = (
-                <div className="flex min-w-0 items-start justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1 font-mono text-[12.5px] font-medium text-black">{number}{onOpenOrder && <ArrowUpRight weight="light" size={12} className="text-black/30" />}</p>
-                    <p className="mt-0.5 truncate text-[11.5px] text-black/55"><span className="font-medium tabular-nums text-black">{formatTaka(entry.price)}</span> · {historyDateTime(entry.created_at) || "—"}</p>
-                    {entry.product && <p className="mt-0.5 truncate text-[11.5px] text-black/45" title={entry.product}>{entry.product}</p>}
-                    {(entry.consignment_id || entry.courier_name || entry.courier_status) && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {entry.courier_name && <Chip variant="caption" color="cyan">{humanizeCourierStatus(entry.courier_name)}</Chip>}
-                        {entry.consignment_id && <Chip variant="caption" color="blue" title={`CN No:${entry.consignment_id}`}>CN {entry.consignment_id}</Chip>}
-                        {entry.courier_status && <Chip variant="caption" color={courierStatusChipColor(entry.courier_status)}>{humanizeCourierStatus(entry.courier_status)}</Chip>}
-                      </div>
-                    )}
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${historyStatusPill(entry.status)}`}>{historyStatusLabel(entry.status)}</span>
-                </div>
-              );
-              return (
-                <li key={entry.id} className="min-w-0">
-                  {onOpenOrder ? (
-                    <button type="button" onClick={() => onOpenOrder(entry.id)} aria-label={`Open order ${number} in the order editor`} className="-mx-2 block w-[calc(100%+1rem)] rounded-lg px-2 text-left transition hover:bg-black/[0.03]">{body}</button>
-                  ) : body}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      <LastOrdersCard history={history} loading={historyLoading} onOpenOrder={onOpenOrder} />
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-[14px] bg-white p-3.5 text-[12px] ring-1 ring-inset ring-black/[0.06]">
         {([["Payment", order.payment_method], ["Consignment", order.consignment_id], ["Created", dateTime(order.created_at)], ["Updated", dateTime(order.updated_at)]] as const).map(([label, value]) => (

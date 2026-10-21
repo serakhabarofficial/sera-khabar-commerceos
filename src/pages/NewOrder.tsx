@@ -1,32 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowCounterClockwise, ArrowLeft, CheckCircle, MapPin, Minus, NotePencil, Package, PencilSimple, Phone as PhoneIcon, Plus, ShieldCheck, ShoppingCartSimple, Trash, Truck, User, UserPlus } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowLeft, CheckCircle, PencilSimple, Plus, UserPlus } from "@phosphor-icons/react";
 import { apiFetch } from "@/lib/api";
-import { Chip } from "@/components/base/badges/chip";
+import { syncOrders } from "@/lib/ordersSync";
 import { Button as BuiButton } from "@/components/base/buttons/button";
-import { CatalogPanel } from "@/components/order-editor/CatalogPanel";
 import { Spinner } from "@/components/ui/ios-spinner";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/base/switch/switch";
 import { DarkToast, toast } from "@/components/ui/sonner";
 import {
   calculateCartTotals,
   calculateUnitDiscount,
+  changeCartItemVariant,
   formatTaka,
   roundTaka,
   upsertCartItem,
-  variantLabel,
   type CatalogProduct,
   type CatalogVariant,
   type DiscountType,
   type OrderEditorItem,
 } from "@/lib/orderEditor";
-import { DiscountEditor } from "@/components/order-editor/DiscountEditor";
-import { CartDiscountEditor } from "@/components/order-editor/CartDiscountEditor";
+import { ProductPicker } from "@/components/order-editor/ProductPicker";
+import { OrderItemsTable } from "@/components/order-editor/OrderItemsTable";
+import { CollectOnDeliveryBar, OrderPaymentPanel } from "@/components/order-editor/OrderPaymentPanel";
+import { LastOrdersCard } from "@/components/order-editor/CustomerDossier";
+import type { HistoryEntry } from "@/components/order-editor/CustomerPanel";
 import { OrderSourceSelect } from "@/components/order-editor/OrderSourceSelect";
-import { AdvancePaymentProof } from "@/components/order-editor/AdvancePaymentProof";
 import { FraudPanel } from "@/components/order-editor/FraudPanel";
 import { useFraudCheckMutation } from "@/hooks/useFraudCheck";
 import { normalizeBdMobileInput } from "@/lib/bdPhone";
@@ -39,6 +38,7 @@ import { customerPrefillFromState } from "@/lib/customerProfile";
 type Line = OrderEditorItem;
 
 type ProductsResponse = { products: CatalogProduct[] };
+type HistoryOrder = HistoryEntry & { phone?: string | null };
 type CustomerLookupResponse = {
   customer: {
     customerName: string;
@@ -73,7 +73,7 @@ function UnitPriceInput({ value, label, disabled, onCommit }: { value: number; l
   return (
     <label
       title="Click to edit the price for this order"
-      className="group flex h-8 w-32 cursor-text items-center gap-1 rounded-lg border border-dashed border-black/25 bg-white px-2 transition-colors hover:border-black/50 focus-within:border-solid focus-within:border-black focus-within:ring-2 focus-within:ring-black/10"
+      className="group flex h-8 w-full cursor-text items-center gap-1 rounded-lg border border-dashed border-black/25 bg-white px-2 transition-colors hover:border-black/50 focus-within:border-solid focus-within:border-black focus-within:ring-2 focus-within:ring-black/10"
     >
       <span aria-hidden="true" className="font-mono text-[12px] text-black/45">৳</span>
       <input
@@ -119,8 +119,6 @@ export default function NewOrder() {
   const [advanceReference, setAdvanceReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [notes, setNotes] = useState("");
-  const [noteOpen, setNoteOpen] = useState(false);
-  const [noteDraft, setNoteDraft] = useState("");
   const [source, setSource] = useState<OrderSource>("manual_other");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
 
@@ -156,41 +154,8 @@ export default function NewOrder() {
     setLines((current) => upsertCartItem(current, product, variant));
   }
 
-  function updateLineVariant(lineId: string, variantId: string) {
-    setLines((current) => current.map((line) => {
-      if (line.id !== lineId) return line;
-      const product = products.find((item) => item.id === line.product_id);
-      const allVariants = product?.variants || [];
-      const variant = allVariants.find((item) => item.id === variantId);
-      if (!variant || !product) {
-        const fallbackPrice = product?.selling_price || line.unit_price;
-        return {
-          ...line,
-          variant_id: null,
-          variant_name: null,
-          unit_price: fallbackPrice,
-          unit_discount: calculateUnitDiscount(fallbackPrice, line.discount_type, line.discount_value),
-        };
-      }
-      const nextPrice = (product.selling_price || 0) + (variant.price_adjustment || 0);
-      return {
-        ...line,
-        variant_id: variant.id,
-        variant_name: variantLabel(variant.attributes),
-        unit_price: nextPrice,
-        available_stock: variant.stock_quantity ?? product.stock_quantity,
-        weight_kg: variant.weight_kg ?? product.weight_kg ?? line.weight_kg ?? null,
-        unit_discount: calculateUnitDiscount(nextPrice, line.discount_type, line.discount_value),
-      };
-    }));
-  }
-
-  function updateLineQty(lineId: string, delta: number) {
-    setLines((current) => current.map((line) => {
-      if (line.id !== lineId) return line;
-      const max = line.available_stock ?? Number.MAX_SAFE_INTEGER;
-      return { ...line, quantity: Math.max(1, Math.min(max, line.quantity + delta)) };
-    }));
+  function changeLineVariant(lineId: string, product: CatalogProduct, variant: CatalogVariant) {
+    setLines((current) => changeCartItemVariant(current, lineId, product, variant));
   }
 
   function setLineQty(lineId: string, qty: number) {
@@ -249,6 +214,21 @@ export default function NewOrder() {
       return { customer: data.customer || null };
     },
   });
+  // The customer's previous orders with this store, from the shared orders list.
+  const ordersQuery = useQuery<HistoryOrder[]>({
+    queryKey: ["/api/orders"],
+    staleTime: 30_000,
+    enabled: Boolean(normalizedPhone),
+    queryFn: () => syncOrders<HistoryOrder>(queryClient),
+  });
+  const history = useMemo(() => {
+    if (!normalizedPhone) return [];
+    const key = normalizedPhone.slice(-11);
+    return (ordersQuery.data || [])
+      .filter((order) => (order.phone || "").replace(/\D/g, "").slice(-11) === key)
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 5);
+  }, [normalizedPhone, ordersQuery.data]);
   const fraudCheck = useFraudCheckMutation(phone);
   const autoCheckedPhone = useRef<string | null>(null);
   const cartScrollRef = useRef<HTMLDivElement>(null);
@@ -367,145 +347,113 @@ export default function NewOrder() {
     }
   }
 
+  const fieldClass = "h-10 w-full rounded-lg bg-white px-3 text-[13px] normal-case tracking-normal text-black outline-none ring-1 ring-inset ring-black/[0.08] transition placeholder:text-black/35 focus:ring-black/25 disabled:opacity-50";
+  const labelClass = "grid gap-1.5 text-[8px] font-medium uppercase tracking-[0.3em] text-black";
+  const isReturning = Boolean(normalizedPhone && matchedCustomerPhone === normalizedPhone);
+  const initial = Array.from(customerName.trim())[0];
+
   return (
     <div className="flex min-h-full min-w-0 flex-col gap-3 bg-[#FAFAF8] px-2 pb-3 pt-0 lg:px-3 lg:pt-1">
-      <div data-testid="new-order-toolbar" className="sticky top-0 z-30 flex shrink-0 items-center gap-3 bg-[#FAFAF8]/95 py-2 backdrop-blur-sm">
+      <div data-testid="new-order-toolbar" className="sticky top-0 z-30 flex shrink-0 flex-wrap items-center gap-3 bg-[#FAFAF8]/95 py-2 backdrop-blur-sm">
         <BuiButton variant="ghost" size="small" iconOnly leadingIcon={ArrowLeft} aria-label="Back" onClick={() => navigate(returnTo, { state: location.state?.profileNavigationState })} />
-        <div className="min-w-0">
-          <p className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">New order</p>
-          <h1 className="truncate text-[28px] font-medium tracking-tight text-black">Order editor</h1>
-        </div>
-        <div className="ml-auto hidden items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-black ring-1 ring-inset ring-black/[0.06] sm:flex"><ShieldCheck weight="light" size={15} /> Protected checkout</div>
+        <h1 className="truncate text-[28px] font-medium tracking-tight text-black">New order</h1>
+        <span className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[11px] font-medium text-black/60">Created as Confirmed</span>
       </div>
 
-      <div className="min-h-0 overflow-hidden rounded-xl bg-black/[0.07] ring-1 ring-black/[0.07]">
-        <section aria-label="Customer and order" className="bg-[#FAFAF8] px-5 py-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
-            <div className="flex flex-col gap-4">
-              <div className="rounded-xl bg-white p-4 ring-1 ring-inset ring-black/[0.06]">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#eaf7ef]">
-                      <User weight="light" size={19} className="text-[#2e9e5b]" />
-                    </span>
-                    <div>
-                      <p className="text-[15px] font-semibold text-black">Customer details</p>
-                      <p className="text-[11.5px] text-black/45">Enter customer information to create the order</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={resetCustomer}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#eaf7ef] px-2.5 py-1.5 text-[12px] font-medium text-[#2e9e5b] transition hover:bg-[#dcf0e4]"
-                  >
-                    <UserPlus weight="light" size={14} />
-                    New customer
-                  </button>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="block text-[10px] font-medium uppercase tracking-[0.16em] text-black">
-                    Customer name
-                    <div className="relative mt-2">
-                      <User weight="light" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-black/35" />
-                      <input aria-label="Customer name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Rahim Uddin" className="h-12 w-full rounded-lg bg-black/[0.04] pl-10 pr-3.5 text-[14px] normal-case tracking-normal text-black outline-none ring-1 ring-inset ring-black/[0.06] transition focus:bg-white focus:ring-black/20" />
-                    </div>
-                  </label>
-                  <label className="block text-[10px] font-medium uppercase tracking-[0.16em] text-black">
-                    Phone <span className="text-red-500">*</span>
-                    <div className="relative mt-2">
-                      <PhoneIcon weight="light" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-black/35" />
-                      <input aria-label="Phone" type="tel" required value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="01712345678" className="h-12 w-full rounded-lg bg-black/[0.04] pl-10 pr-3.5 text-[14px] normal-case tracking-normal text-black outline-none ring-1 ring-inset ring-black/[0.06] transition focus:bg-white focus:ring-black/20" />
-                    </div>
-                    {normalizedPhone && matchedCustomerPhone === normalizedPhone && <p className="mt-1.5 text-[11px] normal-case tracking-normal text-[#2e9e5b]">Previous customer found</p>}
-                  </label>
-                  <label className="block text-[10px] font-medium uppercase tracking-[0.16em] text-black sm:col-span-2">
-                    Delivery address
-                    <div className="relative mt-2">
-                      <MapPin weight="light" size={16} className="pointer-events-none absolute left-3.5 top-3 text-black/35" />
-                      <textarea aria-label="Delivery address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="House 12, Road 5, Dhanmondi, Dhaka" rows={4} className="min-h-32 w-full resize-none rounded-lg bg-black/[0.04] py-2.5 pl-10 pr-3.5 text-[14px] normal-case tracking-normal text-black outline-none ring-1 ring-inset ring-black/[0.06] transition focus:bg-white focus:ring-black/20" />
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-white p-4 ring-1 ring-inset ring-black/[0.06]">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#eaf7ef]">
-                    <ShoppingCartSimple weight="light" size={19} className="text-[#2e9e5b]" />
-                  </span>
-                  <div>
-                    <p className="text-[15px] font-semibold text-black">Order settings</p>
-                    <p className="text-[11.5px] text-black/45">Set order source and assign telesales staff</p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="block text-[10px] font-medium uppercase tracking-[0.16em] text-black">Order source<div className="mt-2"><OrderSourceSelect value={source} onChange={setSource} disabled={creating} /></div></label>
-                  <label className="block text-[10px] font-medium uppercase tracking-[0.16em] text-black">Telesales staff<div className="mt-2"><StaffSelect value={assignedTo} onChange={setAssignedTo} disabled={creating} /></div></label>
-                </div>
-              </div>
+      <div data-testid="new-order-workspace" className="grid min-h-0 grid-cols-1 gap-3 xl:h-[calc(100dvh-8.75rem)] xl:min-h-[600px] xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section aria-label="Customer and order" className="flex min-h-0 flex-col gap-4 rounded-2xl bg-[#F3F2EE] p-4 ring-1 ring-black/[0.07] sm:p-5 xl:overflow-y-auto xl:overscroll-contain">
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className={initial ? "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#F6D78A] to-[#E3A33B] text-[15px] font-medium text-[#5A3A0A]" : "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-black/[0.06] text-[15px] text-black/30"}>{initial || "?"}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[17px] font-medium tracking-[-0.01em] text-black">{customerName.trim() || "New customer"}</p>
+              <p className="text-[11.5px] text-black/50">{isReturning ? "Found from the phone number. Details filled in." : "Type the phone first to find a returning customer."}</p>
             </div>
-            <div className="rounded-xl bg-white p-4 ring-1 ring-inset ring-black/[0.06]">
-              <FraudPanel phone={phone} defaultExpanded compact alignHeader="left" className="flex h-full flex-col justify-between gap-3" />
+            <button type="button" onClick={resetCustomer} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-[12px] font-medium text-black ring-1 ring-inset ring-black/[0.07] transition hover:bg-black/[0.03] active:scale-[0.97]">
+              <UserPlus weight="light" size={14} />
+              New customer
+            </button>
+          </div>
+
+          <label className={labelClass}>
+            Phone
+            <input aria-label="Phone" type="tel" required value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="01712345678" className={`${fieldClass} font-mono`} />
+            {isReturning && <span className="text-[11px] font-normal normal-case tracking-normal text-[#2e9e5b]">Previous customer found</span>}
+          </label>
+          <label className={labelClass}>
+            Customer name
+            <input aria-label="Customer name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Rahim Uddin" className={fieldClass} />
+          </label>
+          <label className={labelClass}>
+            Delivery address
+            <textarea aria-label="Delivery address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="House 12, Road 5, Dhanmondi, Dhaka" rows={3} className={`${fieldClass} h-auto resize-none py-2 leading-relaxed`} />
+          </label>
+
+          <div className="rounded-[14px] bg-white p-3.5 ring-1 ring-inset ring-black/[0.06]">
+            <FraudPanel phone={phone} defaultExpanded compact alignHeader="left" showReviews={false} />
+          </div>
+          {normalizedPhone && <LastOrdersCard history={history} loading={ordersQuery.isPending} />}
+        </section>
+
+        <section aria-label="Order cart" className="flex min-h-0 min-w-0 flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-black/[0.07] sm:p-5 xl:overflow-y-auto">
+          <ProductPicker products={products} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={!creating} locked={false} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} cartItems={lines} />
+          <div ref={cartScrollRef} data-testid="new-order-items" className="min-h-[160px] min-w-0 flex-1 xl:overflow-y-auto xl:overscroll-contain">
+            <OrderItemsTable
+              items={lines}
+              products={products}
+              canEdit={!creating}
+              saving={creating}
+              onQuantity={setLineQty}
+              onRemove={removeLine}
+              onDiscount={updateLineDiscount}
+              onChangeVariant={changeLineVariant}
+              renderUnitPrice={(line) => {
+                const lineName = line.product_name || "Product";
+                const catalogPrice = catalogUnitPrice(line, products);
+                const priceEdited = catalogPrice !== null && roundTaka(catalogPrice) !== roundTaka(line.unit_price);
+                const unitDiscount = calculateUnitDiscount(line.unit_price, line.discount_type, line.discount_value);
+                return (
+                  <div className="flex flex-col gap-1">
+                    <UnitPriceInput value={line.unit_price} label={`Unit price for ${lineName}`} disabled={creating} onCommit={(price) => updateLinePrice(line.id, price)} />
+                    {priceEdited ? (
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <span className="font-mono tabular-nums text-amber-700">Catalog {formatTaka(catalogPrice)}</span>
+                        <button type="button" aria-label={`Reset ${lineName} to catalog price`} onClick={() => updateLinePrice(line.id, roundTaka(catalogPrice))} disabled={creating} className="inline-flex items-center gap-0.5 rounded px-1 text-black/55 hover:bg-black/[0.05] hover:text-black disabled:opacity-40"><ArrowCounterClockwise weight="light" size={11} />Reset</button>
+                      </div>
+                    ) : <span className="text-[10px] text-black/45">Tap to edit price</span>}
+                    {unitDiscount > 0 && <span className="font-mono text-[10px] tabular-nums text-black/60">Net {formatTaka(line.unit_price - unitDiscount)} after discount</span>}
+                  </div>
+                );
+              }}
+            />
+          </div>
+
+          {/* Two rows: payment and settings on top, then Collect and Create side by side so they never drift apart. */}
+          <div className="grid shrink-0 gap-x-5 gap-y-4 border-t border-black/[0.07] pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <OrderPaymentPanel items={lines} totals={totals} canEdit={!creating} overallDiscountType={overallType} overallDiscountValue={overallValue} onOverallDiscount={(type, value) => { setOverallType(type); setOverallValue(value); }} onRemoveOverallDiscount={() => { setOverallType(null); setOverallValue(0); }} deliveryOn={deliveryOn} onToggleDelivery={setDeliveryOn} advance={Math.min(advance, total)} onAdvanceChange={setAdvance} advanceMethod={advanceMethod} advanceReference={advanceReference} onAdvanceMethodChange={setAdvanceMethod} onAdvanceReferenceChange={setAdvanceReference} />
+            <section aria-label="Order settings" className="grid min-w-0 content-start gap-3">
+              <p className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">Order settings</p>
+              <label className={labelClass}>Order source<OrderSourceSelect value={source} onChange={setSource} disabled={creating} /></label>
+              <label className={labelClass}>Telesales staff<StaffSelect value={assignedTo} onChange={setAssignedTo} disabled={creating} /></label>
+              <label className={labelClass}>
+                Payment method
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}><SelectTrigger aria-label="Payment method" className="h-10 rounded-lg border-0 bg-white text-[13px] normal-case tracking-normal shadow-none ring-1 ring-inset ring-black/[0.08]"><SelectValue /></SelectTrigger><SelectContent>{PAYMENT_METHODS.map((method) => <SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>)}</SelectContent></Select>
+              </label>
+              <label className={labelClass}>
+                Internal note
+                <input aria-label="Internal note" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional, for the team" className={fieldClass} />
+              </label>
+            </section>
+            <CollectOnDeliveryBar total={total} advance={Math.min(advance, total)} />
+            <div className="flex min-w-0 items-center gap-2">
+              <button type="button" onClick={() => void createOrder()} disabled={creating} className="save-pill inline-flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[20px] bg-black px-[1.5em] py-[0.6em] text-[17px] text-white transition-[background-color,transform] duration-150 hover:bg-[#262626] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
+                {creating ? <Spinner size="sm" /> : <Plus weight="light" size={17} />}{creating ? "Creating…" : "Create order"}
+              </button>
+              <button type="button" onClick={() => navigate(returnTo, { state: location.state?.profileNavigationState })} disabled={creating} className="shrink-0 whitespace-nowrap rounded-[20px] bg-black/[0.075] px-[1.3em] py-[0.6em] text-[17px] text-black transition-[background-color,transform] duration-150 hover:bg-black/[0.12] active:scale-[0.97] disabled:opacity-40">
+                Cancel
+              </button>
             </div>
           </div>
         </section>
-
-        <div data-testid="new-order-workspace" className="grid min-h-0 grid-cols-1 gap-px bg-black/[0.07] xl:h-[calc(100vh+200px)] xl:min-h-[900px] xl:grid-cols-2">
-          <CatalogPanel products={products} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={!creating} locked={false} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} />
-
-          <section aria-label="Order cart" className="flex min-h-0 flex-col overflow-hidden bg-[#FAFAF8] px-5 py-3 xl:h-full">
-            <div className="flex items-baseline justify-between gap-3"><p className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">Order cart</p><h2 className="text-[15px] font-medium text-black">{totals.quantity} items</h2></div>
-            <div ref={cartScrollRef} className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-auto pr-1 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-              {lines.length === 0 ? <div className="grid place-items-center gap-2 py-16 text-center"><Package weight="light" size={28} className="text-black/20" /><p className="text-[13px] text-black">Choose products from the catalog.</p></div> : lines.map((line) => {
-                const lineName = line.product_name || "Product";
-                const productForLine = products.find((item) => item.id === line.product_id);
-                const variantOptions = productForLine?.variants || [];
-                const unitDiscount = calculateUnitDiscount(line.unit_price, line.discount_type, line.discount_value);
-                const netUnit = line.unit_price - unitDiscount;
-                const maxQty = line.available_stock ?? undefined;
-                const catalogPrice = catalogUnitPrice(line, products);
-                const priceEdited = catalogPrice !== null && roundTaka(catalogPrice) !== roundTaka(line.unit_price);
-                return (
-                <article key={line.id} className="rounded-lg bg-white p-4 ring-1 ring-inset ring-black/[0.06]">
-                  <div className="flex min-w-0 gap-3"><div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-black/[0.04]">{line.image_url ? <img src={line.image_url} alt="" className="h-full w-full object-cover" /> : <Package weight="light" size={18} className="text-black/25" />}</div><div className="min-w-0 flex-1"><h3 className="truncate text-[13px] font-medium text-black">{lineName}</h3><p className="mt-1 truncate text-[11px] text-black">{line.variant_name || (line.product_id ? "Standard" : "Manual item")}</p></div><button type="button" aria-label={`Remove ${lineName}`} onClick={() => removeLine(line.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-black/35 hover:bg-red-50 hover:text-red-600"><Trash weight="light" size={15} /></button></div>
-                  <div className="mt-3 flex min-w-0 flex-wrap items-end justify-between gap-2 border-t border-black/[0.06] pt-3"><div className="flex flex-col gap-1">{line.product_id && variantOptions.length > 0 && <select aria-label={`Variant for ${lineName}`} value={line.variant_id || ""} onChange={(event) => updateLineVariant(line.id, event.target.value)} className="h-8 min-w-24 max-w-36 truncate rounded-lg bg-black/[0.04] px-2 text-[12px] text-black outline-none"><option value="">Select variant</option>{variantOptions.map((variant) => <option key={variant.id} value={variant.id}>{variantLabel(variant.attributes) || "Default variant"}</option>)}</select>}<div className="flex flex-col gap-1"><UnitPriceInput value={line.unit_price} label={`Unit price for ${lineName}`} disabled={creating} onCommit={(price) => updateLinePrice(line.id, price)} />{priceEdited ? <div className="flex items-center gap-1.5 text-[10px]"><span className="font-mono tabular-nums text-amber-700">Catalog {formatTaka(catalogPrice)}</span><button type="button" aria-label={`Reset ${lineName} to catalog price`} onClick={() => updateLinePrice(line.id, roundTaka(catalogPrice))} disabled={creating} className="inline-flex items-center gap-0.5 rounded px-1 text-black/55 hover:bg-black/[0.05] hover:text-black disabled:opacity-40"><ArrowCounterClockwise weight="light" size={11} />Reset</button></div> : <span className="text-[10px] text-black/45">Tap to edit price</span>}{unitDiscount > 0 && <span className="font-mono text-[10px] tabular-nums text-black/60">Net {formatTaka(netUnit)} after discount</span>}</div><DiscountEditor item={line} disabled={creating} onApply={(type, value) => updateLineDiscount(line.id, type, value)} onRemove={() => updateLineDiscount(line.id, null, 0)} /></div><div className="flex items-center rounded-lg bg-black/[0.04] p-1"><button type="button" aria-label={`Decrease ${lineName} quantity`} onClick={() => updateLineQty(line.id, -1)} className="grid h-7 w-7 place-items-center rounded-md text-black disabled:opacity-20" disabled={line.quantity <= 1}><Minus weight="light" size={13} /></button><input aria-label={`Quantity for ${lineName}`} type="number" onWheel={blurOnWheel} min={1} max={maxQty} value={line.quantity} onChange={(event) => setLineQty(line.id, Number.parseInt(event.target.value, 10))} disabled={creating} className="h-7 w-10 bg-transparent text-center font-mono text-[12px] outline-none disabled:opacity-40" /><button type="button" aria-label={`Increase ${lineName} quantity`} onClick={() => updateLineQty(line.id, 1)} disabled={creating || (maxQty != null && line.quantity >= maxQty)} className="grid h-7 w-7 place-items-center rounded-md text-black disabled:opacity-20"><Plus weight="light" size={13} /></button></div></div>
-                  <p className="mt-2 text-right font-mono text-[11px] tabular-nums text-black">Line total {formatTaka(netUnit * line.quantity)}</p>
-                </article>
-                );
-              })}
-            </div>
-            <div className="mt-3 shrink-0 border-t border-black/[0.08] bg-[#FAFAF8] pt-2">
-              <div className="overflow-hidden rounded-lg bg-white ring-1 ring-inset ring-black/[0.06]">
-                <div className="flex items-center justify-between border-b border-black/[0.07] px-4 py-2"><div className="flex items-center gap-2"><Truck weight="light" size={17} className="text-black" /><span className="text-[13px] text-black">Delivery</span></div><div className="flex items-center gap-2"><span className="text-[13px] font-medium text-black">{deliveryCharge > 0 ? formatTaka(deliveryCharge) : "Free"}</span><Switch size="sm" aria-label="Toggle delivery charge" isSelected={deliveryOn} onChange={setDeliveryOn} /></div></div>
-                <div className="px-4 py-1"><CartDiscountEditor base={draftBase} discountType={overallType} discountValue={overallValue} disabled={creating} onApply={(type, value) => { setOverallType(type); setOverallValue(value); }} onRemove={() => { setOverallType(null); setOverallValue(0); }} /></div>
-                <div className="flex items-center justify-between border-b border-black/[0.07] px-4 py-2"><span className="text-[13px] text-black">Subtotal</span><span className="font-mono text-[13px] tabular-nums">{formatTaka(totals.grossSubtotal)}</span></div>
-                {totals.itemDiscount > 0 && <div className="flex items-center justify-between border-b border-black/[0.07] px-4 py-2"><span className="text-[13px] text-black">Item discounts</span><span className="font-mono text-[13px] tabular-nums text-emerald-700">−{formatTaka(totals.itemDiscount)}</span></div>}
-                {totals.legacyDiscount > 0 && <div className="flex items-center justify-between border-b border-black/[0.07] px-4 py-2"><span className="text-[13px] text-black">Order discount</span><span className="font-mono text-[13px] tabular-nums text-emerald-700">−{formatTaka(totals.legacyDiscount)}</span></div>}
-                <div className="flex items-center justify-between gap-2 border-b border-black/[0.07] px-4 py-2"><span className="text-[13px] text-black">Advance / partial</span><span className="flex items-center gap-1.5"><span className="flex items-center gap-1 rounded-lg bg-black/[0.04] py-1 pl-2.5 pr-1 ring-1 ring-inset ring-black/[0.06] transition focus-within:bg-white focus-within:ring-black/25"><span className="font-mono text-[13px] text-black/40">৳</span><input aria-label="Advance payment" type="number" onWheel={blurOnWheel} min={0} max={total} value={advance > 0 ? advance : ""} placeholder="0" onChange={(event) => setAdvance(Math.min(total, Math.max(0, Number(event.target.value) || 0)))} className="w-20 bg-transparent text-right font-mono text-[13px] font-medium tabular-nums outline-none placeholder:text-black/30" /></span></span></div>
-                {advance > 0 && <AdvancePaymentProof method={advanceMethod} reference={advanceReference} onMethodChange={setAdvanceMethod} onReferenceChange={setAdvanceReference} disabled={creating} className="border-b border-black/[0.07] px-4 py-2" />}
-                <div className="flex items-center justify-between bg-black/[0.035] px-4 py-2"><span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-black">Final total</span><span className="font-mono text-[19px] font-semibold tabular-nums text-black">{formatTaka(total)}</span></div>
-                {advance > 0 && <div className="flex items-center justify-between border-t border-black/[0.07] px-4 py-2"><span className="text-[11px] text-black">Due after advance</span>{advance < total ? <Chip variant="subtle" color="lime" className="font-mono tabular-nums">{formatTaka(total - advance)}</Chip> : <Chip variant="subtle" color="lime" className="font-medium">Paid</Chip>}</div>}
-                <div className="flex flex-wrap items-center gap-2 border-t border-black/[0.07] px-4 py-1.5">
-                  <Select value={paymentMethod} onValueChange={setPaymentMethod}><SelectTrigger aria-label="Payment method" className="h-9 w-[150px] rounded-lg border-0 bg-black/[0.04] text-[12px] shadow-none"><SelectValue /></SelectTrigger><SelectContent>{PAYMENT_METHODS.map((method) => <SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>)}</SelectContent></Select>
-                  <Popover open={noteOpen} onOpenChange={(open) => { if (open) setNoteDraft(notes); setNoteOpen(open); }}>
-                    <PopoverTrigger asChild>
-                      <button type="button" aria-label="Internal note" title={notes.trim() ? notes : "Add internal note"} className={notes.trim() ? "relative grid h-9 w-9 place-items-center rounded-lg bg-[#eaf7ef] text-[#2e9e5b] transition hover:bg-[#dcf0e4]" : "relative grid h-9 w-9 place-items-center rounded-lg bg-black/[0.04] text-black transition hover:bg-black/[0.08]"}>
-                        <NotePencil weight="light" size={16} />
-                        {notes.trim() !== "" && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#2e9e5b]" />}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-72 rounded-lg border-black/[0.08] bg-[#FAFAF8] p-4 shadow-xl">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-black">Internal note</p>
-                      <textarea aria-label="Internal note" value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Optional note for this order" rows={3} className="mt-2 h-20 w-full resize-none rounded-lg bg-white px-3 py-2 text-[13px] text-black outline-none ring-1 ring-inset ring-black/[0.08] placeholder:text-black/35 focus:ring-black/25" />
-                      <div className="mt-3 flex items-center gap-2"><button type="button" onClick={() => setNoteOpen(false)} className="h-9 rounded-lg px-3 text-[12px] text-black hover:bg-black/[0.05]">Cancel</button><button type="button" aria-label="Save note" onClick={() => { setNotes(noteDraft); setNoteOpen(false); }} className="h-9 flex-1 rounded-lg bg-black px-3 text-[12px] text-white">Save</button></div>
-                    </PopoverContent>
-                  </Popover>
-                   <div className="ml-auto flex items-center gap-1.5"><BuiButton variant="ghost" size="medium" onClick={() => navigate(returnTo, { state: location.state?.profileNavigationState })} disabled={creating}>Cancel</BuiButton><button type="button" onClick={() => void createOrder()} disabled={creating} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-black px-3.5 text-[12px] font-medium text-white hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-40">{creating ? <Spinner size="sm" /> : <Plus weight="light" size={15} />}{creating ? "Creating…" : "Create order"}</button></div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
       </div>
     </div>
   );
