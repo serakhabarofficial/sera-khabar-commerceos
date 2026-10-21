@@ -586,3 +586,18 @@ html:has([data-dashboard-shell]),
 html:has([data-dashboard-shell]) body {
   background-color: #f4f3f1;
 }
+
+/* Order editor Save: a soft pulse on hover invites the click without moving the layout. */
+.save-pill:not(:disabled):hover {
+  animation: save-pill-pulse 1.5s infinite;
+}
+
+@keyframes save-pill-pulse {
+  0% { box-shadow: 0 0 0 0 rgb(10 10 10 / 30%); }
+  70% { box-shadow: 0 0 0 10px rgb(10 10 10 / 0%); }
+  100% { box-shadow: 0 0 0 0 rgb(10 10 10 / 0%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .save-pill:not(:disabled):hover { animation: none; }
+}

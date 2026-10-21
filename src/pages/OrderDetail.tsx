@@ -11,9 +11,12 @@ import { toast } from "@/components/ui/sonner";
 import { Button as BuiButton } from "@/components/base/buttons/button";
 import { Chip } from "@/components/base/badges/chip";
 import { Spinner } from "@/components/ui/ios-spinner";
-import { CustomerPanel, type CustomerDraft } from "@/components/order-editor/CustomerPanel";
-import { CatalogPanel } from "@/components/order-editor/CatalogPanel";
-import { CartPanel } from "@/components/order-editor/CartPanel";
+import type { CustomerDraft } from "@/components/order-editor/CustomerPanel";
+import { CustomerDossier } from "@/components/order-editor/CustomerDossier";
+import { ProductPicker } from "@/components/order-editor/ProductPicker";
+import { OrderItemsTable } from "@/components/order-editor/OrderItemsTable";
+import { CollectOnDeliveryBar, OrderPaymentPanel } from "@/components/order-editor/OrderPaymentPanel";
+import { OrderSaveActions, OrderSavePanel } from "@/components/order-editor/OrderSavePanel";
 import type { OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
 import { OrderActivityTimeline } from "@/components/OrderActivityTimeline";
 import { OrderEditorTabPanels, OrderEditorTabSwitch } from "@/components/order-editor/OrderEditorTabs";
@@ -22,6 +25,7 @@ import { useOrderEditorTab } from "@/hooks/useOrderEditorTab";
 import {
   calculateCartTotals,
   calculateUnitDiscount,
+  changeCartItemVariant,
   roundTaka,
   upsertCartItem,
   type CatalogProduct,
@@ -366,6 +370,10 @@ export default function OrderDetail() {
     setDraft((items) => upsertCartItem(items, product, variant));
   }
 
+  function changeItemVariant(itemId: string, product: CatalogProduct, variant: CatalogVariant) {
+    setDraft((items) => changeCartItemVariant(items, itemId, product, variant));
+  }
+
   function updateQuantity(itemId: string, quantity: number) {
     setDraft((items) => items.map((item) => item.id === itemId ? { ...item, quantity } : item));
   }
@@ -544,7 +552,42 @@ export default function OrderDetail() {
             <ArrowUpRight weight="light" size={12} aria-hidden="true" className="shrink-0" />
           </Link>
         )}
-        {order?.id && <OrderEditorTabSwitch value={editorTab} onChange={setEditorTab} showRisk={order.source === "website"} className="sm:ml-auto" />}
+        {hasQueueNav && (
+          <div data-testid="order-editor-pending-nav" className="flex items-center gap-1.5 sm:ml-auto">
+            <BuiButton
+              variant="ghost"
+              size="small"
+              iconOnly
+              leadingIcon={CaretLeft}
+              aria-label={`Previous ${navTab} order`}
+              disabled={!prevQueueOrderId}
+              onClick={() => prevQueueOrderId && goToSibling(prevQueueOrderId)}
+            />
+            {prevQueueOrder && (
+              <Chip variant="subtle" color="cyan" className="hidden h-7 min-w-7 px-2 font-mono md:inline-flex">
+                {orderNumberLabel(prevQueueOrder.order_number)}
+              </Chip>
+            )}
+            <span className="shrink-0 text-[11px] font-medium tracking-[0.1em] text-black/50">
+              {queueIndex + 1} of {queueIds!.length} {navTab}
+            </span>
+            {nextQueueOrder && (
+              <Chip variant="subtle" color="purple" className="hidden h-7 min-w-7 px-2 font-mono md:inline-flex">
+                {orderNumberLabel(nextQueueOrder.order_number)}
+              </Chip>
+            )}
+            <BuiButton
+              variant="ghost"
+              size="small"
+              iconOnly
+              leadingIcon={CaretRight}
+              aria-label={`Next ${navTab} order`}
+              disabled={!nextQueueOrderId}
+              onClick={() => nextQueueOrderId && goToSibling(nextQueueOrderId)}
+            />
+          </div>
+        )}
+        {order?.id && <OrderEditorTabSwitch value={editorTab} onChange={setEditorTab} showRisk={order.source === "website"} className={hasQueueNav ? "" : "sm:ml-auto"} />}
       </div>
 
       {detailQuery.isPending ? <div data-testid="order-detail-loading" className="grid place-items-center py-24"><Spinner size="md" /></div> : detailQuery.error && (detailQuery.error as ApiError).status === 404 ? <div className="py-24 text-center"><p className="text-[15px] font-medium text-black">Order not found.</p><button type="button" onClick={goBack} className="mt-2 text-[13px] text-black underline">Back to orders</button></div> : detailQuery.error ? <div className="py-24 text-center text-[13px] text-red-600">{detailQuery.error.message}</div> : order && detail && (
@@ -565,63 +608,28 @@ export default function OrderDetail() {
               </div>
             }
             details={
-              <div className="flex min-h-0 flex-col gap-px overflow-hidden rounded-xl bg-black/[0.07] ring-1 ring-black/[0.07]">
-                <CustomerPanel order={order} customer={customer} disabled={saving} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} />
-                <div data-testid="order-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 items-start gap-px bg-black/[0.07] xl:h-[100vh] xl:min-h-[560px] xl:grid-cols-2">
-                  <CatalogPanel products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEditCart} locked={cartLocked} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} />
-                  <CartPanel items={draft} totals={totals} canEdit={canEditCart} locked={cartLocked} saving={saving} saveDisabled={detailQuery.isPlaceholderData} error={saveError} overallDiscountType={overallType} overallDiscountValue={overallValue} deliveryOn={deliveryOn} advance={clampedAdvance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethodDraft} advanceReference={advanceReferenceDraft} onAdvanceMethodChange={setAdvanceMethodDraft} onAdvanceReferenceChange={setAdvanceReferenceDraft} status={statusDraft} onStatusChange={setStatusDraft} holdDetails={holdDetailsDraft} onHoldDetailsChange={setHoldDetailsDraft} onToggleDelivery={setDeliveryOn} onOverallDiscount={(type, value) => { setOverallType(type); setOverallValue(value); }} onRemoveOverallDiscount={() => { setOverallType(null); setOverallValue(0); }} onQuantity={updateQuantity} onRemove={(itemId) => setDraft((items) => items.filter((item) => item.id !== itemId))} onDiscount={updateDiscount} onSave={() => { void save(); }} onCancel={goBack} requiredAdditionReasonKeys={requiredAdditionReasonKeys} additionReasons={additionReasons} onAdditionReasonChange={(key, reason) => setAdditionReasons((current) => ({ ...current, [key]: reason }))} cancellationRequired={cancellationRequired} cancellationReasonCode={cancellationReasonCode} cancellationReasonNote={cancellationReasonNote} onCancellationReasonChange={setCancellationReasonCode} onCancellationReasonNoteChange={setCancellationReasonNote} />
-                </div>
+              <div data-testid="order-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 gap-3 xl:h-[calc(100dvh-8.75rem)] xl:min-h-[600px] xl:grid-cols-[380px_minmax(0,1fr)]">
+                <CustomerDossier className="rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={order} customer={customer} disabled={saving} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} />
+                <section aria-label="Order cart" className="flex min-h-0 min-w-0 flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-black/[0.07] sm:p-5 xl:overflow-y-auto">
+                  {cartLocked && <p className="rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-800">Editing is locked after courier dispatch.</p>}
+                  <ProductPicker products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEditCart} locked={cartLocked} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} cartItems={draft} />
+                  <div data-testid="order-items-scroll-region" className="min-h-[160px] min-w-0 flex-1 xl:overflow-y-auto xl:overscroll-contain">
+                    <OrderItemsTable items={draft} products={productsQuery.data?.products || []} canEdit={canEditCart} saving={saving} onQuantity={updateQuantity} onRemove={(itemId) => setDraft((items) => items.filter((item) => item.id !== itemId))} onDiscount={updateDiscount} onChangeVariant={changeItemVariant} requiredAdditionReasonKeys={requiredAdditionReasonKeys} additionReasons={additionReasons} onAdditionReasonChange={(key, reason) => setAdditionReasons((current) => ({ ...current, [key]: reason }))} />
+                  </div>
+                  {/* Two rows: details on top, then Collect and Save side by side so they never drift apart. */}
+                  <div className="grid shrink-0 gap-x-5 gap-y-4 border-t border-black/[0.07] pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+                    <OrderPaymentPanel items={draft} totals={totals} canEdit={canEditCart} overallDiscountType={overallType} overallDiscountValue={overallValue} onOverallDiscount={(type, value) => { setOverallType(type); setOverallValue(value); }} onRemoveOverallDiscount={() => { setOverallType(null); setOverallValue(0); }} deliveryOn={deliveryOn} onToggleDelivery={setDeliveryOn} advance={clampedAdvance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethodDraft} advanceReference={advanceReferenceDraft} onAdvanceMethodChange={setAdvanceMethodDraft} onAdvanceReferenceChange={setAdvanceReferenceDraft} />
+                    <OrderSavePanel status={statusDraft} savedStatus={order.status ?? null} onStatusChange={setStatusDraft} holdDetails={holdDetailsDraft} onHoldDetailsChange={setHoldDetailsDraft} cancellationRequired={cancellationRequired} cancellationReasonCode={cancellationReasonCode} cancellationReasonNote={cancellationReasonNote} onCancellationReasonChange={setCancellationReasonCode} onCancellationReasonNoteChange={setCancellationReasonNote} saving={saving} saveDisabled={detailQuery.isPlaceholderData} error={saveError} />
+                    <CollectOnDeliveryBar total={totals.finalTotal} advance={clampedAdvance} />
+                    <OrderSaveActions saving={saving} saveDisabled={detailQuery.isPlaceholderData} onSave={() => { void save(); }} onCancel={goBack} />
+                  </div>
+                </section>
               </div>
             }
           />
         </motion.div>
       )}
 
-      {hasQueueNav && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          data-testid="order-editor-pending-nav"
-          className="sticky bottom-0 z-40 -mx-2 mt-1 flex items-center justify-between border-t border-black/[0.08] bg-[#FAFAF8]/95 px-3 py-2.5 backdrop-blur-sm lg:-mx-3"
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <BuiButton
-              variant="ghost"
-              size="small"
-              iconOnly
-              leadingIcon={CaretLeft}
-              aria-label={`Previous ${navTab} order`}
-              disabled={!prevQueueOrderId}
-              onClick={() => prevQueueOrderId && goToSibling(prevQueueOrderId)}
-            />
-            {prevQueueOrder && (
-              <Chip variant="subtle" color="cyan" className="h-8 min-w-8 px-2 font-mono">
-                {orderNumberLabel(prevQueueOrder.order_number)}
-              </Chip>
-            )}
-          </div>
-          <span className="shrink-0 text-[11px] font-medium tracking-[0.1em] text-black/50">
-            {queueIndex + 1} of {queueIds!.length} {navTab}
-          </span>
-          <div className="flex min-w-0 items-center gap-2">
-            {nextQueueOrder && (
-              <Chip variant="subtle" color="purple" className="h-8 min-w-8 px-2 font-mono">
-                {orderNumberLabel(nextQueueOrder.order_number)}
-              </Chip>
-            )}
-            <BuiButton
-              variant="ghost"
-              size="small"
-              iconOnly
-              leadingIcon={CaretRight}
-              aria-label={`Next ${navTab} order`}
-              disabled={!nextQueueOrderId}
-              onClick={() => nextQueueOrderId && goToSibling(nextQueueOrderId)}
-            />
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 }
