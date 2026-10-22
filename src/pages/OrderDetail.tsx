@@ -36,7 +36,8 @@ import {
 import { canChangeOrderSource, normalizeOrderSource, type OrderSource } from "@/lib/orderSource";
 import { CANCELLATION_REASON_OPTIONS, createActivityGroupId, orderItemActivityKey, orderViewSurface, type AdditionReason, type CancellationReason } from "@/lib/orderActivity";
 import { prefetchOrderActivity, refreshOrderActivity } from "@/lib/orderActivityQuery";
-import { isOnHoldStatus } from "@/lib/orderTransitions";
+import { isOnHoldStatus, normalizeBusinessStatus, statusOptionsFor } from "@/lib/orderTransitions";
+import { holdUntilForSendIn, type CallNextStep } from "@/lib/orderCalls";
 import { validateOrderHoldDetails } from "../../shared/orderHold.js";
 
 type Order = {
@@ -342,6 +343,26 @@ export default function OrderDetail() {
     || holdDetailsDraft.hold_reason_detail !== (order?.hold_reason_detail ?? null)
     || holdDetailsDraft.hold_until_date !== (order?.hold_until_date ?? null);
   const shouldSaveHoldDetails = isOnHoldStatus(statusDraft) && (statusChanged || holdDetailsChanged);
+
+  // Call next steps set the same drafts as the status panel; staff still press Save changes.
+  // Orders already with the courier keep their status.
+  const callStatusOptions = new Set(order?.sent_to_courier ? [] : statusOptionsFor(order?.status).map(normalizeBusinessStatus));
+  const callSteps = {
+    canSetStatus: (status: string) => callStatusOptions.has(normalizeBusinessStatus(status)),
+    onNextStep: (step: CallNextStep) => {
+      if (step.kind === "confirm") setStatusDraft("confirmed");
+      else if (step.kind === "hold_send_on") {
+        setStatusDraft("on_hold");
+        setHoldDetailsDraft({ hold_reason_code: "customer_requested_after_date", hold_reason_detail: null, hold_until_date: holdUntilForSendIn(step.days) });
+      } else if (step.kind === "hold_contact_later") {
+        setStatusDraft("on_hold");
+        setHoldDetailsDraft({ hold_reason_code: "contact_later", hold_reason_detail: null, hold_until_date: null });
+      } else if (step.kind === "cancel") {
+        setStatusDraft("cancelled");
+        setCancellationReasonCode(step.reason);
+      }
+    },
+  };
   const requiredAdditionReasonKeys = useMemo(() => {
     const initial = new Map(detail?.items.map((item) => [orderItemActivityKey(item), Number(item.quantity) || 0]) || []);
     return draft.filter((item) => Number(item.quantity) > (initial.get(orderItemActivityKey(item)) || 0)).map(orderItemActivityKey);
@@ -609,7 +630,7 @@ export default function OrderDetail() {
             }
             details={
               <div data-testid="order-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 gap-3 xl:h-[calc(100dvh-8.75rem)] xl:min-h-[600px] xl:grid-cols-[380px_minmax(0,1fr)]">
-                <CustomerDossier className="rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={order} customer={customer} disabled={saving} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} />
+                <CustomerDossier className="rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={order} customer={customer} disabled={saving} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} calls={callSteps} />
                 <section aria-label="Order cart" className="flex min-h-0 min-w-0 flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-black/[0.07] sm:p-5 xl:overflow-y-auto">
                   {cartLocked && <p className="rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-800">Editing is locked after courier dispatch.</p>}
                   <ProductPicker products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEditCart} locked={cartLocked} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} cartItems={draft} />

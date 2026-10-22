@@ -36,6 +36,7 @@ export function database(seed: Record<string, Record<string, unknown>[]> = {}) {
       gte(key: string, value: string) { filters.push(row => String(row[key]) >= value); return q; },
       gt(key: string, value: string) { filters.push(row => String(row[key]) > value); return q; },
       lt(key: string, value: string) { filters.push(row => String(row[key]) < value); return q; },
+      ilike(key: string, pattern: string) { calls.push({ table, method: "ilike", args: [key, pattern] }); const re = new RegExp(`^${pattern.split("%").map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "i"); filters.push(row => re.test(String(row[key] ?? ""))); return q; },
       order(key: string, options: { ascending?: boolean } = {}) { sorts.push([key, options.ascending !== false]); return q; },
       range(start: number, stop: number) { calls.push({ table, method: "range", args: [start, stop] }); offset = start; end = stop + 1; return q; },
       limit(count: number) { end = count; return q; },

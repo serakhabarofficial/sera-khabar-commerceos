@@ -158,6 +158,7 @@ import {
   validateCancellationReason,
 } from "./orderActivity.js";
 import { getBangladeshDateKey, validateOrderHoldDetails } from "../shared/orderHold.js";
+import { CALL_NOTE_MAX, CALL_OPEN_WINDOW_MS, CALL_SAID_CODES, CALL_SAID_OPTIONS, MICROSIP_EVENTS, callerIdPhone, planMicrosipEvent } from "../shared/orderCalls.js";
 import { classifyOrderStatus, isDeliveryProblemNote, stuckReason } from "../shared/orderStatus.js";
 import { buildHomeMetrics, homeWindows, isHomeChannel, rankAttentionCards, shortProductName, topProducts } from "./homeSummary.js";
 import { visitorLocation } from "./bdPlaces.js";
@@ -7782,6 +7783,280 @@ app.post("/api/orders/follow-up", async (req, res) => {
         summary: note ? `Followed up: ${note}` : "Followed up", occurredAt: followedUpAt }));
     }
     return res.json({ updated: (updated || []).length, followed_up_at: followedUpAt });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// ── Order calls ──────────────────────────────────────────────────────────────
+// The order editor's call log. Clicking Call starts a ringing row; MicroSIP's
+// call events (one key per staff member, see /api/webhooks/microsip) finish it
+// as answered with talk time, or no answer. Staff add what the customer said.
+const ORDER_CALL_FIELDS = "id, order_id, staff_id, direction, phone, outcome, source, started_at, answered_at, ended_at, duration_seconds, said_code, note";
+const ORDER_CALLS_LIMIT = 100;
+// The incoming-call popup only shows calls that started this recently.
+const ORDER_CALL_INCOMING_WINDOW_MS = 2 * 60 * 1000;
+const hashCallHelperKey = (key) => crypto.createHash("sha256").update(key).digest("hex");
+
+function formatCallDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// "Called customer: answered (2:14) · পরে পাঠান · note" for the activity log.
+function orderCallSummary(call) {
+  const who = call.direction === "incoming" ? "Customer called" : "Called customer";
+  const result = call.outcome === "answered"
+    ? `answered${call.duration_seconds != null ? ` (${formatCallDuration(call.duration_seconds)})` : ""}`
+    : "no answer";
+  const said = CALL_SAID_OPTIONS.find((option) => option.code === call.said_code)?.label;
+  return [`${who}: ${result}`, said, call.note].filter(Boolean).join(" · ");
+}
+
+async function recordOrderCallActivity(supabase, orgId, call, sourceSurface) {
+  if (!call.order_id) return;
+  await recordOrderActivity(supabase, buildDetailedActivityEvent({ orgId, orderId: call.order_id, orderTable: "orders", eventType: "order.call_logged",
+    category: "communication", actorId: call.staff_id, actorKind: "user", sourceSurface, summary: orderCallSummary(call),
+    metadata: { call_id: call.id, direction: call.direction, outcome: call.outcome, duration_seconds: call.duration_seconds ?? null },
+    occurredAt: call.ended_at || new Date().toISOString() }));
+}
+
+async function withStaffNames(supabase, orgId, calls) {
+  const ids = [...new Set(calls.map((call) => call.staff_id))];
+  if (!ids.length) return calls;
+  const { data, error } = await supabase.from("user_roles").select("user_id, display_name").eq("org_id", orgId).in("user_id", ids);
+  if (error) throw error;
+  const names = new Map((data || []).map((row) => [row.user_id, row.display_name]));
+  return calls.map((call) => ({ ...call, staff_name: names.get(call.staff_id) || "Unnamed member" }));
+}
+
+// What the customer said and the note; only the fields that were sent.
+function parseOrderCallDetails(body) {
+  const details = {};
+  if (body?.said_code !== undefined) {
+    if (body.said_code !== null && !CALL_SAID_CODES.has(body.said_code)) return { error: "Choose what the customer said" };
+    details.said_code = body.said_code;
+  }
+  if (body?.note !== undefined) {
+    if (body.note !== null && typeof body.note !== "string") return { error: "Invalid note" };
+    const note = typeof body.note === "string" ? body.note.replace(/\s+/g, " ").trim() : "";
+    if (note.length > CALL_NOTE_MAX) return { error: `Keep the note under ${CALL_NOTE_MAX} characters` };
+    details.note = note || null;
+  }
+  return { details };
+}
+
+async function activeCallHelperKey(supabase, orgId, userId) {
+  const { data, error } = await supabase.from("call_helper_keys").select("id, created_at, last_used_at")
+    .eq("org_id", orgId).eq("user_id", userId).is("revoked_at", null).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+app.get("/api/orders/:id/calls", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!ORDER_ID_RE.test(req.params.id)) return res.status(400).json({ error: "Invalid order" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { data, error } = await supabase.from("order_calls").select(ORDER_CALL_FIELDS)
+      .eq("org_id", orgId).eq("order_id", req.params.id)
+      .order("started_at", { ascending: false }).limit(ORDER_CALLS_LIMIT);
+    if (error) throw error;
+    return res.json({ calls: await withStaffNames(supabase, orgId, data || []), viewer_id: user.id });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// kind "dial": the Call button was clicked. kind "manual": a call added by hand.
+app.post("/api/orders/:id/calls", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!ORDER_ID_RE.test(req.params.id)) return res.status(400).json({ error: "Invalid order" });
+    const kind = req.body?.kind;
+    if (kind !== "dial" && kind !== "manual") return res.status(400).json({ error: "Invalid call" });
+    let manual = null;
+    if (kind === "manual") {
+      const { direction, outcome } = req.body;
+      if (!["outgoing", "incoming"].includes(direction) || !["answered", "no_answer"].includes(outcome)) {
+        return res.status(400).json({ error: "Choose who called and how the call went" });
+      }
+      const parsed = parseOrderCallDetails(req.body);
+      if (parsed.error) return res.status(400).json({ error: parsed.error });
+      manual = { direction, outcome, ...parsed.details };
+    }
+
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { data: order, error: orderError } = await supabase.from("orders").select("id, phone").eq("id", req.params.id).eq("org_id", orgId).maybeSingle();
+    if (orderError) throw orderError;
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    const phone = normalizeBdPhone(order.phone);
+    if (!phone) return res.status(400).json({ error: "This order has no valid mobile number" });
+
+    const now = new Date().toISOString();
+    const row = { org_id: orgId, order_id: order.id, staff_id: user.id, phone, started_at: now,
+      ...(manual
+        ? { ...manual, source: "manual", ended_at: now, answered_at: manual.outcome === "answered" ? now : null }
+        : { direction: "outgoing", outcome: "ringing", source: "click" }) };
+    const { data: call, error } = await supabase.from("order_calls").insert(row).select(ORDER_CALL_FIELDS).single();
+    if (error) throw error;
+    if (manual) await recordOrderCallActivity(supabase, orgId, call, "order_editor");
+    return res.status(201).json({ call: (await withStaffNames(supabase, orgId, [call]))[0] });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// What the customer said, the note, and a result for a call MicroSIP never finished.
+app.patch("/api/order-calls/:id", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!ORDER_ID_RE.test(req.params.id)) return res.status(400).json({ error: "Invalid call" });
+    const parsed = parseOrderCallDetails(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const outcome = req.body?.outcome;
+    if (outcome !== undefined && !["answered", "no_answer"].includes(outcome)) return res.status(400).json({ error: "Invalid call result" });
+    if (!Object.keys(parsed.details).length && outcome === undefined) return res.status(400).json({ error: "Nothing to save" });
+
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { data: existing, error: existingError } = await supabase.from("order_calls").select(ORDER_CALL_FIELDS).eq("id", req.params.id).eq("org_id", orgId).maybeSingle();
+    if (existingError) throw existingError;
+    if (!existing) return res.status(404).json({ error: "Call not found" });
+
+    const patch = { ...parsed.details };
+    if (outcome !== undefined) {
+      if (existing.outcome !== "ringing" || existing.ended_at) return res.status(409).json({ error: "This call already has a result" });
+      const now = new Date().toISOString();
+      Object.assign(patch, { outcome, ended_at: now, ...(outcome === "answered" ? { answered_at: existing.answered_at || now } : {}) });
+    }
+    const { data: call, error } = await supabase.from("order_calls").update(patch).eq("id", existing.id).eq("org_id", orgId).select(ORDER_CALL_FIELDS).single();
+    if (error) throw error;
+    if (outcome !== undefined) await recordOrderCallActivity(supabase, orgId, call, "order_editor");
+    return res.json({ call: (await withStaffNames(supabase, orgId, [call]))[0] });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.get("/api/order-calls/helper-key", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const key = await activeCallHelperKey(supabase, orgId, user.id);
+    return res.json({ configured: Boolean(key), created_at: key?.created_at ?? null, last_used_at: key?.last_used_at ?? null });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// A new MicroSIP key for the signed-in staff member. Shown once; replaces the old one.
+app.post("/api/order-calls/helper-key", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    if (!orgId) return res.status(403).json({ error: "No workspace" });
+    const key = `skc_${crypto.randomBytes(32).toString("base64url")}`;
+    const now = new Date().toISOString();
+    const { error: revokeError } = await supabase.from("call_helper_keys").update({ revoked_at: now })
+      .eq("org_id", orgId).eq("user_id", user.id).is("revoked_at", null);
+    if (revokeError) throw revokeError;
+    const { error } = await supabase.from("call_helper_keys").insert({ org_id: orgId, user_id: user.id, key_hash: hashCallHelperKey(key) });
+    if (error) throw error;
+    return res.status(201).json({ key, created_at: now });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// The incoming-call popup polls this. Staff without a MicroSIP key get enabled: false.
+app.get("/api/order-calls/incoming", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    if (!(await activeCallHelperKey(supabase, orgId, user.id))) return res.json({ enabled: false, call: null });
+    const since = new Date(Date.now() - ORDER_CALL_INCOMING_WINDOW_MS).toISOString();
+    const { data: call, error } = await supabase.from("order_calls").select(ORDER_CALL_FIELDS)
+      .eq("org_id", orgId).eq("staff_id", user.id).eq("direction", "incoming").is("ended_at", null).gte("started_at", since)
+      .order("started_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    if (!call) return res.json({ enabled: true, call: null });
+    let order = null;
+    if (call.order_id) {
+      const { data, error: orderError } = await supabase.from("orders").select("id, order_number, customer_name, status").eq("id", call.order_id).eq("org_id", orgId).maybeSingle();
+      if (orderError) throw orderError;
+      order = data;
+    }
+    return res.json({ enabled: true, call: { ...call, order } });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// MicroSIP on a staff PC runs a small helper on each call event (microsip.ini
+// cmdIncomingCall / cmdCallAnswer / cmdCallStart / cmdCallEnd), which posts here
+// with that staff member's key: ?event=start&number=<caller id>.
+app.post("/api/webhooks/microsip", async (req, res) => {
+  try {
+    const header = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+    const key = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    if (!key) return res.status(401).json({ error: "Unauthorized" });
+    const supabase = getServiceSupabase();
+    const { data: helper, error: helperError } = await supabase.from("call_helper_keys").select("id, org_id, user_id")
+      .eq("key_hash", hashCallHelperKey(key)).is("revoked_at", null).maybeSingle();
+    if (helperError) throw helperError;
+    if (!helper) return res.status(401).json({ error: "Unauthorized" });
+    // Removed or suspended staff lose their key with their workspace.
+    const { orgId } = await getUserOrg(supabase, helper.user_id);
+    if (!orgId || orgId !== helper.org_id) return res.status(401).json({ error: "Unauthorized" });
+
+    const event = String(req.query.event ?? req.body?.event ?? "").trim().toLowerCase();
+    if (!MICROSIP_EVENTS.has(event)) return res.status(400).json({ error: "Unknown event" });
+    const phone = callerIdPhone(req.query.number ?? req.body?.number);
+    // Internal extensions and foreign numbers are not customer calls.
+    if (!phone) return res.json({ ok: true, ignored: "not_a_bd_mobile" });
+
+    const now = new Date();
+    const { data: openCall, error: openError } = await supabase.from("order_calls").select(ORDER_CALL_FIELDS)
+      .eq("org_id", orgId).eq("staff_id", helper.user_id).eq("phone", phone).is("ended_at", null)
+      .gte("started_at", new Date(now.getTime() - CALL_OPEN_WINDOW_MS).toISOString())
+      .order("started_at", { ascending: false }).limit(1).maybeSingle();
+    if (openError) throw openError;
+    const { error: touchError } = await supabase.from("call_helper_keys").update({ last_used_at: now.toISOString() }).eq("id", helper.id);
+    if (touchError) throw touchError;
+
+    const plan = planMicrosipEvent(event, openCall, now);
+    if (plan.action === "ignore" || plan.action === "reject") return res.json({ ok: true, ignored: plan.reason });
+    let call;
+    if (plan.action === "insert") {
+      // Order numbers are stored in several formats; match on the last ten digits.
+      const { data: order, error: orderError } = await supabase.from("orders").select("id")
+        .eq("org_id", orgId).ilike("phone", `%${phone.slice(1)}`)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (orderError) throw orderError;
+      const { data, error } = await supabase.from("order_calls")
+        .insert({ org_id: orgId, order_id: order?.id ?? null, staff_id: helper.user_id, phone, ...plan.row })
+        .select(ORDER_CALL_FIELDS).single();
+      if (error) throw error;
+      call = data;
+    } else {
+      const { data, error } = await supabase.from("order_calls").update(plan.patch).eq("id", openCall.id).eq("org_id", orgId).select(ORDER_CALL_FIELDS).single();
+      if (error) throw error;
+      call = data;
+    }
+    if (call.ended_at) await recordOrderCallActivity(supabase, orgId, call, "microsip");
+    return res.json({ ok: true, action: plan.action, call_id: call.id });
   } catch (e) {
     return sendError(res, e);
   }

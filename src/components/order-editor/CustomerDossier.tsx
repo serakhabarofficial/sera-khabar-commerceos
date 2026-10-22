@@ -7,6 +7,8 @@ import { normalizeOrderSource, orderSourceDisplayLabel, type OrderSource } from 
 import WhatsappLogo from "@/components/WhatsappLogo";
 import { IndividualSmsDialog } from "@/components/order-editor/IndividualSmsDialog";
 import { FraudPanel } from "@/components/order-editor/FraudPanel";
+import { OrderCallsCard, useOrderCallLog } from "@/components/order-editor/OrderCallsCard";
+import type { CallNextStep } from "@/lib/orderCalls";
 import { useStorefrontUrl } from "@/hooks/useStorefrontUrl";
 import { OrderSourceSelect } from "./OrderSourceSelect";
 import {
@@ -48,6 +50,8 @@ type CustomerDossierProps = {
   onSourceChange?: (source: OrderSource) => void;
   smsAmount?: number | null;
   smsAdvancePaid?: number | null;
+  /** The call log; shown for saved orders. Steps that change the status set the editor's draft. */
+  calls?: { canSetStatus: (status: string) => boolean; onNextStep: (step: CallNextStep) => void };
   className?: string;
 };
 
@@ -123,11 +127,12 @@ export function LastOrdersCard({ history, loading = false, onOpenOrder }: { hist
 }
 
 /** The customer file: who this is, whether they can be trusted, and what they ordered before. */
-export function CustomerDossier({ order, customer, disabled = false, history = [], historyLoading = false, onOpenOrder, onApply, source, originSource, onSourceChange, smsAmount, smsAdvancePaid, className = "" }: CustomerDossierProps) {
+export function CustomerDossier({ order, customer, disabled = false, history = [], historyLoading = false, onOpenOrder, onApply, source, originSource, onSourceChange, smsAmount, smsAdvancePaid, calls, className = "" }: CustomerDossierProps) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(customer);
   const [copied, setCopied] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
+  const callLog = useOrderCallLog(calls ? order.id : undefined);
 
   useEffect(() => {
     if (!editing) setLocal(customer);
@@ -194,7 +199,7 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
         )}
 
         <div className="grid grid-cols-3 gap-1.5">
-          {telPhone ? <a href={`tel:${telPhone}`} aria-label="Call customer" className={actionClass}><Phone weight="light" size={15} /> Call</a> : <span className={`${actionClass} opacity-40`}><Phone weight="light" size={15} /> Call</span>}
+          {telPhone ? <a href={`tel:${telPhone}`} onClick={callLog.dial} aria-label="Call customer" className={actionClass}><Phone weight="light" size={15} /> Call</a> : <span className={`${actionClass} opacity-40`}><Phone weight="light" size={15} /> Call</span>}
           <button type="button" aria-label="Send SMS" onClick={() => setSmsOpen(true)} disabled={!messagingAvailable} className={actionClass}><SmsIcon size={15} /> SMS</button>
           {messagingAvailable && whatsappHref
             ? <a href={whatsappHref} target="_blank" rel="noreferrer" aria-label="Open WhatsApp chat" className={`${actionClass} text-[#128C4A]`}><WhatsappLogo size={15} /> WhatsApp</a>
@@ -229,6 +234,11 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
           )}
         </div>
       </div>
+
+      {calls && order.id && (
+        <OrderCallsCard callLog={callLog} canSetStatus={calls.canSetStatus} onNextStep={calls.onNextStep}
+          onEditAddress={() => { setLocal(customer); setEditing(true); }} />
+      )}
 
       <div className="rounded-[14px] bg-white p-3.5 ring-1 ring-inset ring-black/[0.06]">
         <FraudPanel phone={customer.phone} defaultExpanded compact alignHeader="left" showReviews={false} />

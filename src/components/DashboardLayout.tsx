@@ -13,6 +13,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MobileBottomNav } from "./MobileBottomNav";
+import { IncomingCallWatcher } from "./IncomingCallWatcher";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { prefetchOrdersPage } from "@/pages/Dashboard";
@@ -162,6 +163,7 @@ export function DashboardLayout() {
                     </main>
                 </SidebarInset>
                 <MobileBottomNav />
+                <IncomingCallWatcher />
             </div>
         </SidebarProvider>
     );
