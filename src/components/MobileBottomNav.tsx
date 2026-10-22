@@ -61,7 +61,7 @@ export function MobileBottomNav() {
           >
             {({ isActive }) => (
               <>
-                <Icon weight="light" size={21} aria-hidden="true" />
+                <Icon weight="light" size={21} aria-hidden />
                 <span>{label}</span>
                 {isActive && <span className="h-0.5 w-4 rounded-full bg-black" aria-hidden="true" />}
               </>

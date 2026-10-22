@@ -1,9 +1,7 @@
 "use client"
 
-import { useCallback, useId, useState } from "react"
+import { useId } from "react"
 import Particles from "@tsparticles/react"
-import { loadSlim } from "@tsparticles/slim"
-import type { Engine } from "@tsparticles/engine"
 
 interface SparklesProps {
   className?: string;
@@ -34,13 +32,7 @@ export function Sparkles({
   background = "transparent",
   options = {},
 }: SparklesProps) {
-  const [isReady, setIsReady] = useState(false)
   const id = useId()
-
-  const particlesInit = useCallback(async (engine: Engine) => {
-    await loadSlim(engine)
-    setIsReady(true)
-  }, [])
 
   const defaultOptions: Record<string, unknown> = {
     background: {
@@ -93,7 +85,6 @@ export function Sparkles({
   return (
     <Particles
       id={id}
-      init={particlesInit as unknown as never}
       options={{ ...defaultOptions, ...options } as unknown as never}
       className={className}
     />

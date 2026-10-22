@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Warehouse } from "@phosphor-icons/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WarehouseDialog } from "@/components/WarehouseDialog";
 import { WarehouseMetric } from "@/components/warehouse/WarehouseMetric";
@@ -19,7 +18,7 @@ describe("warehouse presentation", () => {
   });
 
   it("renders a compact Products-style metric", () => {
-    render(<WarehouseMetric label="Warehouses" value={3} detail="Active locations" icon={<Warehouse weight="light" />} />);
+    render(<WarehouseMetric label="Warehouses" value={3} detail="Active locations" />);
 
     expect(screen.getByText("Warehouses")).toHaveClass("uppercase", "tracking-[0.3em]");
     expect(screen.getByText("3")).toHaveClass("text-2xl", "tabular-nums");

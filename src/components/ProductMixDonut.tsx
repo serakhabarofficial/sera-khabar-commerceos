@@ -45,7 +45,7 @@ export function ProductMixDonut({ data }: { data: StatusItem[] }) {
       const high = series.getPrivate("valueHigh");
       const low = series.getPrivate("valueLow");
       if (dataItem && high > 0) {
-        const value = target.dataItem?.get("valueWorking", 0) ?? 0;
+        const value = (target.dataItem as am5.DataItem<am5percent.IPieSeriesDataItem> | undefined)?.get("valueWorking", 0) ?? 0;
         if (high === low) return radius;
         const ratio = value / high;
         const minRatio = 0.45;
@@ -55,7 +55,7 @@ export function ProductMixDonut({ data }: { data: StatusItem[] }) {
     });
 
     series.slices.template.adapters.add("fill", (_, target) => {
-      const category = target.dataItem?.get("category", "");
+      const category = (target.dataItem as am5.DataItem<am5percent.IPieSeriesDataItem> | undefined)?.get("category", "");
       const match = data.find((d) => d.label === category);
       return match ? am5.color(match.color) : _;
     });

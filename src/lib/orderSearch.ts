@@ -2,8 +2,8 @@ export interface OrderSearchRecord {
   order_number: string | null | undefined;
   customer_name: string | null | undefined;
   phone: string | null | undefined;
-  consignment_id: string | number | null | undefined;
-  tracking_code: string | null | undefined;
+  consignment_id?: string | number | null | undefined;
+  tracking_code?: string | null | undefined;
 }
 
 // Order numbers are shown as "#ML-152172" but stored as "ML-152172", so a

@@ -43,10 +43,12 @@ describe("OrderStatusSegmentedControl", () => {
     expect(radios[2]).toHaveAccessibleName(/^Incomplete orders:/);
   });
 
-  it("ends with the Board tab and its card count", () => {
+  it("puts the Board tab and its card count right after Confirmed", () => {
     render(<OrderStatusSegmentedControl counts={counts} boardCount={7} value="all" onChange={vi.fn()} />);
     const radios = screen.getAllByRole("radio");
-    expect(radios[radios.length - 1]).toHaveAccessibleName(/^Board:.*7/);
+    const confirmed = radios.findIndex((radio) => /^Confirmed:/.test(radio.getAttribute("aria-label") ?? ""));
+    expect(confirmed).toBeGreaterThan(-1);
+    expect(radios[confirmed + 1]).toHaveAccessibleName(/^Board:.*7/);
   });
 
   it("hides Ready To Ship when requested", () => {

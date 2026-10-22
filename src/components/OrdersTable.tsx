@@ -1186,7 +1186,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
     try {
       const { printShippingLabels } = await import("@/utils/shippingLabelPrinter");
       const result = printShippingLabels(selectedOrders, orgName);
-      if (!result.ok) {
+      if (result.ok === false) {
         toast.error(
           `Send ${result.missingOrderNumbers.join(", ")} to Steadfast before printing the label`,
         );

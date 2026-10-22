@@ -34,7 +34,7 @@ const sidebarTextEffectVariants = {
       opacity: 1,
       y: 0,
       filter: "blur(0px)",
-      transition: { duration: 0.35, ease: "easeOut" },
+      transition: { duration: 0.35, ease: "easeOut" as const },
     },
   },
 };

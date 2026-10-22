@@ -41,7 +41,7 @@ export function useFraudCheckMutation(phone: string | null | undefined) {
       const res = await apiFetch("/api/fraud/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: normalized, force: variables?.force === true }),
+        body: JSON.stringify({ phone: normalized, force: (variables as { force?: boolean } | undefined)?.force === true }),
       });
       if (!res.ok) throw new Error("Fraud check failed");
       return res.json();

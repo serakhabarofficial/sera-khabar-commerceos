@@ -370,10 +370,12 @@ export default function WarehouseDetail() {
           </div>
           <OrderStatusSegmentedControl
             counts={orderStatusCounts}
-            hiddenStatuses={["ready_to_ship"]}
+            // Incomplete orders and the Board live only on the Orders page.
+            hiddenStatuses={["ready_to_ship", "abandoned", "board"]}
             value={statusFilter}
             loading={orders.isLoading}
             onChange={(nextStatus) => {
+              if (nextStatus === "abandoned" || nextStatus === "board") return;
               setStatusFilter(nextStatus);
               setOrderPage(0);
             }}

@@ -204,7 +204,7 @@ function AddVariantForm({ product }: { product: Product }) {
         <BuiInput label="Stock" type="number" value={stock} onChange={setStock} placeholder="0" />
         <BuiInput label="COG (৳)" type="number" value={cog} onChange={setCog} placeholder="0" />
         <BuiInput label="Price ±" type="number" value={priceAdj} onChange={setPriceAdj} placeholder="0" />
-        <BuiInput label="New variant weight (kg)" type="number" min={0} value={weight} onChange={setWeight} placeholder="0" />
+        <BuiInput label="New variant weight (kg)" type="number" value={weight} onChange={setWeight} placeholder="0" />
         <div className="flex h-9 items-center">
           <BuiCheckbox isSelected={onWebsite} onChange={setOnWebsite}>On website</BuiCheckbox>
         </div>
@@ -300,7 +300,7 @@ function EditForm({ product }: { product: Product }) {
           <BuiInput label="Compare-at price (৳)" type="number" value={compareAtPrice} onChange={setCompareAtPrice} placeholder="0" />
           <BuiInput label="COG (৳)" type="number" value={cog} onChange={setCog} placeholder="0" />
           <BuiInput label="Stock quantity" type="number" value={stock} onChange={setStock} placeholder="0" />
-          <BuiInput label="Weight (kg)" type="number" min={0} value={weight} onChange={setWeight} placeholder="0" />
+          <BuiInput label="Weight (kg)" type="number" value={weight} onChange={setWeight} placeholder="0" />
           <div className="flex flex-col justify-end space-y-1.5">
             <FormSectionLabel>Warehouse</FormSectionLabel>
             <BuiSelect aria-label="Warehouse" selectedKey={warehouseId || null} onSelectionChange={(key) => setWarehouseId(String(key))}>

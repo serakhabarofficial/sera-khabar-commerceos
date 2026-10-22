@@ -63,9 +63,9 @@ function Section({
   children,
   resolving,
 }: {
-  label: string;
-  sub: string;
-  time: string;
+  label?: string;
+  sub?: string;
+  time?: string;
   children: ReactNode;
   resolving?: boolean;
 }) {

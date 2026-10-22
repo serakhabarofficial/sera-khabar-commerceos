@@ -48,7 +48,7 @@ export function OrderHoldFields({ value, onChange, disabled = false, popoverPort
               hold_until_date: reasonCode === DATE_REASON_CODE ? value.hold_until_date : null,
             });
           }}
-          disabled={disabled}
+          isDisabled={disabled}
           popoverPlacement="top"
           popoverPortalContainer={popoverPortalContainer}
           popoverClassName="max-h-[min(240px,40vh)]"

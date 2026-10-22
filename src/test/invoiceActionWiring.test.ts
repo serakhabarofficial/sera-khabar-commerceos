@@ -50,7 +50,6 @@ describe("invoice and shipping-label action wiring", () => {
       total_price: 1500,
       status: "confirmed",
       created_at: "2026-09-06T12:00:00.000Z",
-      sent_to_courier: true,
       consignment_id: "CN-999",
       tracking_code: "TRACK-123",
       courier_status: "pending",
