@@ -3,6 +3,8 @@
 
 @import "./styles/globals.css";
 
+@custom-variant dark (&:is(.dark *));
+
 @config "../tailwind.config.ts";
 
 @plugin "tailwindcss-animate";
@@ -422,6 +424,15 @@
   --green: #16a34a;
   --accent-tint: rgba(2, 132, 199, 0.08);
   --accent-ink: #0284c7;
+  --destructive-foreground: var(--color-red-800);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-900);
+  --info: var(--color-violet-500);
+  --info-foreground: var(--color-violet-900);
+  --warning: var(--color-yellow-500);
+  --warning-foreground: var(--color-yellow-900);
+  --invert: var(--color-zinc-900);
+  --invert-foreground: var(--color-zinc-50);
 }
 
 @keyframes pixel-on {
@@ -600,4 +611,57 @@ html:has([data-dashboard-shell]) body {
 
 @media (prefers-reduced-motion: reduce) {
   .save-pill:not(:disabled):hover { animation: none; }
+}
+
+.dark {
+  --destructive-foreground: var(--color-red-600);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-600);
+  --info: var(--color-violet-500);
+  --info-foreground: var(--color-violet-600);
+  --warning: var(--color-yellow-500);
+  --warning-foreground: var(--color-yellow-600);
+  --invert: var(--color-zinc-700);
+  --invert-foreground: var(--color-zinc-50);
+}
+
+@theme inline {
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-invert: var(--invert);
+  --color-invert-foreground: var(--invert-foreground);
+  /* ReUI Frame reads these as CSS variables; the colors themselves come from tailwind.config.ts. */
+  --color-card: hsl(var(--card));
+  --color-border: hsl(var(--border));
+  --color-muted: hsl(var(--muted));
+}
+
+/* Order Board: the scroller fades out on whichever side has more lists. */
+@property --board-fade-left {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --board-fade-right {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.board-edge-fade {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--board-fade-left), #000 calc(100% - var(--board-fade-right)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--board-fade-left), #000 calc(100% - var(--board-fade-right)), transparent);
+  transition: --board-fade-left 200ms cubic-bezier(0.23, 1, 0.32, 1), --board-fade-right 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.board-edge-fade[data-more-left] { --board-fade-left: 56px; }
+.board-edge-fade[data-more-right] { --board-fade-right: 72px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board-edge-fade { transition: none; }
 }

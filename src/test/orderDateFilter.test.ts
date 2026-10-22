@@ -39,7 +39,7 @@ describe("filterOrdersByDateRange", () => {
   it("counts the date-filtered orders and keeps the one-row header without an extra All dates box", () => {
     const dashboard = readFileSync(resolve(process.cwd(), "src/pages/Dashboard.tsx"), "utf8");
     // Header count reflects the date filter, not the whole tab.
-    expect(dashboard).toContain('isAbandonedQueue ? filteredAbandonedCheckouts.length : dateFilteredOrders.length} ${isAbandonedQueue ? "checkouts" : "orders"}');
+    expect(dashboard).toContain('isAbandonedQueue ? filteredAbandonedCheckouts.length : isBoardQueue ? boardCount : dateFilteredOrders.length} ${isAbandonedQueue ? "checkouts" : "orders"}');
     // Clearing goes through the picker's own "All Time" preset.
     expect(dashboard).not.toContain("All dates");
     expect(dashboard).toContain("lg:flex-row lg:items-center lg:justify-between");

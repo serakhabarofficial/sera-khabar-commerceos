@@ -1,0 +1,837 @@
+<title>Special Care Tab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&family=Hind+Siliguri:wght@400;500;600&display=swap">
+<style>
+/* Layout: brief on top (reads like a one-page spec), then the Merchant Suite orders screen with the new tab, one variant at a time behind the picker. */
+:root {
+  --bg: #FAFAF8;
+  --surface: #FFFFFF;
+  --sunken: #F2F1EC;
+  --fg: #141413;
+  --muted: #6B6A63;
+  --faint: #A3A199;
+  --line: rgba(20, 20, 19, 0.08);
+  --shadow: 0 0 0 1px rgba(20,20,19,0.06), 0 1px 2px rgba(20,20,19,0.04), 0 4px 12px rgba(20,20,19,0.04);
+  --ink: #141413;
+  --ink-fg: #FAFAF8;
+  --rose: #B4233C;   --rose-bg: #FBEBEE;
+  --amber: #9A5B00;  --amber-bg: #FBF1DF;
+  --violet: #6B3FB0; --violet-bg: #F1EBFA;
+  --blue: #2856A8;   --blue-bg: #E9F0FB;
+  --teal: #0E7066;   --teal-bg: #E3F4F1;
+  --slate: #55534C;  --slate-bg: #EFEEE9;
+  --green: #1D7A3E;  --green-bg: #E5F4EA;
+  --font: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --bn: "Hind Siliguri", "Geist", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121211; --surface: #1B1B1A; --sunken: #232321; --fg: #EDECE7; --muted: #A3A199; --faint: #6E6C66;
+  --line: rgba(255,255,255,0.08); --shadow: 0 0 0 1px rgba(255,255,255,0.07), 0 4px 12px rgba(0,0,0,0.3);
+  --ink: #EDECE7; --ink-fg: #121211;
+  --rose: #F08A9C; --rose-bg: rgba(240,138,156,0.12); --amber: #E9B96A; --amber-bg: rgba(233,185,106,0.12);
+  --violet: #BFA2F0; --violet-bg: rgba(191,162,240,0.12); --blue: #8DB2F0; --blue-bg: rgba(141,178,240,0.12);
+  --teal: #6FD0C2; --teal-bg: rgba(111,208,194,0.12); --slate: #B8B6AE; --slate-bg: rgba(255,255,255,0.07);
+  --green: #7FD49B; --green-bg: rgba(127,212,155,0.12); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121211; --surface: #1B1B1A; --sunken: #232321; --fg: #EDECE7; --muted: #A3A199; --faint: #6E6C66;
+  --line: rgba(255,255,255,0.08); --shadow: 0 0 0 1px rgba(255,255,255,0.07), 0 4px 12px rgba(0,0,0,0.3);
+  --ink: #EDECE7; --ink-fg: #121211;
+  --rose: #F08A9C; --rose-bg: rgba(240,138,156,0.12); --amber: #E9B96A; --amber-bg: rgba(233,185,106,0.12);
+  --violet: #BFA2F0; --violet-bg: rgba(191,162,240,0.12); --blue: #8DB2F0; --blue-bg: rgba(141,178,240,0.12);
+  --teal: #6FD0C2; --teal-bg: rgba(111,208,194,0.12); --slate: #B8B6AE; --slate-bg: rgba(255,255,255,0.07);
+  --green: #7FD49B; --green-bg: rgba(127,212,155,0.12); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; padding-bottom: 96px; }
+.bn { font-family: var(--bn); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.label { font-size: 9px; font-weight: 500; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+h1, h2, h3 { text-wrap: balance; margin: 0; font-weight: 400; }
+button { font: inherit; color: inherit; }
+svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* ---------- Brief ---------- */
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-block: 28px 0; }
+.theme-btn { border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 999px; height: 30px; padding: 0 12px; font-size: 12px; cursor: pointer; transition: transform 160ms var(--ease-out); }
+.theme-btn:active { transform: scale(0.97); }
+.hero { padding-block: 28px 8px; display: grid; gap: 12px; max-width: 760px; }
+.hero h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 300; letter-spacing: -0.02em; line-height: 1.1; }
+.hero p { margin: 0; color: var(--muted); font-size: 16px; max-width: 64ch; }
+.brief { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; padding-block: 32px; border-bottom: 1px solid var(--line); }
+.brief section { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.brief h2 { font-size: 15px; font-weight: 500; }
+.brief ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.brief li { display: grid; gap: 2px; color: var(--muted); font-size: 13.5px; }
+.brief li b { color: var(--fg); font-weight: 500; }
+.quote { font-family: var(--bn); font-size: 13.5px; color: var(--fg); }
+.split { padding-block: 32px; display: grid; gap: 16px; border-bottom: 1px solid var(--line); }
+.split h2 { font-size: 20px; font-weight: 300; }
+.tbl-wrap { overflow-x: auto; background: var(--surface); box-shadow: var(--shadow); border-radius: 14px; }
+table.route { width: 100%; border-collapse: collapse; min-width: 720px; font-size: 13px; }
+table.route th { text-align: left; padding: 12px 16px; font-weight: 500; }
+table.route td { padding: 12px 16px; border-top: 1px solid var(--line); vertical-align: top; color: var(--muted); }
+table.route td:first-child { color: var(--fg); font-family: var(--bn); }
+.layers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.layer { background: var(--surface); box-shadow: var(--shadow); border-radius: 14px; padding: 20px; display: grid; gap: 8px; align-content: start; }
+.layer h3 { font-size: 16px; font-weight: 500; }
+.layer p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.rules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.rules div { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.rules b { color: var(--fg); font-weight: 500; }
+.mock-head { padding-block: 40px 16px; display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+.mock-head h2 { font-size: 20px; font-weight: 300; }
+.mock-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.axis { font-size: 12px; color: var(--muted); }
+.axis b { color: var(--fg); font-weight: 500; }
+
+/* ---------- App shell ---------- */
+.app { background: var(--surface); box-shadow: var(--shadow); border-radius: 18px; overflow: hidden; display: grid; grid-template-columns: 56px minmax(0, 1fr); min-height: 640px; }
+.rail { background: var(--sunken); display: flex; flex-direction: column; align-items: center; gap: 6px; padding-block: 16px; }
+.rail span { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--faint); }
+.rail span.on { background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
+.main { min-width: 0; padding: 20px 24px 28px; display: grid; gap: 16px; align-content: start; }
+.main-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.main-top h3 { font-size: 22px; font-weight: 300; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tab { flex: none; padding: 10px 12px; font-size: 13px; color: var(--muted); border-bottom: 1.5px solid transparent; margin-bottom: -1px; display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.tab em { font-style: normal; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.tab.on { color: var(--fg); border-color: var(--fg); font-weight: 500; }
+.tab.on em { color: var(--rose); }
+.tab .new { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; background: var(--ink); color: var(--ink-fg); border-radius: 4px; padding: 1px 4px; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 10px; border: 0; cursor: pointer; font-size: 12.5px; font-weight: 500; background: var(--surface); box-shadow: var(--shadow); transition: transform 160ms var(--ease-out), background-color 150ms ease; white-space: nowrap; }
+.btn:hover { background: var(--sunken); }
+.btn:active { transform: scale(0.97); }
+.btn.primary { background: var(--ink); color: var(--ink-fg); box-shadow: none; }
+.btn.primary:hover { opacity: 0.9; background: var(--ink); }
+.btn.sm { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 8px; }
+.btn.ghost { box-shadow: none; background: transparent; color: var(--muted); }
+.btn.ghost:hover { background: var(--sunken); color: var(--fg); }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; font-weight: 500; white-space: nowrap; font-family: var(--bn); }
+.t-rose { color: var(--rose); background: var(--rose-bg); }
+.t-amber { color: var(--amber); background: var(--amber-bg); }
+.t-violet { color: var(--violet); background: var(--violet-bg); }
+.t-blue { color: var(--blue); background: var(--blue-bg); }
+.t-teal { color: var(--teal); background: var(--teal-bg); }
+.t-slate { color: var(--slate); background: var(--slate-bg); }
+.t-green { color: var(--green); background: var(--green-bg); }
+.tag { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 500; color: var(--muted); font-family: var(--bn); }
+.tag svg.i { width: 12px; height: 12px; }
+.tag.vip { color: var(--violet); }
+.urgent { font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rose); display: inline-flex; align-items: center; gap: 4px; }
+.urgent::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--rose); }
+.mono { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.note { font-family: var(--bn); font-size: 13px; color: var(--fg); line-height: 1.55; }
+.by { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); }
+.by svg.i { width: 13px; height: 13px; }
+.due { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.due.over { color: var(--rose); font-weight: 500; }
+.due.today { color: var(--amber); font-weight: 500; }
+
+/* Row enter / exit (occasional actions: add and resolve) */
+.enter { animation: enter 220ms var(--ease-out) both; }
+@keyframes enter { from { opacity: 0; transform: translateY(-4px); } }
+.leaving { opacity: 0 !important; transform: translateY(4px) !important; transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
+
+/* ---------- Variant 1: Queue ---------- */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.stat { display: grid; gap: 4px; }
+.stat b { font-size: 26px; font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat.alert b { color: var(--rose); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip { height: 30px; padding: 0 12px; border-radius: 999px; border: 0; background: transparent; box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; color: var(--muted); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; transition: transform 160ms var(--ease-out), color 150ms ease; }
+.fchip em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--faint); }
+.fchip:active { transform: scale(0.97); }
+.fchip[aria-pressed="true"] { background: var(--ink); color: var(--ink-fg); box-shadow: none; }
+.fchip[aria-pressed="true"] em { color: var(--ink-fg); opacity: 0.6; }
+.qwrap { overflow-x: auto; }
+table.q { width: 100%; border-collapse: collapse; min-width: 900px; }
+table.q th { text-align: left; padding: 8px 12px; }
+table.q td { padding: 14px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+table.q tr.u td:first-child { box-shadow: inset 2px 0 0 var(--rose); }
+.who { display: grid; gap: 3px; }
+.who b { font-weight: 500; font-family: var(--bn); }
+.reasoncell { display: grid; gap: 6px; max-width: 380px; }
+.acts { display: flex; gap: 6px; justify-content: flex-end; }
+.empty { padding: 48px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* ---------- Variant 2: Board ---------- */
+.board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.col { background: var(--sunken); border-radius: 14px; padding: 10px; display: grid; gap: 8px; align-content: start; min-height: 420px; }
+.col-h { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 4px 6px; }
+.col-h b { font-size: 13px; font-weight: 500; }
+.col-h span { font-size: 11px; color: var(--muted); font-family: var(--bn); }
+.col-h em { font-style: normal; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card { background: var(--surface); box-shadow: var(--shadow); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+.card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.card .note { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); }
+.card.done { opacity: 0.72; }
+
+/* ---------- Variant 3: Today ---------- */
+.today { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; }
+.agenda { display: grid; gap: 24px; align-content: start; min-width: 0; }
+.group { display: grid; gap: 10px; }
+.group-h { display: flex; align-items: baseline; gap: 10px; }
+.group-h h4 { margin: 0; font-size: 14px; font-weight: 500; }
+.group-h span { font-size: 12px; color: var(--muted); }
+.call { background: var(--surface); box-shadow: var(--shadow); border-radius: 14px; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 16px; }
+.call-who { display: grid; gap: 4px; min-width: 0; }
+.call-who b { font-family: var(--bn); font-weight: 500; font-size: 15px; }
+.phone { font-family: var(--mono); font-size: 15px; letter-spacing: 0.02em; user-select: all; }
+.call-side { display: grid; gap: 6px; justify-items: end; align-content: start; text-align: right; }
+.call-body { grid-column: 1 / -1; display: grid; gap: 8px; }
+.log { display: grid; gap: 4px; padding-left: 12px; border-left: 1px solid var(--line); }
+.log div { font-size: 12px; color: var(--muted); font-family: var(--bn); }
+.log div time { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-right: 6px; }
+.outcomes { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+.side { display: grid; gap: 12px; align-content: start; }
+.side h4 { margin: 0; font-size: 14px; font-weight: 500; }
+.side p { margin: 0; font-size: 12.5px; color: var(--muted); }
+.cust { background: var(--sunken); border-radius: 12px; padding: 12px; display: grid; gap: 6px; }
+.cust-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.cust-top b { font-family: var(--bn); font-weight: 500; }
+
+/* ---------- Drawer ---------- */
+.scrim { position: fixed; inset: 0; background: rgba(10,10,10,0.28); opacity: 0; pointer-events: none; transition: opacity 240ms var(--ease-out); z-index: 50; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--surface); z-index: 51; transform: translateX(100%); transition: transform 260ms var(--ease-drawer); box-shadow: -12px 0 40px rgba(0,0,0,0.12); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px); }
+body.sheet .scrim { opacity: 1; pointer-events: auto; }
+body.sheet .drawer { transform: translateX(0); }
+.d-head { padding: 20px 24px 12px; display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.d-head h3 { font-size: 20px; font-weight: 300; }
+.d-head p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.d-body { overflow-y: auto; padding: 4px 24px 24px; display: grid; gap: 20px; align-content: start; }
+.field { display: grid; gap: 8px; }
+.field > label, .field > .label { font-size: 9px; }
+select, textarea, input[type="date"] { width: 100%; font: inherit; font-size: 13.5px; color: var(--fg); background: var(--sunken); border: 0; border-radius: 10px; padding: 10px 12px; }
+textarea { font-family: var(--bn); min-height: 84px; resize: vertical; line-height: 1.55; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--sunken); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; border-radius: 7px; height: 32px; font-size: 12.5px; color: var(--muted); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow); font-weight: 500; }
+.reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.reasons button { border: 0; cursor: pointer; height: 30px; padding: 0 10px; border-radius: 8px; background: transparent; box-shadow: inset 0 0 0 1px var(--line); font-family: var(--bn); font-size: 12.5px; color: var(--muted); transition: transform 160ms var(--ease-out); }
+.reasons button:active { transform: scale(0.97); }
+.reasons button[aria-pressed="true"] { box-shadow: none; color: var(--fg); background: var(--sunken); font-weight: 500; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--sunken); cursor: pointer; }
+.switch input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--faint); position: relative; cursor: pointer; transition: background-color 150ms ease; flex: none; margin: 0; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 200ms var(--ease-out); }
+.switch input:checked { background: var(--rose); }
+.switch input:checked::after { transform: translateX(14px); }
+.switch input.ok:checked { background: var(--violet); }
+.switch span { font-size: 13px; display: grid; }
+.switch small { color: var(--muted); font-size: 11.5px; font-family: var(--bn); }
+.hint { background: var(--amber-bg); color: var(--amber); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; font-family: var(--bn); display: grid; gap: 8px; }
+.hint label { display: flex; gap: 8px; align-items: center; color: var(--fg); cursor: pointer; }
+.d-foot { padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+
+.toast { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); z-index: 60; background: var(--ink); color: var(--ink-fg); border-radius: 12px; padding: 10px 14px; font-size: 13px; display: flex; gap: 8px; align-items: center; opacity: 0; transform: translateY(-8px); transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); }
+
+.open-q { padding-block: 40px 16px; display: grid; gap: 16px; }
+.open-q h2 { font-size: 20px; font-weight: 300; }
+.qs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 32px; }
+.qs div { display: grid; gap: 2px; font-size: 13.5px; color: var(--muted); padding-block: 10px; border-top: 1px solid var(--line); }
+.qs b { color: var(--fg); font-weight: 500; }
+
+@media (max-width: 900px) {
+  .brief, .rules { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .today { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .brief, .layers, .rules, .qs { grid-template-columns: minmax(0, 1fr); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app { grid-template-columns: minmax(0, 1fr); border-radius: 14px; }
+  .rail { display: none; }
+  .main { padding: 16px; }
+  .call { grid-template-columns: minmax(0, 1fr); }
+  .call-side { justify-items: start; text-align: left; }
+  .row2 { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
+}
+
+/* ---------- Picker (verbatim from emilkowalski/skills PICKER.md) ---------- */
+.proto-picker {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.82);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 8px 24px rgba(0, 0, 0, 0.24),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.proto-picker-highlight {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  will-change: transform;
+}
+.proto-picker[data-ready] .proto-picker-highlight {
+  transition:
+    transform 250ms cubic-bezier(0.23, 1, 0.32, 1),
+    width 250ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .proto-picker[data-ready] .proto-picker-highlight { transition: none; }
+}
+.proto-picker-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font: inherit;
+  cursor: pointer;
+  transition: color 150ms ease-out;
+}
+.proto-picker-item:hover { color: rgba(255, 255, 255, 0.85); }
+.proto-picker-item:active { transform: scale(0.97); }
+.proto-picker-item:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.4); outline-offset: 2px; }
+.proto-picker-item[data-active] { color: #fff; }
+.proto-picker-divider { width: 1px; height: 16px; margin: 0 4px; background: rgba(255, 255, 255, 0.12); }
+.proto-picker-replay { padding: 0 10px; font-size: 14px; }
+.proto-picker[data-position="top"] { bottom: auto; top: 24px; }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <span class="label">Sera Khabar · Merchant Suite · Brainstorm</span>
+    <button class="theme-btn" id="themeBtn" type="button">Dark mode</button>
+  </div>
+
+  <header class="hero">
+    <span class="label">New orders tab · fully manual</span>
+    <h1>Special Care: a place for orders and customers that need a human</h1>
+    <p>Steadfast only tells us where a parcel is. It never tells us that the rider called and said the customer refused it, or that a VIP wants delivery after 6 pm. This tab holds what the team learns on the phone, and keeps it in front of them until someone closes it.</p>
+  </header>
+
+  <div class="brief">
+    <section>
+      <span class="label">What the merchant asked (voice notes, 22 Oct)</span>
+      <ul>
+        <li><b>Gather special customers in one place</b><span class="quote">“এ জাতীয় customer গুলা ঐ জায়গায় জড়ো করতে পারি”</span></li>
+        <li><b>VIPs, heavy parcels, standing requirements</b><span>Repeat customers who always leave instructions about their parcel.</span></li>
+        <li><b>Mark them urgent and serve them separately</b><span class="quote">“urgent যাতে আমরা mark করতে পারি”</span></li>
+      </ul>
+    </section>
+    <section>
+      <span class="label">The calls you described</span>
+      <ul>
+        <li><b>The rider calls</b><span class="quote">“কাস্টমার নিচ্ছে না”</span><span>The order is already with the courier. Steadfast still says In Transit.</span></li>
+        <li><b>The customer calls</b><span class="quote">“অর্ডারটা কাল পাঠাবেন না, ৩ দিন পর পাঠান”</span><span>The order hasn't shipped yet.</span></li>
+      </ul>
+    </section>
+    <section>
+      <span class="label">What already exists</span>
+      <ul>
+        <li><b>On Hold stops an order</b><span>It has 10 reasons, including “পরে পার্সেল নিতে চান” with a return date. The order goes back to Pending on that date.</span></li>
+        <li><b>Hold can't help after dispatch</b><span>Once the parcel is with Steadfast, there's nowhere to record what the rider or the customer said.</span></li>
+        <li><b>Nothing remembers a customer</b><span>Each order starts blank, even for a VIP's 14th order.</span></li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="split">
+    <span class="label">Where each case goes</span>
+    <h2>Hold stops an order. Special Care keeps watch on it.</h2>
+    <div class="tbl-wrap">
+      <table class="route">
+        <thead><tr><th class="label">What happened</th><th class="label">Order state</th><th class="label">Goes to</th><th class="label">Why</th></tr></thead>
+        <tbody>
+          <tr><td>কাস্টমার: ৩ দিন পর পাঠান</td><td>Pending / Confirmed</td><td>On Hold (with date), plus Special Care if VIP</td><td>Hold already blocks dispatch and releases it on the date. The flag form offers this in one tick.</td></tr>
+          <tr><td>রাইডার: কাস্টমার নিচ্ছে না</td><td>In Transit / Out for Delivery</td><td>Special Care, urgent</td><td>The parcel is out of our hands. Someone has to call the customer before it comes back as a return.</td></tr>
+          <tr><td>রাইডার: কাস্টমার ফোন ধরছে না</td><td>Out for Delivery</td><td>Special Care, follow-up today</td><td>Same as above, with a call due today.</td></tr>
+          <tr><td>VIP / নিয়মিত কাস্টমার</td><td>Any</td><td>Customer tag, so every new order appears here automatically</td><td>Set it once per phone number instead of on every order.</td></tr>
+          <tr><td>ভারী পার্সেল (“OAT”)</td><td>Before dispatch</td><td>Customer tag or order flag</td><td>Packing and the rider need to know before pickup. We could suggest it from product weight later.</td></tr>
+          <tr><td>বিশেষ নির্দেশনা (সন্ধ্যা ৬টার পরে, দারোয়ানকে না)</td><td>Any</td><td>Customer tag with a standing note</td><td>The note shows on every future order and the shipping label.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="split">
+    <span class="label">The model: two layers</span>
+    <div class="layers">
+      <div class="layer">
+        <span class="label">Layer 1 · Order flag</span>
+        <h3>A case on one order</h3>
+        <p>Who called (rider, customer or team), a reason, a note with what was said, an optional follow-up date, and an urgent switch. Every later call adds a line to its log. It ends when someone resolves it with an outcome: delivered after the call, rescheduled, returned or cancelled.</p>
+      </div>
+      <div class="layer">
+        <span class="label">Layer 2 · Customer tag</span>
+        <h3>Something true about a person</h3>
+        <p>VIP, heavy parcel, regular customer, or a standing instruction. It's attached to the phone number, so the next order from that number opens a flag in Special Care automatically, with the instruction already filled in.</p>
+      </div>
+    </div>
+    <div class="rules">
+      <div><b>No webhook</b>Only people add flags or resolve them. Courier sync never touches them.</div>
+      <div><b>Status stays the same</b>A flag sits beside the order status. An In Transit order stays In Transit.</div>
+      <div><b>One open case per order</b>New calls add to the existing case so the history stays in one place.</div>
+      <div><b>Visible everywhere</b>A small dot on the row in every other tab, and a banner in the order editor.</div>
+    </div>
+  </section>
+
+  <div class="mock-head">
+    <div>
+      <span class="label">Mockup · 3 directions</span>
+      <h2>The Special Care tab inside Orders</h2>
+      <p>Use the picker at the bottom, or press 1, 2, 3 or ← →. Everything works: add a flag, resolve one, log a call.</p>
+    </div>
+    <div class="axis" id="axis"></div>
+  </div>
+
+  <div class="app">
+    <nav class="rail" aria-hidden="true">
+      <span><svg class="i" viewBox="0 0 24 24"><path d="M3 10.5 12 4l9 6.5V20H3z"/></svg></span>
+      <span class="on"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span>
+      <span><svg class="i" viewBox="0 0 24 24"><path d="M5 5h14v10H8l-3 3z"/></svg></span>
+      <span><svg class="i" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7"/></svg></span>
+      <span><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 4.5a3.5 3.5 0 0 1 0 7M21 20c0-3-1.8-5.3-4.5-5.9"/></svg></span>
+    </nav>
+    <div class="main">
+      <div class="main-top">
+        <h3>Orders</h3>
+        <button class="btn primary" type="button" data-action="open-sheet"><svg class="i" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>Flag an order</button>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Order queues">
+        <span class="tab">All <em>312</em></span>
+        <span class="tab">Pending <em>18</em></span>
+        <span class="tab">Confirmed <em>24</em></span>
+        <span class="tab">Ready to Transit <em>9</em></span>
+        <span class="tab">On Hold <em>6</em></span>
+        <span class="tab on">Special Care <em id="tabCount">7</em><span class="new">New</span></span>
+        <span class="tab">Incomplete <em>11</em></span>
+      </div>
+      <div id="stage"></div>
+    </div>
+  </div>
+
+  <section class="open-q">
+    <span class="label">Questions for the merchant before we plan the build</span>
+    <h2>Six things to decide</h2>
+    <div class="qs">
+      <div><b>What does “urgent” change?</b>Does it only sort to the top, or should it also block bulk Send to Courier until someone opens the order?</div>
+      <div><b>What is an “OAT” parcel exactly?</b>Is it a weight threshold (for example, over 5 kg), or a specific product? If it's a threshold, we can tag these orders automatically.</div>
+      <div><b>Should customer tags flag every new order?</b>Or only show a badge on the order without adding it to this tab?</div>
+      <div><b>Who resolves a case?</b>Anyone on the team, the person it's assigned to, or only an admin?</div>
+      <div><b>Should standing instructions print on the label?</b>For example, “সন্ধ্যা ৬টার পরে ডেলিভারি” as the courier note sent to Steadfast.</div>
+      <div><b>How long do resolved cases stay visible?</b>For example, a Resolved filter that keeps the last 7 days.</div>
+    </div>
+  </section>
+</div>
+
+<div class="scrim" data-action="close-sheet"></div>
+<aside class="drawer" aria-label="Flag an order" aria-hidden="true">
+  <div class="d-head">
+    <div><h3>Flag an order</h3><p>Record what was said on the call. The order status doesn't change.</p></div>
+    <button class="btn ghost sm" type="button" data-action="close-sheet" aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="d-body">
+    <div class="field">
+      <label class="label" for="fOrder">Order</label>
+      <select id="fOrder">
+        <option value="SK-2058">#SK-2058 · শাহরিয়ার কবির · Confirmed</option>
+        <option value="SK-2044">#SK-2044 · মরিয়ম বেগম · In Transit</option>
+        <option value="SK-2061">#SK-2061 · ইমরান খান · Pending</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="label">Who called</span>
+      <div class="seg" id="fWho">
+        <button type="button" data-who="courier" aria-pressed="false">Rider</button>
+        <button type="button" data-who="customer" aria-pressed="true">Customer</button>
+        <button type="button" data-who="team" aria-pressed="false">Team</button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Reason</span>
+      <div class="reasons" id="fReasons"></div>
+    </div>
+    <div class="hint" id="fHint" hidden>
+      <span>এই অর্ডার এখনও কুরিয়ারে যায়নি। তারিখ পর্যন্ত On Hold-এ রাখলে ভুল করে পাঠানো হবে না।</span>
+      <label><input type="checkbox" id="fHold" checked> Also put on hold until the follow-up date</label>
+    </div>
+    <div class="field">
+      <label class="label" for="fNote">What was said</label>
+      <textarea id="fNote">শুক্রবারের পরে পাঠাতে বলেছেন, বাসায় কেউ থাকবে না।</textarea>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label class="label" for="fDue">Follow up on</label>
+        <input type="date" id="fDue" value="2026-10-25">
+      </div>
+      <label class="switch" for="fUrgent"><span>Urgent<small>উপরে দেখাবে</small></span><input type="checkbox" id="fUrgent"></label>
+    </div>
+    <label class="switch" for="fRemember"><span>Remember for this customer<small>এই নম্বরের পরের সব অর্ডারে দেখাবে</small></span><input type="checkbox" id="fRemember" class="ok"></label>
+  </div>
+  <div class="d-foot">
+    <button class="btn" type="button" data-action="close-sheet">Cancel</button>
+    <button class="btn primary" type="button" data-action="save-flag">Add to Special Care</button>
+  </div>
+</aside>
+<div class="toast" id="toast" role="status"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5 10 17l9-10"/></svg><span id="toastText"></span></div>
+
+<nav class="proto-picker" aria-label="Prototype variants">
+  <span class="proto-picker-highlight" aria-hidden="true"></span>
+  <button class="proto-picker-item" data-active aria-current="true">Queue</button>
+  <button class="proto-picker-item">Board</button>
+  <button class="proto-picker-item">Call list</button>
+</nav>
+
+<script>
+(function () {
+  // Light by default, with a toggle (the Merchant Suite itself is light).
+  const root = document.documentElement;
+  root.setAttribute('data-theme', 'light');
+  const themeBtn = document.getElementById('themeBtn');
+  themeBtn.addEventListener('click', () => {
+    const dark = root.getAttribute('data-theme') !== 'dark';
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    themeBtn.textContent = dark ? 'Light mode' : 'Dark mode';
+  });
+
+  const TODAY = '2026-10-22';
+  const ic = {
+    phone: '<svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>',
+    bike: '<svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17l4-7h5l3 7M14 6h3l1 4"/></svg>',
+    user: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
+    team: '<svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 4.5a3.5 3.5 0 0 1 0 7"/></svg>',
+    star: '<svg class="i" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+    weight: '<svg class="i" viewBox="0 0 24 24"><path d="M6 8h12l2 12H4zM9 8a3 3 0 0 1 6 0"/></svg>',
+    note: '<svg class="i" viewBox="0 0 24 24"><path d="M5 4h14v12l-4 4H5zM15 20v-4h4"/></svg>',
+    repeat: '<svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"/></svg>',
+    check: '<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5 10 17l9-10"/></svg>',
+    arrow: '<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    missed: '<svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1zM15 3l6 6M21 3l-6 6"/></svg>',
+    chat: '<svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>'
+  };
+  const REASONS = {
+    courier_refusing:    { bn: 'গ্রাহক পার্সেল নিচ্ছে না', tone: 'rose', who: 'courier', group: 'courier' },
+    courier_unreachable: { bn: 'গ্রাহক ফোন ধরছে না', tone: 'rose', who: 'courier', group: 'courier' },
+    courier_address:     { bn: 'ঠিকানা খুঁজে পাচ্ছে না', tone: 'rose', who: 'courier', group: 'courier' },
+    customer_later:      { bn: 'পরে পাঠাতে বলেছেন', tone: 'amber', who: 'customer', group: 'customer' },
+    address_change:      { bn: 'ঠিকানা/সময় পরিবর্তন', tone: 'amber', who: 'customer', group: 'customer' },
+    customer_complaint:  { bn: 'অভিযোগ / অসন্তুষ্ট', tone: 'amber', who: 'customer', group: 'customer' },
+    vip:                 { bn: 'VIP গ্রাহক', tone: 'violet', who: 'team', group: 'special' },
+    heavy:               { bn: 'ভারী পার্সেল', tone: 'blue', who: 'team', group: 'special' },
+    special:             { bn: 'বিশেষ নির্দেশনা', tone: 'teal', who: 'team', group: 'special' },
+    other:               { bn: 'অন্যান্য', tone: 'slate', who: 'team', group: 'special' }
+  };
+  const TAGS = {
+    vip: { icon: 'star', bn: 'VIP', cls: 'vip' },
+    heavy: { icon: 'weight', bn: 'ভারী পার্সেল', cls: '' },
+    regular: { icon: 'repeat', bn: 'নিয়মিত', cls: '' },
+    instr: { icon: 'note', bn: 'নির্দেশনা আছে', cls: '' }
+  };
+  const STAGES = [
+    { id: 'new', en: 'New', bn: 'নতুন' },
+    { id: 'talking', en: 'Talking to customer', bn: 'কথা চলছে' },
+    { id: 'waiting', en: 'Waiting for date', bn: 'তারিখের অপেক্ষায়' },
+    { id: 'done', en: 'Resolved', bn: 'সমাধান হয়েছে' }
+  ];
+
+  let items = [
+    { id: 'SK-2051', name: 'রাশেদ আহমেদ', area: 'মিরপুর ১০, ঢাকা', phone: '01712-448 902', product: 'আমসত্ত্ব আচার × 3', amount: 1350, status: 'In Transit', reason: 'courier_refusing', by: 'courier', due: '2026-10-22', urgent: true, stage: 'new', tags: [],
+      log: [{ t: '11:40', text: 'রাইডার: গ্রাহক বলছেন অর্ডার করেননি। আবার কনফার্ম করতে হবে।' }] },
+    { id: 'SK-2028', name: 'আরিফ হোসেন', area: 'বোয়ালিয়া, রাজশাহী', phone: '01819-203 551', product: 'হিমসাগর আম ৫ কেজি', amount: 1650, status: 'Out for Delivery', reason: 'courier_unreachable', by: 'courier', due: '2026-10-21', urgent: false, stage: 'new', tags: [],
+      log: [{ t: 'Oct 21', text: 'রাইডার দুইবার কল দিয়েছে, ফোন বন্ধ।' }] },
+    { id: 'SK-2033', name: 'নুসরাত জাহান', area: 'ধানমন্ডি ২৭, ঢাকা', phone: '01911-776 120', product: 'আমসত্ত্ব আচার × 2, তেঁতুল আচার × 1', amount: 1180, status: 'Confirmed', reason: 'special', by: 'team', due: '2026-10-22', urgent: true, stage: 'talking', tags: ['vip', 'regular', 'instr'],
+      log: [{ t: 'Auto', text: 'নির্দেশনা: সবসময় সন্ধ্যা ৬টার পরে। গেটে দারোয়ানের কাছে রাখবেন না।' }, { t: '10:05', text: 'অর্ডার নিশ্চিত করলেন, ১৪তম অর্ডার।' }] },
+    { id: 'SK-2039', name: 'মাহমুদুল হাসান', area: 'জিন্দাবাজার, সিলেট', phone: '01715-990 318', product: 'হিমসাগর আম ২০ কেজি', amount: 5200, status: 'Confirmed', reason: 'heavy', by: 'team', due: '2026-10-23', urgent: false, stage: 'talking', tags: ['heavy'],
+      log: [{ t: '09:20', text: '২০ কেজি, দুই কার্টনে ভাগ করতে হবে। পিকআপের আগে রাইডারকে জানাতে হবে।' }] },
+    { id: 'SK-2019', name: 'সাবরিনা চৌধুরী', area: 'গুলশান ২, ঢাকা', phone: '01611-302 784', product: 'ল্যাংড়া আম ১০ কেজি', amount: 2900, status: 'Pickup Requested', reason: 'address_change', by: 'customer', due: '2026-10-22', urgent: false, stage: 'talking', tags: ['vip'],
+      log: [{ t: '12:15', text: 'অফিসের ঠিকানায় পাঠাতে হবে: বনানী ১১, রোড ২৭। Steadfast-এ ঠিকানা বদলাতে হবে।' }] },
+    { id: 'SK-2047', name: 'ফারহানা ইসলাম', area: 'খুলশী, চট্টগ্রাম', phone: '01817-554 069', product: 'ল্যাংড়া আম ১০ কেজি', amount: 2900, status: 'On Hold', reason: 'customer_later', by: 'customer', due: '2026-10-25', urgent: false, stage: 'waiting', tags: ['vip'],
+      log: [{ t: 'Oct 20', text: '৩ দিন পর পাঠাতে বলেছেন, শুক্রবারের পরে। On Hold-এ ২৫ তারিখ পর্যন্ত।' }] },
+    { id: 'SK-2012', name: 'তানভীর রহমান', area: 'সোনাডাঙ্গা, খুলনা', phone: '01712-118 437', product: 'আমসত্ত্ব আচার × 4', amount: 1800, status: 'On Hold', reason: 'customer_later', by: 'customer', due: '2026-10-29', urgent: false, stage: 'waiting', tags: ['regular'],
+      log: [{ t: 'Oct 19', text: 'বিদেশ থেকে ফিরবেন ২৯ তারিখ, তারপর পাঠাতে বলেছেন।' }] },
+    { id: 'SK-2004', name: 'জান্নাতুল ফেরদৌস', area: 'উত্তরা ৭, ঢাকা', phone: '01913-650 221', product: 'আমসত্ত্ব আচার × 2', amount: 900, status: 'Delivered', reason: 'courier_refusing', by: 'courier', due: null, urgent: false, stage: 'done', tags: [], outcome: 'কল করার পরে ডেলিভারি হয়েছে',
+      log: [{ t: 'Oct 21', text: 'গ্রাহক ভুল বুঝেছিলেন, পরদিন নিয়েছেন।' }] }
+  ];
+  const NEW_ORDERS = {
+    'SK-2058': { name: 'শাহরিয়ার কবির', area: 'মোহাম্মদপুর, ঢাকা', phone: '01716-882 405', product: 'তেঁতুল আচার × 3', amount: 1050, status: 'Confirmed' },
+    'SK-2044': { name: 'মরিয়ম বেগম', area: 'কুমিল্লা সদর', phone: '01815-447 930', product: 'আমসত্ত্ব আচার × 2', amount: 900, status: 'In Transit' },
+    'SK-2061': { name: 'ইমরান খান', area: 'বগুড়া সদর', phone: '01711-305 662', product: 'হিমসাগর আম ১০ কেজি', amount: 2700, status: 'Pending' }
+  };
+  let filter = 'all';
+  let justAdded = null;
+
+  const open = () => items.filter(x => x.stage !== 'done');
+  const taka = n => '৳' + n.toLocaleString('en-IN');
+  const isOver = d => d && d < TODAY;
+  const isToday = d => d === TODAY;
+  function dueHtml(d) {
+    if (!d) return '<span class="due muted">No date</span>';
+    if (isOver(d)) return '<span class="due over">Overdue · ' + fmt(d) + '</span>';
+    if (isToday(d)) return '<span class="due today">Today</span>';
+    return '<span class="due">' + fmt(d) + '</span>';
+  }
+  function fmt(d) {
+    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const [, mm, dd] = d.split('-');
+    return m[+mm - 1] + ' ' + (+dd);
+  }
+  const reasonChip = r => '<span class="chip t-' + REASONS[r].tone + '">' + REASONS[r].bn + '</span>';
+  const byHtml = b => '<span class="by">' + (b === 'courier' ? ic.bike + 'Rider called' : b === 'customer' ? ic.user + 'Customer called' : ic.team + 'Team') + '</span>';
+  const tagsHtml = t => t.map(k => '<span class="tag ' + TAGS[k].cls + '">' + ic[TAGS[k].icon] + TAGS[k].bn + '</span>').join('');
+  const lastNote = x => x.log[x.log.length - 1].text;
+  const sortOpen = arr => arr.slice().sort((a, b) => (b.urgent - a.urgent) || ((a.due || '9') < (b.due || '9') ? -1 : 1));
+  const enterCls = x => x.id === justAdded ? ' enter' : '';
+
+  // ---------- Variant 1: Queue ----------
+  const FILTERS = [
+    { id: 'all', en: 'All open', test: () => true },
+    { id: 'urgent', en: 'Urgent', test: x => x.urgent },
+    { id: 'due', en: 'Due today', test: x => isOver(x.due) || isToday(x.due) },
+    { id: 'courier', en: 'Rider calls', test: x => REASONS[x.reason].group === 'courier' },
+    { id: 'customer', en: 'Customer calls', test: x => REASONS[x.reason].group === 'customer' },
+    { id: 'special', en: 'VIP & special', test: x => REASONS[x.reason].group === 'special' || x.tags.includes('vip') }
+  ];
+  function queue() {
+    const o = open();
+    const f = FILTERS.find(f => f.id === filter);
+    const rows = sortOpen(o.filter(f.test));
+    return '<div style="display:grid;gap:20px">' +
+      '<div class="stats">' +
+        '<div class="stat"><span class="label">Open cases</span><b>' + o.length + '</b></div>' +
+        '<div class="stat alert"><span class="label">Urgent</span><b>' + o.filter(x => x.urgent).length + '</b></div>' +
+        '<div class="stat"><span class="label">Call today</span><b>' + o.filter(x => isOver(x.due) || isToday(x.due)).length + '</b></div>' +
+        '<div class="stat"><span class="label">Value at risk</span><b>' + taka(o.filter(x => REASONS[x.reason].group === 'courier').reduce((s, x) => s + x.amount, 0)) + '</b></div>' +
+      '</div>' +
+      '<div class="filters">' + FILTERS.map(fl => '<button type="button" class="fchip" data-action="filter" data-f="' + fl.id + '" aria-pressed="' + (fl.id === filter) + '">' + fl.en + ' <em>' + o.filter(fl.test).length + '</em></button>').join('') + '</div>' +
+      '<div class="qwrap"><table class="q"><thead><tr>' +
+        '<th class="label">Order</th><th class="label">Customer</th><th class="label">Reason · latest note</th><th class="label">Courier status</th><th class="label">Follow up</th><th></th>' +
+      '</tr></thead><tbody>' +
+      (rows.length ? rows.map(x =>
+        '<tr class="' + (x.urgent ? 'u' : '') + enterCls(x) + '" data-row="' + x.id + '">' +
+          '<td><div class="who"><span class="mono">#' + x.id + '</span>' + (x.urgent ? '<span class="urgent">Urgent</span>' : '') + '</div></td>' +
+          '<td><div class="who"><b>' + x.name + '</b><span class="mono muted">' + x.phone + '</span><span style="display:flex;gap:8px;flex-wrap:wrap">' + tagsHtml(x.tags) + '</span></div></td>' +
+          '<td><div class="reasoncell"><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + reasonChip(x.reason) + byHtml(x.by) + '</span><span class="note">' + lastNote(x) + '</span></div></td>' +
+          '<td><span class="chip t-slate" style="font-family:var(--font)">' + x.status + '</span><div class="mono muted" style="margin-top:6px">' + taka(x.amount) + '</div></td>' +
+          '<td>' + dueHtml(x.due) + '</td>' +
+          '<td><div class="acts"><button class="btn sm" type="button" data-action="resolve" data-id="' + x.id + '">' + ic.check + 'Resolve</button></div></td>' +
+        '</tr>').join('') : '<tr><td colspan="6" class="empty">Nothing here. Every case in this filter is resolved.</td></tr>') +
+      '</tbody></table></div></div>';
+  }
+
+  // ---------- Variant 2: Board ----------
+  function board() {
+    return '<div class="board">' + STAGES.map((s, si) => {
+      const cards = sortOpen(items.filter(x => x.stage === s.id));
+      return '<section class="col"><div class="col-h"><div><b>' + s.en + '</b> <span>' + s.bn + '</span></div><em>' + cards.length + '</em></div>' +
+        cards.map(x => {
+          const next = STAGES[si + 1];
+          return '<article class="card' + (s.id === 'done' ? ' done' : '') + enterCls(x) + '" data-row="' + x.id + '">' +
+            '<div class="card-top"><span class="mono">#' + x.id + '</span>' + (x.urgent ? '<span class="urgent">Urgent</span>' : '<span class="mono muted">' + taka(x.amount) + '</span>') + '</div>' +
+            '<div class="who"><b>' + x.name + '</b><span style="display:flex;gap:8px;flex-wrap:wrap">' + tagsHtml(x.tags) + '</span></div>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' + reasonChip(x.reason) + '<span class="chip t-slate" style="font-family:var(--font)">' + x.status + '</span></div>' +
+            '<div class="note">' + (x.outcome ? '✓ ' + x.outcome : lastNote(x)) + '</div>' +
+            '<div class="card-foot">' + (s.id === 'done' ? byHtml(x.by) : dueHtml(x.due)) +
+              (next ? '<button class="btn ghost sm" type="button" data-action="advance" data-id="' + x.id + '">' + (next.id === 'done' ? 'Resolve' : next.bn) + ic.arrow + '</button>' : '') +
+            '</div></article>';
+        }).join('') + '</section>';
+    }).join('') + '</div>';
+  }
+
+  // ---------- Variant 3: Call list ----------
+  function callCard(x) {
+    return '<article class="call' + enterCls(x) + '" data-row="' + x.id + '">' +
+      '<div class="call-who"><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>' + x.name + '</b>' + (x.urgent ? '<span class="urgent">Urgent</span>' : '') + tagsHtml(x.tags) + '</span>' +
+        '<span class="phone">' + x.phone + '</span><span class="muted bn" style="font-size:12px">' + x.area + ' · ' + x.product + '</span></div>' +
+      '<div class="call-side">' + dueHtml(x.due) + '<span class="mono">#' + x.id + ' · ' + taka(x.amount) + '</span><span class="chip t-slate" style="font-family:var(--font)">' + x.status + '</span></div>' +
+      '<div class="call-body"><span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + reasonChip(x.reason) + byHtml(x.by) + '</span>' +
+        '<div class="log">' + x.log.map(l => '<div><time>' + l.t + '</time>' + l.text + '</div>').join('') + '</div></div>' +
+      '<div class="outcomes">' +
+        '<button class="btn sm" type="button" data-action="noanswer" data-id="' + x.id + '">' + ic.missed + 'No answer · try tomorrow</button>' +
+        '<button class="btn sm" type="button" data-action="talked" data-id="' + x.id + '">' + ic.chat + 'Talked · keep open</button>' +
+        '<button class="btn sm primary" type="button" data-action="resolve" data-id="' + x.id + '">' + ic.check + 'Resolved</button>' +
+      '</div></article>';
+  }
+  function calls() {
+    const o = sortOpen(open());
+    const groups = [
+      { h: 'Overdue', s: 'should have been called already', list: o.filter(x => isOver(x.due)) },
+      { h: 'Call today', s: 'Thursday, 22 October', list: o.filter(x => isToday(x.due)) },
+      { h: 'Coming up', s: 'follow-up dates later this week', list: o.filter(x => x.due && x.due > TODAY) },
+      { h: 'No date', s: 'open until someone resolves it', list: o.filter(x => !x.due) }
+    ].filter(g => g.list.length);
+    const people = items.filter(x => x.tags.length).filter((x, i, a) => a.findIndex(y => y.phone === x.phone) === i);
+    return '<div class="today"><div class="agenda">' +
+      (groups.length ? groups.map(g => '<section class="group"><div class="group-h"><h4>' + g.h + ' · ' + g.list.length + '</h4><span>' + g.s + '</span></div>' + g.list.map(callCard).join('') + '</section>').join('')
+        : '<div class="empty">No calls left. Every case is resolved.</div>') +
+      '</div><aside class="side"><div><h4>Special customers</h4><p>Tags stay on the phone number. Their next order lands here on its own.</p></div>' +
+      people.map(x => '<div class="cust"><div class="cust-top"><b>' + x.name + '</b><span class="mono muted" style="font-size:11px">' + x.phone + '</span></div>' +
+        '<span style="display:flex;gap:8px;flex-wrap:wrap">' + tagsHtml(x.tags) + '</span>' +
+        (x.tags.includes('instr') ? '<span class="note" style="font-size:12px">সবসময় সন্ধ্যা ৬টার পরে। গেটে দারোয়ানের কাছে রাখবেন না।</span>' : '') + '</div>').join('') +
+      '</aside></div>';
+  }
+
+  const variants = [queue, board, calls];
+  const AXES = [
+    '<b>Queue</b> · a dense table like every other Orders tab, filtered by reason',
+    '<b>Board</b> · cases move left to right as the conversation progresses',
+    '<b>Call list</b> · grouped by when to call, with one-tap call outcomes'
+  ];
+
+  // ---------- Picker wiring (verbatim from PICKER.md, plus a render hook) ----------
+  const stage = document.getElementById('stage');
+  const picker = document.querySelector('.proto-picker');
+  const highlight = picker.querySelector('.proto-picker-highlight');
+  const pickItems = [...picker.querySelectorAll('.proto-picker-item:not(.proto-picker-replay)')];
+  let current = 0;
+
+  function moveHighlight() {
+    const el = pickItems[current];
+    highlight.style.width = el.offsetWidth + 'px';
+    highlight.style.transform = `translateX(${el.offsetLeft}px)`;
+  }
+  function render() {
+    stage.innerHTML = variants[current]();
+    document.getElementById('tabCount').textContent = open().length;
+    document.getElementById('axis').innerHTML = AXES[current];
+    justAdded = null;
+  }
+  function mount(i) {
+    stage.innerHTML = '';
+    requestAnimationFrame(render);
+  }
+  function setActive(i) {
+    if (i < 0 || i >= variants.length) return;
+    current = i;
+    pickItems.forEach((el, j) => {
+      el.toggleAttribute('data-active', j === i);
+      if (j === i) el.setAttribute('aria-current', 'true');
+      else el.removeAttribute('aria-current');
+    });
+    moveHighlight();
+    try { const url = new URL(location); url.searchParams.set('v', i + 1); history.replaceState(null, '', url); } catch (e) {}
+    mount(i);
+  }
+  pickItems.forEach((el, i) => el.addEventListener('click', () => setActive(i)));
+  window.addEventListener('resize', moveHighlight);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('sheet')) return closeSheet();
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const num = parseInt(e.key, 10);
+    if (num >= 1 && num <= variants.length) setActive(num - 1);
+    else if (e.key === 'ArrowRight') setActive((current + 1) % variants.length);
+    else if (e.key === 'ArrowLeft') setActive((current - 1 + variants.length) % variants.length);
+  });
+  let startV = 1;
+  try { startV = parseInt(new URLSearchParams(location.search).get('v'), 10) || 1; } catch (e) {}
+  setActive(startV - 1);
+  requestAnimationFrame(() => requestAnimationFrame(() => picker.setAttribute('data-ready', '')));
+
+  // ---------- Actions ----------
+  const toastEl = document.getElementById('toast');
+  let toastTimer;
+  function toast(msg) {
+    document.getElementById('toastText').textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+  function leaveThen(id, fn) {
+    const el = stage.querySelector('[data-row="' + id + '"]');
+    if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) { fn(); render(); return; }
+    el.classList.add('leaving');
+    setTimeout(() => { fn(); render(); }, 160);
+  }
+  const find = id => items.find(x => x.id === id);
+  const now = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-action]');
+    if (!b) return;
+    const a = b.dataset.action, x = b.dataset.id && find(b.dataset.id);
+    if (a === 'filter') { filter = b.dataset.f; render(); }
+    else if (a === 'resolve') leaveThen(x.id, () => { x.stage = 'done'; x.outcome = 'কল করার পরে সমাধান হয়েছে'; toast('Resolved #' + x.id); });
+    else if (a === 'advance') {
+      const si = STAGES.findIndex(s => s.id === x.stage);
+      leaveThen(x.id, () => { x.stage = STAGES[si + 1].id; if (x.stage === 'done') x.outcome = 'কল করার পরে সমাধান হয়েছে'; justAdded = x.id; toast('#' + x.id + ' → ' + STAGES[si + 1].en); });
+    }
+    else if (a === 'noanswer') leaveThen(x.id, () => { x.due = '2026-10-23'; x.log.push({ t: now(), text: 'ফোন ধরেননি। কাল আবার কল করতে হবে।' }); toast('#' + x.id + ' moved to tomorrow'); });
+    else if (a === 'talked') { x.stage = 'talking'; x.log.push({ t: now(), text: 'কথা হয়েছে, কেস খোলা থাকবে।' }); render(); toast('Call logged on #' + x.id); }
+    else if (a === 'open-sheet') openSheet();
+    else if (a === 'close-sheet') closeSheet();
+    else if (a === 'save-flag') saveFlag();
+  });
+
+  // ---------- Flag sheet ----------
+  const drawer = document.querySelector('.drawer');
+  let who = 'customer', reason = 'customer_later';
+  function drawReasons() {
+    const keys = Object.keys(REASONS).filter(k => REASONS[k].who === who || (who === 'team'));
+    if (!keys.includes(reason)) reason = keys[0];
+    document.getElementById('fReasons').innerHTML = keys.map(k => '<button type="button" data-r="' + k + '" aria-pressed="' + (k === reason) + '">' + REASONS[k].bn + '</button>').join('');
+    const order = NEW_ORDERS[document.getElementById('fOrder').value];
+    document.getElementById('fHint').hidden = !(reason === 'customer_later' && (order.status === 'Pending' || order.status === 'Confirmed'));
+    document.getElementById('fUrgent').checked = REASONS[reason].group === 'courier';
+  }
+  document.getElementById('fWho').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-who]'); if (!b) return;
+    who = b.dataset.who;
+    document.querySelectorAll('#fWho button').forEach(el => el.setAttribute('aria-pressed', el === b));
+    drawReasons();
+  });
+  document.getElementById('fReasons').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-r]'); if (!b) return;
+    reason = b.dataset.r; drawReasons();
+  });
+  document.getElementById('fOrder').addEventListener('change', drawReasons);
+  function openSheet() { drawReasons(); document.body.classList.add('sheet'); drawer.setAttribute('aria-hidden', 'false'); setTimeout(() => document.getElementById('fOrder').focus(), 50); }
+  function closeSheet() { document.body.classList.remove('sheet'); drawer.setAttribute('aria-hidden', 'true'); }
+  function saveFlag() {
+    const sel = document.getElementById('fOrder');
+    const id = sel.value;
+    if (find(id)) { toast('#' + id + ' already has an open case'); return; }
+    const o = NEW_ORDERS[id];
+    const hold = !document.getElementById('fHint').hidden && document.getElementById('fHold').checked;
+    const remember = document.getElementById('fRemember').checked;
+    const due = document.getElementById('fDue').value || null;
+    const tags = remember ? [reason === 'heavy' ? 'heavy' : reason === 'special' ? 'instr' : 'vip'] : [];
+    items.push({ id, ...o, status: hold ? 'On Hold' : o.status, reason, by: who, due, urgent: document.getElementById('fUrgent').checked,
+      stage: hold || (due && due > TODAY) ? 'waiting' : 'new', tags,
+      log: [{ t: now(), text: document.getElementById('fNote').value.trim() || REASONS[reason].bn }] });
+    justAdded = id; filter = 'all';
+    closeSheet(); render();
+    toast('#' + id + ' added to Special Care' + (hold ? ' and put on hold' : ''));
+    sel.querySelector('option[value="' + id + '"]').disabled = true;
+    const nextOpt = [...sel.options].find(op => !op.disabled); if (nextOpt) sel.value = nextOpt.value;
+  }
+})();
+</script>

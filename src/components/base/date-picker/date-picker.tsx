@@ -58,7 +58,7 @@ export function DatePicker({
           aria-describedby={ariaDescribedBy}
           className={cn(
             "flex h-10 w-full items-center gap-2 rounded-lg border border-border bg-background px-3 text-[13px] transition-all hover:border-foreground/30 disabled:opacity-60",
-            selected ? "text-foreground pr-9" : "text-foreground/45",
+            selected ? "text-foreground pr-9" : "text-foreground/70",
           )}
         >
           <SolarCalendarIcon size={15} className="shrink-0 text-foreground/70" />

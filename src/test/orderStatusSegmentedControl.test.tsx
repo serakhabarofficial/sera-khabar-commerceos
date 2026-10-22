@@ -37,17 +37,23 @@ describe("OrderStatusSegmentedControl", () => {
     expect(screen.queryByRole("radio", { name: /Flagged/ })).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Print.*0/ })).toBeInTheDocument();
     const radios = screen.getAllByRole("radio");
-    expect(radios).toHaveLength(12);
+    expect(radios).toHaveLength(13);
     expect(radios[0]).toHaveAccessibleName(/All Orders/);
     expect(radios[1]).toHaveAccessibleName(/^Pending:/);
     expect(radios[2]).toHaveAccessibleName(/^Incomplete orders:/);
+  });
+
+  it("ends with the Board tab and its card count", () => {
+    render(<OrderStatusSegmentedControl counts={counts} boardCount={7} value="all" onChange={vi.fn()} />);
+    const radios = screen.getAllByRole("radio");
+    expect(radios[radios.length - 1]).toHaveAccessibleName(/^Board:.*7/);
   });
 
   it("hides Ready To Ship when requested", () => {
     render(<OrderStatusSegmentedControl counts={counts} hiddenStatuses={["ready_to_ship"]} value="all" onChange={vi.fn()} />);
 
     expect(screen.queryByRole("radio", { name: /Ready To Ship/ })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("radio")).toHaveLength(11);
+    expect(screen.getAllByRole("radio")).toHaveLength(12);
   });
 
   it("reports the selected status", async () => {
@@ -64,7 +70,7 @@ describe("OrderStatusSegmentedControl", () => {
     render(<OrderStatusSegmentedControl counts={counts} value="all" onChange={vi.fn()} loading />);
 
     expect(screen.getByRole("radio", { name: /All Orders.*loading/ })).toBeInTheDocument();
-    expect(screen.getAllByText("—")).toHaveLength(12);
+    expect(screen.getAllByText("—")).toHaveLength(13);
   });
 
   it("uses a full-width gray tray with neutral count text", () => {

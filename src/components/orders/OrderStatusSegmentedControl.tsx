@@ -12,7 +12,7 @@ type StatusPresentation = {
   dotClassName: string;
 };
 
-export type FulfillmentQueueTab = OrderStatusFilter | "abandoned";
+export type FulfillmentQueueTab = OrderStatusFilter | "abandoned" | "board";
 
 const STATUS_PRESENTATION: Record<FulfillmentQueueTab, StatusPresentation> = {
   all: {
@@ -63,6 +63,10 @@ const STATUS_PRESENTATION: Record<FulfillmentQueueTab, StatusPresentation> = {
     label: "Cancelled",
     dotClassName: "bg-zinc-400",
   },
+  board: {
+    label: "Board",
+    dotClassName: "bg-teal-500",
+  },
 };
 
 export const FULFILLMENT_QUEUE_TABS: FulfillmentQueueTab[] = [
@@ -70,11 +74,13 @@ export const FULFILLMENT_QUEUE_TABS: FulfillmentQueueTab[] = [
   "pending",
   "abandoned",
   ...ORDER_STATUS_FILTERS.filter((status) => status !== "all" && status !== "pending"),
+  "board",
 ];
 
 export type OrderStatusSegmentedControlProps = {
   counts: Record<OrderStatusFilter, number>;
   abandonedCount?: number;
+  boardCount?: number;
   value: FulfillmentQueueTab;
   onChange: (value: FulfillmentQueueTab) => void;
   loading?: boolean;
@@ -84,6 +90,7 @@ export type OrderStatusSegmentedControlProps = {
 export function OrderStatusSegmentedControl({
   counts,
   abandonedCount = 0,
+  boardCount = 0,
   value,
   onChange,
   loading = false,
@@ -106,9 +113,9 @@ export function OrderStatusSegmentedControl({
         thumbClassName="rounded-[9px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.05)] duration-[240ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
         className="w-max min-w-full rounded-xl bg-black/[0.045] p-1 ring-1 ring-black/[0.03] xl:flex xl:w-full"
       >
-        {FULFILLMENT_QUEUE_TABS.filter((status) => status === "abandoned" || !hiddenStatuses.includes(status)).map((status) => {
+        {FULFILLMENT_QUEUE_TABS.filter((status) => status === "abandoned" || status === "board" || !hiddenStatuses.includes(status)).map((status) => {
           const presentation = STATUS_PRESENTATION[status];
-          const count = status === "abandoned" ? abandonedCount : counts[status];
+          const count = status === "abandoned" ? abandonedCount : status === "board" ? boardCount : counts[status];
           const formattedCount = count.toLocaleString("en-BD");
 
           return (
@@ -117,7 +124,7 @@ export function OrderStatusSegmentedControl({
               id={status}
               aria-label={`${presentation.label}: ${loading ? "loading" : formattedCount}`}
               className={({ isSelected }) => [
-                "group min-w-[96px] flex-auto flex-col items-center justify-start rounded-[9px] px-3.5 pb-[11px] pt-3 text-center",
+                "group min-w-[90px] flex-auto flex-col items-center justify-start rounded-[9px] px-3 pb-[11px] pt-3 text-center",
                 "transition-[background-color,color] duration-150 ease-out data-[pressed]:scale-[0.98]",
                 isSelected ? "text-black" : "text-black/60 hover:bg-white/40",
               ].join(" ")}
