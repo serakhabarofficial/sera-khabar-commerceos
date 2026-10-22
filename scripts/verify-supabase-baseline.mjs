@@ -65,6 +65,11 @@ const runtimeTables = Object.freeze([
   "analytics_daily_products",
   "analytics_job_state",
   "live_visitor_presence",
+  "order_calls",
+  "call_helper_keys",
+  "order_board_lists",
+  "order_board_cards",
+  "order_board_updates",
 ]);
 
 const runtimeTablesSql = runtimeTables.map((table) => `'${table}'`).join(", ");
@@ -298,7 +303,12 @@ begin
     where p.pronamespace = 'public'::regnamespace
       and has_function_privilege('anon', p.oid, 'execute')
   ) then
-    raise exception 'anon can execute a public function';
+    raise exception 'anon can execute a public function: %', (
+      select string_agg(p.oid::regprocedure::text, ', ' order by p.oid::regprocedure::text)
+      from pg_proc as p
+      where p.pronamespace = 'public'::regnamespace
+        and has_function_privilege('anon', p.oid, 'execute')
+    );
   end if;
   if has_function_privilege('authenticated', 'public.current_user_org_id()', 'execute') then
     raise exception 'authenticated can execute current_user_org_id';
