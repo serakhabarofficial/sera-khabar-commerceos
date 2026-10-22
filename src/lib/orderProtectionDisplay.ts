@@ -24,14 +24,16 @@ function formatTaka(value: number | null) {
 }
 
 export function normalizeProtectionItem(item: ProtectionItemLike): ProtectionLineItem {
-  const productName = String(item.productName ?? item.product_name ?? "Product").trim() || "Product";
-  const variantValue = item.variantName ?? item.variant_name;
+  // Items arrive in either camelCase or the stored snake_case shape.
+  const raw = item as Record<string, unknown>;
+  const productName = String(raw.productName ?? raw.product_name ?? "Product").trim() || "Product";
+  const variantValue = raw.variantName ?? raw.variant_name;
   const variantName = typeof variantValue === "string" && variantValue.trim()
     ? variantValue.trim()
     : null;
-  const quantityValue = Number(item.quantity);
+  const quantityValue = Number(raw.quantity);
   const quantity = Number.isInteger(quantityValue) && quantityValue > 0 ? quantityValue : 1;
-  const priceValue = Number(item.unitPrice ?? item.unit_price);
+  const priceValue = Number(raw.unitPrice ?? raw.unit_price);
   const unitPrice = Number.isFinite(priceValue) && priceValue >= 0 ? priceValue : null;
 
   return { productName, variantName, quantity, unitPrice };

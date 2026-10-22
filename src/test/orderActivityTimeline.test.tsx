@@ -18,7 +18,7 @@ const detailedEvent = {
   changes: [{ field: "status", label: "Status", before: "confirmed", after: "cancelled" }],
 };
 
-function renderTimeline(events = [detailedEvent], variant?: "compact" | "full") {
+function renderTimeline(events: unknown[] = [detailedEvent], variant?: "compact" | "full") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   apiFetch.mockResolvedValue({
     ok: true,

@@ -38,6 +38,7 @@ vi.mock("recharts", () => ({
 
 function baseOrder(overrides: Record<string, unknown>) {
   return {
+    id: "order",
     shopify_order_id: 1,
     order_number: "#101",
     customer_name: "Test Customer",

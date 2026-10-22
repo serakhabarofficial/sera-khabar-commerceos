@@ -16,6 +16,7 @@ type TestOrder = {
   courier_status?: string | null;
   courier_name?: string | null;
   sent_to_courier?: boolean | null;
+  courier_message?: string | null;
   processing_at?: string | null;
   courier_status_at?: string | null;
   courier_problem?: string | null;

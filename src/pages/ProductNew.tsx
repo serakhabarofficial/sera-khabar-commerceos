@@ -186,7 +186,7 @@ export default function ProductNew() {
           {!hasVariants && (
             <BuiInput data-testid="input-manual-product-stock" label="Stock quantity" type="number" value={stock} onChange={setStock} placeholder="0" />
           )}
-          <BuiInput label="Weight (kg)" type="number" min={0} value={weight} onChange={setWeight} placeholder="0" />
+          <BuiInput label="Weight (kg)" type="number" value={weight} onChange={setWeight} placeholder="0" />
           <div className="flex flex-col justify-end space-y-1.5">
             <FormSectionLabel>Warehouse</FormSectionLabel>
             <BuiSelect aria-label="Warehouse" selectedKey={warehouseId || null} onSelectionChange={(key) => setWarehouseId(String(key))}>
@@ -326,7 +326,7 @@ export default function ProductNew() {
                     <span className="block text-caption-1-medium text-text-tertiary">COG (৳)</span>
                     <BuiInput size="small" type="number" value={d.cog} onChange={(v) => updateCombo(key, { cog: v })} placeholder={cog || "0"} />
                   </label>
-                  <BuiInput size="small" label="Variant weight (kg)" type="number" min={0} value={d.weight} onChange={(v) => updateCombo(key, { weight: v })} placeholder={weight || "0"} />
+                  <BuiInput size="small" label="Variant weight (kg)" type="number" value={d.weight} onChange={(v) => updateCombo(key, { weight: v })} placeholder={weight || "0"} />
                 </div>
               );
             })}

@@ -1030,6 +1030,9 @@ describe("OrderDetail", () => {
       product: "Cart Checkout - 1x Premium Mango + 1x Honey Jar",
       quantity: 2,
       items: undefined,
+      shopify_order_id: 1,
+      fraud_checked: false,
+      fraud_data: null,
     };
     render(createElement(
       QueryClientProvider,

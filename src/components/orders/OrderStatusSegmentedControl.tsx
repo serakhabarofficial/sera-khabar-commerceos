@@ -85,7 +85,7 @@ export type OrderStatusSegmentedControlProps = {
   value: FulfillmentQueueTab;
   onChange: (value: FulfillmentQueueTab) => void;
   loading?: boolean;
-  hiddenStatuses?: OrderStatusFilter[];
+  hiddenStatuses?: FulfillmentQueueTab[];
 };
 
 export function OrderStatusSegmentedControl({
@@ -114,7 +114,7 @@ export function OrderStatusSegmentedControl({
         thumbClassName="rounded-[9px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.05)] duration-[240ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
         className="w-max min-w-full rounded-xl bg-black/[0.045] p-1 ring-1 ring-black/[0.03] xl:flex xl:w-full"
       >
-        {FULFILLMENT_QUEUE_TABS.filter((status) => status === "abandoned" || status === "board" || !hiddenStatuses.includes(status)).map((status) => {
+        {FULFILLMENT_QUEUE_TABS.filter((status) => !hiddenStatuses.includes(status)).map((status) => {
           const presentation = STATUS_PRESENTATION[status];
           const count = status === "abandoned" ? abandonedCount : status === "board" ? boardCount : counts[status];
           const formattedCount = count.toLocaleString("en-BD");

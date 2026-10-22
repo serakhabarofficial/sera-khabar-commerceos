@@ -12,7 +12,7 @@ const script = serverSource.slice(bodyStart, serverSource.indexOf("`);", bodySta
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 type Hit = Record<string, unknown> & { kind: string; session_id: string; visitor_id: string; event_id: string };
 
-function loadTracker({ url = "https://www.serakhabar.com/product/katimon-mango", cookie = "", hidden = false, reply = () => ({ ok: true }) as Record<string, unknown> } = {}) {
+function loadTracker({ url = "https://www.serakhabar.com/product/katimon-mango", cookie = "", hidden = false, reply = ((() => ({ ok: true })) as (hit: Hit) => Record<string, unknown>) } = {}) {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", { url, runScripts: "outside-only", pretendToBeVisual: true });
   const win = dom.window as unknown as Window & typeof globalThis & { eval: (code: string) => unknown };
   if (cookie) win.document.cookie = cookie;
@@ -24,7 +24,7 @@ function loadTracker({ url = "https://www.serakhabar.com/product/katimon-mango",
     hits.push(body);
     return { json: async () => reply(body) } as Response;
   }) as unknown as typeof fetch;
-  win.eval(script);
+  (win as unknown as { eval: (code: string) => unknown }).eval(script);
   const settle = () => new Promise(resolve => setTimeout(resolve, 20));
   const setHidden = (hidden: boolean) => {
     Object.defineProperty(win.document, "hidden", { configurable: true, get: () => hidden });

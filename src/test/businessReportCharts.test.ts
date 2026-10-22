@@ -15,7 +15,7 @@ type SeriesLike = { type: string; data: unknown[]; links?: Array<{ source: strin
 const seriesOf = (option: unknown) => (option as { series: SeriesLike[] }).series;
 
 function bucket(index: number, intake: number, value = intake * 100, website = 0): SeriesBucket {
-  return { key: `k${index}`, label: `L${index}`, intake_count: intake, order_value: value, website_value: website, order_kg: 0, approved_count: 0, cancelled_count: 0 };
+  return { key: `k${index}`, label: `L${index}`, intake_count: intake, order_value: value, website_value: website, order_kg: 0, approved_count: 0, cancelled_count: 0, cancelled_value: 0 };
 }
 
 function source(key: string, label: string, overrides: Partial<Metrics>): BusinessReportSource {

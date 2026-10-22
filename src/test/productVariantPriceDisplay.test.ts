@@ -17,6 +17,8 @@ const baseProduct: Product = {
   published: true,
   published_at: null,
   created_at: "2026-08-28T00:00:00.000Z",
+  weight_kg: null,
+  warehouse_id: null,
   variants: [],
   images: [],
 };
@@ -34,6 +36,7 @@ describe("product price display", () => {
           stock_quantity: 4,
           price_adjustment: 0,
           org_id: null,
+          weight_kg: null,
           created_at: "2026-08-28T00:00:00.000Z",
         },
         {
@@ -44,6 +47,7 @@ describe("product price display", () => {
           stock_quantity: 3,
           price_adjustment: 500,
           org_id: null,
+          weight_kg: null,
           created_at: "2026-08-28T00:00:00.000Z",
         },
       ],

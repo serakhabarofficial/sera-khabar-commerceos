@@ -235,7 +235,7 @@ export default function Returns() {
       queryClient.invalidateQueries({ queryKey: ["/api/returns"] });
       void refreshNavCounts(queryClient);
     } catch (err: unknown) {
-      toast.error(err?.message || "Return request failed");
+      toast.error((err instanceof Error && err.message) || "Return request failed");
     } finally {
       setRequestingId(null);
     }

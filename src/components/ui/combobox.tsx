@@ -42,12 +42,11 @@ export function Combobox({
   showPrice = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
-  const [container, setContainer] = React.useState<HTMLElement | null>(null);
 
   const selectedItem = items.find((item) => item.value === value);
 
   return (
-    <div ref={setContainer} className="w-full">
+    <div className="w-full">
     <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <Button
@@ -89,7 +88,6 @@ export function Combobox({
         className="max-h-[min(70vh,420px)] w-[var(--radix-popover-trigger-width)] overflow-hidden p-0"
         align="start"
         collisionPadding={8}
-        container={container ?? undefined}
       >
         <Command className="flex max-h-[min(70vh,420px)] min-h-0 w-full flex-col">
           <CommandInput
