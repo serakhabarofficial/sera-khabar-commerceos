@@ -27,6 +27,8 @@ import {
   type FulfillmentQueueTab,
 } from "@/components/orders/OrderStatusSegmentedControl";
 import { AbandonedCheckoutQueue } from "@/components/orders/AbandonedCheckoutQueue";
+import { OrderBoard } from "@/components/orders/board/OrderBoard";
+import { useOrderBoard } from "@/hooks/useOrderBoard";
 import { OrderHoldDialog } from "@/components/orders/OrderHoldDialog";
 import type { OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
 import {
@@ -1114,7 +1116,9 @@ export default function Dashboard() {
   };
 
   const isAbandonedQueue = fulfillmentTab === "abandoned";
-  const activeOrderStatusFilter: OrderStatusFilter = isAbandonedQueue ? "all" : fulfillmentTab;
+  const isBoardQueue = fulfillmentTab === "board";
+  const activeOrderStatusFilter: OrderStatusFilter = fulfillmentTab === "abandoned" || fulfillmentTab === "board" ? "all" : fulfillmentTab;
+  const boardCount = useOrderBoard().data?.cards?.length ?? 0;
   const [districtFilter, setDistrictFilter] = useState("all");
   // Cancelled tab: date range, which date it applies to, and the reasons picked in the breakdown.
   const isCancelledTab = activeOrderStatusFilter === "cancelled";
@@ -1705,14 +1709,14 @@ export default function Dashboard() {
               }}
               className="font-sf-display text-[15px] font-semibold tracking-normal text-foreground"
             >
-              {isAbandonedQueue ? "Incomplete Orders" : "Fulfillment Queue"}
+              {isAbandonedQueue ? "Incomplete Orders" : isBoardQueue ? "Order Board" : "Fulfillment Queue"}
             </TextEffect>
             <div className="w-px h-3.5 bg-black/10" />
             {(isAbandonedQueue ? abandonedLoading : loading) ? (
               <span className="text-[13px] text-muted-foreground tabular-nums">—</span>
             ) : (
               <TextEffect
-                key={`${isAbandonedQueue ? "abandoned" : "orders"}-${isAbandonedQueue ? filteredAbandonedCheckouts.length : dateFilteredOrders.length}`}
+                key={`${isAbandonedQueue ? "abandoned" : isBoardQueue ? "board" : "orders"}-${isAbandonedQueue ? filteredAbandonedCheckouts.length : isBoardQueue ? boardCount : dateFilteredOrders.length}`}
                 as="span"
                 per="char"
                 delay={0.45}
@@ -1736,10 +1740,10 @@ export default function Dashboard() {
                 }}
                 className="text-[13px] text-muted-foreground tabular-nums"
               >
-                {`${isAbandonedQueue ? filteredAbandonedCheckouts.length : dateFilteredOrders.length} ${isAbandonedQueue ? "checkouts" : "orders"}`}
+                {`${isAbandonedQueue ? filteredAbandonedCheckouts.length : isBoardQueue ? boardCount : dateFilteredOrders.length} ${isAbandonedQueue ? "checkouts" : "orders"}`}
               </TextEffect>
              )}
-              {!isAbandonedQueue && isMobile && (
+              {!isAbandonedQueue && !isBoardQueue && isMobile && (
                <OrderRowsPerPageSelect
                  pageSize={orderPageSize}
                  onPageSizeChange={(nextPageSize) => {
@@ -1751,7 +1755,7 @@ export default function Dashboard() {
              )}
            </div>
 
-          <div data-testid="dashboard-order-actions" className="flex flex-wrap items-center justify-end gap-2 max-md:flex-col max-md:items-stretch">
+          <div data-testid="dashboard-order-actions" className={cn("flex flex-wrap items-center justify-end gap-2 max-md:flex-col max-md:items-stretch", isBoardQueue && "hidden")}>
             <div className="relative max-md:w-full">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -1932,13 +1936,14 @@ export default function Dashboard() {
           counts={displayedOrderStatusCounts}
           hiddenStatuses={["ready_to_ship"]}
           abandonedCount={abandonedActiveCount}
+          boardCount={boardCount}
           value={fulfillmentTab}
           loading={isAbandonedQueue ? abandonedLoading : loading}
           onChange={(nextTab) => {
             setFulfillmentTab(nextTab);
             setOrderPage(0);
             setDistrictFilter("all");
-            if (nextTab === "abandoned" || !DATE_FILTER_TABS.includes(nextTab)) setOrdersDateRanges({});
+            if (nextTab === "abandoned" || nextTab === "board" || !DATE_FILTER_TABS.includes(nextTab)) setOrdersDateRanges({});
             if (nextTab !== "cancelled") setCancelReasons(new Set());
             if (nextTab !== "stuck") setFollowUpReasons(new Set());
             if (nextTab !== "on_hold") { setHoldAge(null); setHoldReason(null); }
@@ -1947,7 +1952,9 @@ export default function Dashboard() {
           }}
         />
 
-        {isAbandonedQueue ? (
+        {isBoardQueue ? (
+          <OrderBoard orders={orders} />
+        ) : isAbandonedQueue ? (
           <AbandonedCheckoutQueue
             checkouts={filteredAbandonedCheckouts}
             loading={abandonedLoading}

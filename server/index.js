@@ -163,6 +163,7 @@ import { classifyOrderStatus, isDeliveryProblemNote, stuckReason } from "../shar
 import { buildHomeMetrics, homeWindows, isHomeChannel, rankAttentionCards, shortProductName, topProducts } from "./homeSummary.js";
 import { visitorLocation } from "./bdPlaces.js";
 import { releaseDueOrderHolds } from "./orderHoldMaintenance.js";
+import { DEFAULT_BOARD_LISTS, isBoardId, parseBoardCardPatch, parseBoardList, parseBoardUpdate } from "./orderBoard.js";
 
 // ─── AI provider (OpenAI-compatible, supports OpenRouter and any
 //     OpenAI-compatible gateway like GMI Cloud) ─────────────────────────────
@@ -8057,6 +8058,269 @@ app.post("/api/webhooks/microsip", async (req, res) => {
     }
     if (call.ended_at) await recordOrderCallActivity(supabase, orgId, call, "microsip");
     return res.json({ ok: true, action: plan.action, call_id: call.id });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+// ── Order Board (manual kanban tab) ──────────────────────────────────────────
+// Lists and cards are only changed by staff; courier sync never touches them.
+
+const BOARD_LIST_FIELDS = "id, name, color, position";
+const BOARD_CARD_FIELDS = "id, list_id, order_id, note, remind_on, position, updated_at";
+const BOARD_ORDER_FIELDS = "id, order_number, customer_name, phone, address, status, courier_status, price, product, quantity";
+const BOARD_UPDATE_FIELDS = "id, card_id, staff_id, kind, body, created_at";
+
+// Each card's order with its items, so the board can show names, totals and parcel size.
+async function withBoardOrders(supabase, orgId, cards) {
+  const ids = [...new Set(cards.map((card) => card.order_id))];
+  const orders = new Map();
+  const items = new Map();
+  for (const batch of chunkIds(ids)) {
+    const [{ data: orderRows, error: orderError }, { data: itemRows, error: itemError }] = await Promise.all([
+      supabase.from("orders").select(BOARD_ORDER_FIELDS).eq("org_id", orgId).in("id", batch),
+      supabase.from("order_items").select("order_id, product_name, variant_name, quantity").eq("org_id", orgId).in("order_id", batch).order("created_at", { ascending: true }),
+    ]);
+    if (orderError) throw orderError;
+    if (itemError) throw itemError;
+    for (const order of orderRows || []) orders.set(order.id, order);
+    for (const item of itemRows || []) items.set(item.order_id, [...(items.get(item.order_id) || []), item]);
+  }
+  return cards.map((card) => {
+    const order = orders.get(card.order_id);
+    if (!order) return { ...card, order: null };
+    const { product, quantity, ...rest } = order;
+    const orderItems = items.get(order.id) || parseLegacyProductLines(product, quantity).map((line) => ({
+      product_name: line.productName, variant_name: null, quantity: line.quantity,
+    }));
+    return { ...card, order: { ...rest, items: orderItems } };
+  });
+}
+
+async function findBoardList(supabase, orgId, listId) {
+  const { data, error } = await supabase.from("order_board_lists").select(BOARD_LIST_FIELDS).eq("id", listId).eq("org_id", orgId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function findBoardCard(supabase, orgId, cardId) {
+  const { data, error } = await supabase.from("order_board_cards").select(BOARD_CARD_FIELDS).eq("id", cardId).eq("org_id", orgId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function addBoardUpdate(supabase, orgId, cardId, staffId, kind, body) {
+  const { data, error } = await supabase.from("order_board_updates")
+    .insert({ org_id: orgId, card_id: cardId, staff_id: staffId, kind, body: body.slice(0, 500) })
+    .select(BOARD_UPDATE_FIELDS).single();
+  if (error) throw error;
+  return data;
+}
+
+app.get("/api/order-board", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+
+    const loadLists = () => supabase.from("order_board_lists").select(BOARD_LIST_FIELDS).eq("org_id", orgId).order("position", { ascending: true });
+    let { data: lists, error: listError } = await loadLists();
+    if (listError) throw listError;
+    // A new board starts with the default lists once; deleting them all later keeps it empty.
+    if (!lists?.length) {
+      const seededKey = orgSettingKey(orgId, "order_board_seeded");
+      const settings = await getSettings([seededKey]);
+      if (!settings[seededKey]) {
+        await saveSettings({ [seededKey]: "true" });
+        const { error: seedError } = await supabase.from("order_board_lists").insert(
+          DEFAULT_BOARD_LISTS.map((list, index) => ({ org_id: orgId, name: list.name, color: list.color, position: index + 1, created_by: user.id })),
+        );
+        if (seedError) throw seedError;
+        ({ data: lists, error: listError } = await loadLists());
+        if (listError) throw listError;
+      }
+    }
+
+    const { data: cards, error: cardError } = await supabase.from("order_board_cards").select(BOARD_CARD_FIELDS).eq("org_id", orgId).order("position", { ascending: true });
+    if (cardError) throw cardError;
+    return res.json({ lists: lists || [], cards: await withBoardOrders(supabase, orgId, cards || []) });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.post("/api/order-board/lists", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const parsed = parseBoardList(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { data: last, error: lastError } = await supabase.from("order_board_lists").select("position").eq("org_id", orgId).order("position", { ascending: false }).limit(1).maybeSingle();
+    if (lastError) throw lastError;
+    const { data: list, error } = await supabase.from("order_board_lists")
+      .insert({ color: "slate", ...parsed.list, org_id: orgId, position: (last?.position ?? 0) + 1, created_by: user.id })
+      .select(BOARD_LIST_FIELDS).single();
+    if (error) throw error;
+    return res.status(201).json({ list });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.patch("/api/order-board/lists/:id", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isBoardId(req.params.id)) return res.status(400).json({ error: "Invalid list" });
+    const parsed = parseBoardList(req.body, { partial: true });
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { data: list, error } = await supabase.from("order_board_lists").update(parsed.list)
+      .eq("id", req.params.id).eq("org_id", orgId).select(BOARD_LIST_FIELDS).maybeSingle();
+    if (error) throw error;
+    if (!list) return res.status(404).json({ error: "List not found" });
+    return res.json({ list });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.delete("/api/order-board/lists/:id", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isBoardId(req.params.id)) return res.status(400).json({ error: "Invalid list" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { count, error: countError } = await supabase.from("order_board_cards").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("list_id", req.params.id);
+    if (countError) throw countError;
+    if (count) return res.status(409).json({ error: "Move or remove the orders in this list first" });
+    const { data, error } = await supabase.from("order_board_lists").delete().eq("id", req.params.id).eq("org_id", orgId).select("id");
+    if (error) throw error;
+    if (!data?.length) return res.status(404).json({ error: "List not found" });
+    return res.json({ ok: true });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.post("/api/order-board/cards", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { order_id: orderId, list_id: listId } = req.body || {};
+    if (!ORDER_ID_RE.test(String(orderId || ""))) return res.status(400).json({ error: "Invalid order" });
+    if (!isBoardId(listId)) return res.status(400).json({ error: "Invalid list" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+
+    const [{ data: order, error: orderError }, list] = await Promise.all([
+      supabase.from("orders").select("id").eq("id", orderId).eq("org_id", orgId).maybeSingle(),
+      findBoardList(supabase, orgId, listId),
+    ]);
+    if (orderError) throw orderError;
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!list) return res.status(404).json({ error: "List not found" });
+
+    const { data: existing, error: existingError } = await supabase.from("order_board_cards").select("list_id").eq("org_id", orgId).eq("order_id", orderId).maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) {
+      const current = await findBoardList(supabase, orgId, existing.list_id);
+      return res.status(409).json({ error: `This order is already in ${current?.name || "another list"}` });
+    }
+
+    // New cards go to the top of the list.
+    const { data: first, error: firstError } = await supabase.from("order_board_cards").select("position").eq("org_id", orgId).eq("list_id", listId).order("position", { ascending: true }).limit(1).maybeSingle();
+    if (firstError) throw firstError;
+    const { data: card, error } = await supabase.from("order_board_cards")
+      .insert({ org_id: orgId, list_id: listId, order_id: orderId, position: (first?.position ?? 1) - 1, created_by: user.id })
+      .select(BOARD_CARD_FIELDS).single();
+    if (error) {
+      if (error.code === "23505") return res.status(409).json({ error: "This order is already on the board" });
+      throw error;
+    }
+    await addBoardUpdate(supabase, orgId, card.id, user.id, "added", `Added to ${list.name}`);
+    return res.status(201).json({ card: (await withBoardOrders(supabase, orgId, [card]))[0] });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.patch("/api/order-board/cards/:id", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isBoardId(req.params.id)) return res.status(400).json({ error: "Invalid card" });
+    const parsed = parseBoardCardPatch(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const existing = await findBoardCard(supabase, orgId, req.params.id);
+    if (!existing) return res.status(404).json({ error: "This order is no longer on the board" });
+
+    const movedTo = parsed.patch.list_id && parsed.patch.list_id !== existing.list_id
+      ? await findBoardList(supabase, orgId, parsed.patch.list_id)
+      : null;
+    if (parsed.patch.list_id && parsed.patch.list_id !== existing.list_id && !movedTo) return res.status(404).json({ error: "List not found" });
+
+    const { data: card, error } = await supabase.from("order_board_cards").update(parsed.patch)
+      .eq("id", existing.id).eq("org_id", orgId).select(BOARD_CARD_FIELDS).single();
+    if (error) throw error;
+    if (movedTo) await addBoardUpdate(supabase, orgId, card.id, user.id, "moved", `Moved to ${movedTo.name}`);
+    return res.json({ card });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.delete("/api/order-board/cards/:id", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isBoardId(req.params.id)) return res.status(400).json({ error: "Invalid card" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { error } = await supabase.from("order_board_cards").delete().eq("id", req.params.id).eq("org_id", orgId);
+    if (error) throw error;
+    return res.json({ ok: true });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.get("/api/order-board/cards/:id/updates", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isBoardId(req.params.id)) return res.status(400).json({ error: "Invalid card" });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    if (!(await findBoardCard(supabase, orgId, req.params.id))) return res.status(404).json({ error: "This order is no longer on the board" });
+    const { data, error } = await supabase.from("order_board_updates").select(BOARD_UPDATE_FIELDS)
+      .eq("org_id", orgId).eq("card_id", req.params.id).order("created_at", { ascending: false }).limit(100);
+    if (error) throw error;
+    return res.json({ updates: await withStaffNames(supabase, orgId, data || []) });
+  } catch (e) {
+    return sendError(res, e);
+  }
+});
+
+app.post("/api/order-board/cards/:id/updates", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isBoardId(req.params.id)) return res.status(400).json({ error: "Invalid card" });
+    const parsed = parseBoardUpdate(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    if (!(await findBoardCard(supabase, orgId, req.params.id))) return res.status(404).json({ error: "This order is no longer on the board" });
+    const update = await addBoardUpdate(supabase, orgId, req.params.id, user.id, "note", parsed.text);
+    return res.status(201).json({ update: (await withStaffNames(supabase, orgId, [update]))[0] });
   } catch (e) {
     return sendError(res, e);
   }
