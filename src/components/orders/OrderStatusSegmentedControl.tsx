@@ -73,8 +73,9 @@ export const FULFILLMENT_QUEUE_TABS: FulfillmentQueueTab[] = [
   "all",
   "pending",
   "abandoned",
-  ...ORDER_STATUS_FILTERS.filter((status) => status !== "all" && status !== "pending"),
-  "board",
+  // Board sits right after Confirmed.
+  ...ORDER_STATUS_FILTERS.filter((status) => status !== "all" && status !== "pending")
+    .flatMap((status): FulfillmentQueueTab[] => (status === "approved" ? [status, "board"] : [status])),
 ];
 
 export type OrderStatusSegmentedControlProps = {
