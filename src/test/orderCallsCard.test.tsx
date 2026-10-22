@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderCallsCard, useOrderCallLog } from "@/components/order-editor/OrderCallsCard";
 import { holdUntilForSendIn, statusForStep, type CallNextStep, type OrderCall } from "@/lib/orderCalls";
-import { microsipHelperFile, microsipIniLines } from "@/components/order-editor/MicrosipSetupDialog";
+import { microsipHelperFile, microsipIniLines, microsipSetupFile } from "@/components/order-editor/MicrosipSetupDialog";
 
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));
@@ -119,5 +119,26 @@ describe("MicroSIP setup files", () => {
       "cmdCallStart=C:\\SeraKhabar\\sk-start.bat",
       "cmdCallEnd=C:\\SeraKhabar\\sk-end.bat",
     ].join("\n"));
+  });
+
+  it("builds one double-click setup file that writes the helpers and connects MicroSIP", () => {
+    const file = microsipSetupFile("skc_abc", "https://admin.serakhabar.com");
+    const lines = file.split("\r\n");
+    expect(lines[0]).toBe("@echo off");
+    expect(file).not.toMatch(/[^\r]\n/);
+    for (const event of ["incoming", "answer", "start", "end"]) {
+      expect(lines).toContain(`>"%DIR%\\sk-${event}.bat" echo @echo off`);
+      expect(lines).toContain(`>>"%DIR%\\sk-${event}.bat" echo curl -s -m 5 -G -X POST -H "Authorization: Bearer skc_abc" --data-urlencode "event=${event}" --data-urlencode "number=%%~1" "https://admin.serakhabar.com/api/webhooks/microsip" ^>nul 2^>^&1`);
+    }
+    const ps = lines.find((line) => line.startsWith("powershell "))!;
+    const command = ps.slice(ps.indexOf('-Command "') + 10, -1);
+    expect(ps.endsWith('"')).toBe(true);
+    expect(command).not.toContain('"');
+    expect(command).not.toContain("%");
+    expect(command).toContain("Stop-Process");
+    expect(command).toContain("'cmdCallEnd=C:\\SeraKhabar\\sk-end.bat'");
+    expect(command).toContain("Start-Process $exe");
+    expect(file).toContain("pause");
+    expect([...file].every((char) => char.charCodeAt(0) < 128)).toBe(true);
   });
 });
