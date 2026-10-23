@@ -2,6 +2,7 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { format, startOfMonth, subDays } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import { WAREHOUSES_QUERY_KEY } from "@/hooks/useWarehouses";
+import { TEAM_CHAT_CHANNELS_KEY, defaultTeamConversation, teamChatThreadKey, type TeamChatChannels } from "@/lib/teamChat";
 
 // Data the dashboard pages open with, shared by the pages and by the sidebar's
 // hover prefetch. Each key here is the one its page reads, so a prefetch always
@@ -100,6 +101,13 @@ const PAGE_PREFETCH: Record<string, (queryClient: QueryClient) => Promise<unknow
   "/reports/business": (queryClient) => {
     const today = ymd(dhakaToday());
     return warm(queryClient, pageKeys.businessReport(today, today), `/api/reports/business${rangeQuery(today, today)}`);
+  },
+  // The conversation list, then the conversation the inbox will open with.
+  "/team-inbox": async (queryClient) => {
+    await warm(queryClient, TEAM_CHAT_CHANNELS_KEY, "/api/team-chat/channels");
+    const list = queryClient.getQueryData<TeamChatChannels>(TEAM_CHAT_CHANNELS_KEY);
+    const id = list && defaultTeamConversation(list.channels);
+    if (id) await warm(queryClient, teamChatThreadKey(id), `/api/team-chat/channels/${id}/messages`);
   },
   "/reports/activity": (queryClient) => {
     const today = dhakaToday();

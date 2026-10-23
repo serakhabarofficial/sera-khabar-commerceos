@@ -70,6 +70,11 @@ const runtimeTables = Object.freeze([
   "order_board_lists",
   "order_board_cards",
   "order_board_updates",
+  "team_channels",
+  "team_channel_members",
+  "team_messages",
+  "team_message_reactions",
+  "team_presence",
 ]);
 
 const runtimeTablesSql = runtimeTables.map((table) => `'${table}'`).join(", ");

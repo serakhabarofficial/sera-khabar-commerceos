@@ -26,6 +26,7 @@ import { AccountMenuBody, accountMenuPanelClass, useAccountIdentity } from "./Ac
 import { useUserRole } from "@/hooks/useUserRole";
 import { useOrgName } from "@/hooks/useOrgName";
 import { useNavCounts } from "@/hooks/useNavCounts";
+import { useTeamChatUnread } from "@/lib/teamChat";
 import { Link, useNavigate } from "react-router-dom";
 import { CaretUpDown, LinkSimple, MagnifyingGlass, X } from "@phosphor-icons/react";
 
@@ -161,6 +162,7 @@ export function AppSidebar() {
     const { data: navCounts } = useNavCounts();
     const returnsPending = navCounts?.returns_pending ?? 0;
     const protectionHeld = navCounts?.order_protection_held ?? 0;
+    const teamUnread = useTeamChatUnread().data?.unread ?? 0;
     const { orgName, isLoading: orgLoading } = useOrgName();
     const { displayName, initials } = useAccountIdentity();
     const roleTitle = role === "admin" ? "Admin" : role === "team_member" ? "Team member" : "";
@@ -196,6 +198,13 @@ export function AppSidebar() {
                     title: "Ask Edith",
                     icon: <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" className={iconCls}><path fill="currentColor" d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10H4a2 2 0 0 1-2-2v-8C2 6.477 6.477 2 12 2" opacity=".3" style={{fill: 'var(--fillg)'}}/><path fill="currentColor" d="M15 10H9a1 1 0 0 0-.117 1.993L9 12h6a1 1 0 0 0 .117-1.993zm-3 4H9a1 1 0 1 0 0 2h3a1 1 0 1 0 0-2" style={{fill: 'var(--fillg)'}}/></svg>,
                     link: "/order-chat",
+                },
+                {
+                    id: "team-inbox",
+                    title: "Team Inbox",
+                    icon: <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 512 512" className={iconCls}>{/* IonIcons by Ben Sperry, MIT */}<path fill="currentColor" d="M475.22 206.52c-10.34-48.65-37.76-92.93-77.22-124.68A227.4 227.4 0 0 0 255.82 32C194.9 32 138 55.47 95.46 98.09C54.35 139.33 31.82 193.78 32 251.37a215.66 215.66 0 0 0 35.65 118.76l4.35 6.05L48 480l114.8-28.56s2.3.77 4 1.42s16.33 6.26 31.85 10.6c12.9 3.6 39.74 9 60.77 9c59.65 0 115.35-23.1 156.83-65.06C457.36 365.77 480 310.42 480 251.49a213.5 213.5 0 0 0-4.78-44.97" style={{fill: 'var(--fillg)'}}/></svg>,
+                    link: "/team-inbox",
+                    badge: teamUnread,
                 },
                 {
                     id: "analytics",
@@ -322,7 +331,7 @@ export function AppSidebar() {
             ],
         };
         return [mainMenu, orders, catalog, marketing, socialInbox, reports];
-    }, [isAdmin, returnsPending, protectionHeld]);
+    }, [isAdmin, returnsPending, protectionHeld, teamUnread]);
 
     return (
         <Sidebar collapsible="icon" className="border-r border-[#e6e5e1] bg-[#f4f3f1]" style={{ fontFamily: "'Geist Sans', system-ui, sans-serif" }}>

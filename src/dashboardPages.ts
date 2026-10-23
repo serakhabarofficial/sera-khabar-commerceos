@@ -30,11 +30,13 @@ export const BusinessReport = lazyPage(() => import("./pages/BusinessReport"));
 export const ActivityLog = lazyPage(() => import("./pages/ActivityLog"));
 export const CampaignLinks = lazyPage(() => import("./pages/CampaignLinks"));
 export const CampaignLinkDetail = lazyPage(() => import("./pages/CampaignLinkDetail"));
+export const TeamInbox = lazyPage(() => import("./pages/TeamInbox"));
 
 // Most used first; one at a time so the page being viewed keeps the bandwidth.
 const PRELOAD_ORDER = [
   OrderDetail,
   NewOrder,
+  TeamInbox,
   Customers,
   CustomerDetail,
   Products,

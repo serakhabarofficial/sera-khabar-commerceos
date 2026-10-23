@@ -160,6 +160,7 @@ import {
 import { getBangladeshDateKey, validateOrderHoldDetails } from "../shared/orderHold.js";
 import { CALL_NOTE_MAX, CALL_OPEN_WINDOW_MS, CALL_SAID_CODES, CALL_SAID_OPTIONS, MICROSIP_EVENTS, callerIdPhone, planMicrosipEvent } from "../shared/orderCalls.js";
 import { classifyOrderStatus, isDeliveryProblemNote, stuckReason } from "../shared/orderStatus.js";
+import { TEAM_CHAT_MESSAGE_MAX, TEAM_CHAT_REACTIONS, extractOrderNumbers, normalizeChannelName, teamChatDmKey } from "../shared/teamChat.js";
 import { buildHomeMetrics, homeWindows, isHomeChannel, rankAttentionCards, shortProductName, topProducts } from "./homeSummary.js";
 import { visitorLocation } from "./bdPlaces.js";
 import { releaseDueOrderHolds } from "./orderHoldMaintenance.js";
@@ -1466,6 +1467,503 @@ app.delete("/api/team-members/:id", async (req, res) => {
     }
 
     return res.json({ success: true, id: member.id });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+// ─── Team Inbox ──────────────────────────────────────────────────────────────
+// Staff chat: channels everyone in the workspace reads, and DMs between two
+// people. The inbox polls these routes; nothing here is visible to browsers
+// except through them.
+
+const TEAM_CHAT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TEAM_CHAT_MESSAGE_FIELDS = "id, channel_id, author_id, body, order_numbers, created_at";
+const TEAM_CHAT_PAGE = 100;
+// Someone who typed within this long still shows as typing.
+const TEAM_CHAT_TYPING_MS = 6000;
+// The sidebar checks unread messages every 30s while the dashboard is open,
+// so someone seen within this long still has it open.
+const TEAM_CHAT_ONLINE_MS = 90_000;
+// Everyone on the team is always in #general; its members cannot be changed.
+const TEAM_CHAT_EVERYONE_CHANNEL = "general";
+const TEAM_CHAT_DEFAULT_CHANNELS = [
+  { name: "general", topic: "Anything for the whole team" },
+  { name: "dispatch", topic: "Couriers, pickups and delivery issues" },
+  { name: "returns", topic: "Returns and failed deliveries" },
+];
+
+async function teamChatUser(req, res) {
+  const { user } = await getUser(getToken(req));
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return null;
+  }
+  const supabase = getServiceSupabase();
+  const { orgId, role } = await getUserOrg(supabase, user.id);
+  return { supabase, user, orgId, role };
+}
+
+// The conversation, if this person may read it: a channel they are a member
+// of, or a DM they are one of the two people in.
+async function teamChatChannel(supabase, orgId, userId, channelId) {
+  if (!TEAM_CHAT_ID_RE.test(String(channelId))) return null;
+  const [{ data, error }, { data: member, error: memberError }] = await Promise.all([
+    supabase.from("team_channels").select("id, kind, name, topic, dm_key").eq("id", channelId).eq("org_id", orgId).maybeSingle(),
+    supabase.from("team_channel_members").select("user_id").eq("channel_id", channelId).eq("org_id", orgId).eq("user_id", userId).maybeSingle(),
+  ]);
+  if (error) throw error;
+  if (memberError) throw memberError;
+  if (!data) return null;
+  if (data.kind === "dm") return String(data.dm_key).split(":").includes(userId) ? data : null;
+  return member ? data : null;
+}
+
+async function addTeamChatMembers(supabase, orgId, channelId, userIds) {
+  if (!userIds.length) return;
+  const { data: existing, error } = await supabase.from("team_channel_members").select("user_id")
+    .eq("channel_id", channelId).eq("org_id", orgId).in("user_id", userIds);
+  if (error) throw error;
+  const have = new Set((existing || []).map((row) => row.user_id));
+  const rows = userIds.filter((id) => !have.has(id)).map((id) => ({ channel_id: channelId, org_id: orgId, user_id: id }));
+  if (!rows.length) return;
+  const { error: insertError } = await supabase.from("team_channel_members").insert(rows);
+  if (insertError && insertError.code !== "23505") throw insertError;
+}
+
+// Active teammates among the given ids.
+async function teamChatStaffIds(supabase, orgId, userIds) {
+  const ids = [...new Set(userIds.map(String))].filter((id) => TEAM_CHAT_ID_RE.test(id));
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from("user_roles").select("user_id")
+    .eq("org_id", orgId).in("user_id", ids).is("deleted_at", null);
+  if (error) throw error;
+  return (data || []).map((row) => row.user_id);
+}
+
+// Saves a person's read mark or typing time, adding their row on first use.
+async function touchTeamChatMember(supabase, orgId, channelId, userId, patch) {
+  const { data, error } = await supabase.from("team_channel_members").update(patch)
+    .eq("channel_id", channelId).eq("org_id", orgId).eq("user_id", userId).select("user_id");
+  if (error) throw error;
+  if (data?.length) return;
+  const { error: insertError } = await supabase.from("team_channel_members")
+    .insert({ channel_id: channelId, org_id: orgId, user_id: userId, ...patch });
+  if (insertError && insertError.code !== "23505") throw insertError;
+}
+
+// Stamps this person as seen now. Presence is a nicety, so a failure is only logged.
+async function markTeamPresence(supabase, orgId, userId) {
+  const seenAt = new Date().toISOString();
+  try {
+    const { data, error } = await supabase.from("team_presence").update({ seen_at: seenAt })
+      .eq("org_id", orgId).eq("user_id", userId).select("user_id");
+    if (error) throw error;
+    if (data?.length) return;
+    const { error: insertError } = await supabase.from("team_presence").insert({ org_id: orgId, user_id: userId, seen_at: seenAt });
+    if (insertError && insertError.code !== "23505") throw insertError;
+  } catch (err) {
+    console.warn("[Team chat] presence not saved:", errorMessage(err));
+  }
+}
+
+async function teamChatSummaries(supabase, orgId, userId) {
+  const { data, error } = await supabase.rpc("team_chat_summaries", { p_org: orgId, p_user: userId });
+  if (error) throw error;
+  return new Map((data || []).map((row) => [row.channel_id, row]));
+}
+
+app.get("/api/team-chat/channels", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId, role } = ctx;
+
+    // One round of reads on the usual path; the first visit also seeds the
+    // default channels, and a new teammate joins #general.
+    const load = async () => {
+      const [{ data: channels, error: channelsError }, { data: staff, error: staffError }, { data: presence, error: presenceError }, summaries] = await Promise.all([
+        supabase.from("team_channels").select("id, kind, name, topic, dm_key, created_at").eq("org_id", orgId).order("created_at", { ascending: true }),
+        supabase.from("user_roles").select("user_id, display_name").eq("org_id", orgId).is("deleted_at", null).is("suspended_at", null).order("created_at", { ascending: true }),
+        supabase.from("team_presence").select("user_id, seen_at").eq("org_id", orgId),
+        teamChatSummaries(supabase, orgId, user.id),
+      ]);
+      if (channelsError) throw channelsError;
+      if (staffError) throw staffError;
+      if (presenceError) throw presenceError;
+      return { channels: channels || [], staff: staff || [], presence: presence || [], summaries };
+    };
+    let [{ channels, staff, presence, summaries }] = await Promise.all([load(), markTeamPresence(supabase, orgId, user.id)]);
+    if (!channels.some((channel) => channel.kind === "channel")) {
+      const { data: created, error } = await supabase.from("team_channels")
+        .insert(TEAM_CHAT_DEFAULT_CHANNELS.map((channel) => ({ org_id: orgId, kind: "channel", ...channel }))).select("id");
+      if (error && error.code !== "23505") throw error;
+      const everyone = staff.map((row) => row.user_id);
+      for (const channel of created || []) await addTeamChatMembers(supabase, orgId, channel.id, everyone);
+      ({ channels, staff, presence, summaries } = await load());
+    }
+    const general = channels.find((channel) => channel.kind === "channel" && channel.name === TEAM_CHAT_EVERYONE_CHANNEL);
+    if (general && !summaries.has(general.id)) {
+      await addTeamChatMembers(supabase, orgId, general.id, [user.id]);
+      summaries = await teamChatSummaries(supabase, orgId, user.id);
+    }
+    const onlineSince = Date.now() - TEAM_CHAT_ONLINE_MS;
+    const seen = new Map((presence || []).map((row) => [row.user_id, row.seen_at]));
+
+    const visible = (channels || []).filter((channel) => summaries.has(channel.id));
+    return res.json({
+      viewer_id: user.id,
+      can_create_channels: role === "admin",
+      staff: (staff || []).map((member) => ({
+        user_id: member.user_id, display_name: member.display_name || "Unnamed member",
+        online: member.user_id === user.id || new Date(seen.get(member.user_id) || 0).getTime() > onlineSince,
+      })),
+      channels: visible.map((channel) => {
+        const summary = summaries.get(channel.id);
+        return {
+          id: channel.id, kind: channel.kind, name: channel.name, topic: channel.topic,
+          other_user_id: channel.kind === "dm" ? String(channel.dm_key).split(":").find((id) => id !== user.id) || user.id : null,
+          unread: summary?.unread || 0, last_body: summary?.last_body || null,
+          last_author: summary?.last_author || null, last_at: summary?.last_at || null,
+        };
+      }),
+    });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.post("/api/team-chat/channels", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId, role } = ctx;
+    if (role !== "admin") return res.status(403).json({ error: "Only admins can create channels" });
+    const name = normalizeChannelName(req.body?.name);
+    if (!name) return res.status(400).json({ error: "Give the channel a name" });
+    const topic = typeof req.body?.topic === "string" ? req.body.topic.replace(/\s+/g, " ").trim().slice(0, 200) || null : null;
+    const memberIds = Array.isArray(req.body?.member_ids) ? await teamChatStaffIds(supabase, orgId, req.body.member_ids) : [];
+
+    const { data, error } = await supabase.from("team_channels")
+      .insert({ org_id: orgId, kind: "channel", name, topic, created_by: user.id })
+      .select("id, kind, name, topic").single();
+    if (error?.code === "23505") return res.status(409).json({ error: `#${name} already exists` });
+    if (error) throw error;
+    await addTeamChatMembers(supabase, orgId, data.id, [...new Set([user.id, ...memberIds])]);
+    return res.status(201).json({ channel: data });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.post("/api/team-chat/dms", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId } = ctx;
+    const otherId = String(req.body?.user_id || "");
+    if (!TEAM_CHAT_ID_RE.test(otherId)) return res.status(400).json({ error: "Choose a teammate" });
+
+    const { data: other, error: otherError } = await supabase.from("user_roles").select("user_id")
+      .eq("org_id", orgId).eq("user_id", otherId).is("deleted_at", null).maybeSingle();
+    if (otherError) throw otherError;
+    if (!other) return res.status(404).json({ error: "Teammate not found" });
+
+    const dmKey = teamChatDmKey(user.id, otherId);
+    const people = [...new Set([user.id, otherId])];
+    const finish = async (channel, status = 200) => {
+      await addTeamChatMembers(supabase, orgId, channel.id, people);
+      return res.status(status).json({ channel });
+    };
+    const find = () => supabase.from("team_channels").select("id, kind, name, topic")
+      .eq("org_id", orgId).eq("kind", "dm").eq("dm_key", dmKey).maybeSingle();
+    const { data: found, error: findError } = await find();
+    if (findError) throw findError;
+    if (found) return await finish(found);
+
+    const { data: created, error } = await supabase.from("team_channels")
+      .insert({ org_id: orgId, kind: "dm", dm_key: dmKey, created_by: user.id }).select("id, kind, name, topic").single();
+    if (error?.code === "23505") {
+      const { data: raced, error: racedError } = await find();
+      if (racedError) throw racedError;
+      if (!raced) throw new Error("Could not open the conversation");
+      return await finish(raced);
+    }
+    if (error) throw error;
+    return await finish(created, 201);
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+const TEAM_CHAT_ORDER_FIELDS = "id, order_number, customer_name, phone, price, status, courier_name, created_at";
+const TEAM_CHAT_ORDER_RESULTS = 6;
+
+// Orders to tag with @ in a message: by order number, customer name or phone.
+// An empty search lists the newest orders.
+app.get("/api/team-chat/orders", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, orgId } = ctx;
+    const q = String(req.query.q || "").replace(/[%_\\,()*]/g, "").trim().slice(0, 40);
+    const newest = () => supabase.from("orders").select(TEAM_CHAT_ORDER_FIELDS).eq("org_id", orgId)
+      .order("created_at", { ascending: false }).limit(TEAM_CHAT_ORDER_RESULTS);
+    const searches = [];
+    if (!q) searches.push(newest());
+    else {
+      const number = q.match(/^#?(?:sk-?)?(\d+)$/i);
+      if (number) searches.push(newest().ilike("order_number", `%SK-${number[1]}%`));
+      // Stored numbers vary (+880 17…, 017…), so match on the part after 0 / 880.
+      const digits = q.replace(/\D/g, "").replace(/^(?:880|0)/, "");
+      if (digits.length >= 3) searches.push(newest().ilike("phone", `%${digits}%`));
+      if (/\p{L}/u.test(q)) searches.push(newest().ilike("customer_name", `%${q}%`));
+    }
+    const results = await Promise.all(searches);
+    const seenIds = new Set();
+    const orders = [];
+    for (const { data, error } of results) {
+      if (error) throw error;
+      for (const order of data || []) if (!seenIds.has(order.id)) { seenIds.add(order.id); orders.push(order); }
+    }
+    orders.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    return res.json({ orders: orders.slice(0, TEAM_CHAT_ORDER_RESULTS) });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.get("/api/team-chat/unread", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const [summaries] = await Promise.all([
+      teamChatSummaries(ctx.supabase, ctx.orgId, ctx.user.id),
+      markTeamPresence(ctx.supabase, ctx.orgId, ctx.user.id),
+    ]);
+    return res.json({ unread: [...summaries.values()].reduce((sum, row) => sum + (row.unread || 0), 0) });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.get("/api/team-chat/channels/:id/messages", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId } = ctx;
+    const channel = await teamChatChannel(supabase, orgId, user.id, req.params.id);
+    if (!channel) return res.status(404).json({ error: "Conversation not found" });
+
+    const { data: newest, error } = await supabase.from("team_messages").select(TEAM_CHAT_MESSAGE_FIELDS)
+      .eq("org_id", orgId).eq("channel_id", channel.id).order("created_at", { ascending: false }).limit(TEAM_CHAT_PAGE);
+    if (error) throw error;
+    const messages = (newest || []).reverse();
+    const ids = messages.map((message) => message.id);
+    const orderNumbers = [...new Set(messages.flatMap((message) => message.order_numbers || []))];
+
+    const [{ data: reactions, error: reactionsError }, { data: members, error: membersError }, { data: orders, error: ordersError }] = await Promise.all([
+      ids.length ? supabase.from("team_message_reactions").select("message_id, user_id, emoji").eq("org_id", orgId).in("message_id", ids) : { data: [] },
+      supabase.from("team_channel_members").select("user_id, last_read_message_id, typing_at").eq("org_id", orgId).eq("channel_id", channel.id),
+      orderNumbers.length ? supabase.from("orders").select("id, order_number, customer_name, price, status, courier_name").eq("org_id", orgId).in("order_number", orderNumbers) : { data: [] },
+    ]);
+    if (reactionsError) throw reactionsError;
+    if (membersError) throw membersError;
+    if (ordersError) throw ordersError;
+
+    const byMessage = new Map();
+    for (const reaction of reactions || []) {
+      const counts = byMessage.get(reaction.message_id) || new Map();
+      const entry = counts.get(reaction.emoji) || { emoji: reaction.emoji, count: 0, mine: false };
+      entry.count += 1;
+      if (reaction.user_id === user.id) entry.mine = true;
+      counts.set(reaction.emoji, entry);
+      byMessage.set(reaction.message_id, counts);
+    }
+    const typingSince = Date.now() - TEAM_CHAT_TYPING_MS;
+    return res.json({
+      viewer_id: user.id,
+      channel,
+      members: channel.kind === "channel" ? (members || []).map((member) => member.user_id) : null,
+      messages: messages.map((message) => ({ ...message, reactions: [...(byMessage.get(message.id)?.values() || [])] })),
+      read_by: Object.fromEntries((members || []).filter((member) => member.user_id !== user.id && member.last_read_message_id && ids.includes(member.last_read_message_id))
+        .map((member) => [member.user_id, member.last_read_message_id])),
+      typing: (members || []).filter((member) => member.user_id !== user.id && member.typing_at && new Date(member.typing_at).getTime() > typingSince).map((member) => member.user_id),
+      orders: Object.fromEntries((orders || []).map((order) => [order.order_number, order])),
+    });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.post("/api/team-chat/channels/:id/messages", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId } = ctx;
+    const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+    if (!body) return res.status(400).json({ error: "Write a message" });
+    if (body.length > TEAM_CHAT_MESSAGE_MAX) return res.status(400).json({ error: `Keep messages under ${TEAM_CHAT_MESSAGE_MAX} characters` });
+    const clientId = req.body?.client_message_id;
+    if (clientId !== undefined && (typeof clientId !== "string" || !TEAM_CHAT_ID_RE.test(clientId))) return res.status(400).json({ error: "Invalid message id" });
+    const channel = await teamChatChannel(supabase, orgId, user.id, req.params.id);
+    if (!channel) return res.status(404).json({ error: "Conversation not found" });
+
+    const findSent = () => supabase.from("team_messages").select(TEAM_CHAT_MESSAGE_FIELDS)
+      .eq("org_id", orgId).eq("channel_id", channel.id).eq("author_id", user.id).eq("id", clientId).maybeSingle();
+    let message;
+    let inserted = false;
+    if (clientId) {
+      const { data, error } = await findSent();
+      if (error) throw error;
+      message = data;
+    }
+    if (!message) {
+      const { data, error } = await supabase.from("team_messages")
+        .insert({ ...(clientId ? { id: clientId } : {}), org_id: orgId, channel_id: channel.id, author_id: user.id, body, order_numbers: extractOrderNumbers(body) })
+        .select(TEAM_CHAT_MESSAGE_FIELDS).single();
+      if (error?.code === "23505" && clientId) {
+        const existing = await findSent();
+        if (existing.error) throw existing.error;
+        if (!existing.data) return res.status(409).json({ error: "Message id already used" });
+        message = existing.data;
+      } else {
+        if (error) throw error;
+        message = data;
+        inserted = true;
+      }
+    }
+    // The write is committed. Optional read receipts and cards must not report it as unsent.
+    try {
+      // Replayed sends must preserve any newer read receipt.
+      if (inserted) await touchTeamChatMember(supabase, orgId, channel.id, user.id, { last_read_message_id: message.id, last_read_at: message.created_at, typing_at: null });
+    } catch (err) {
+      console.warn("[Team chat] read mark not saved:", errorMessage(err));
+    }
+    // The mentioned orders come back with the message, so its cards show without waiting for the next poll.
+    let orders = [];
+    if (message.order_numbers?.length) {
+      const { data, error: ordersError } = await supabase.from("orders").select("id, order_number, customer_name, price, status, courier_name")
+        .eq("org_id", orgId).in("order_number", message.order_numbers);
+      if (ordersError) console.warn("[Team chat] sent order cards unavailable:", errorMessage(ordersError));
+      else orders = data || [];
+    }
+    return res.status(201).json({ message: { ...message, reactions: [] }, orders: Object.fromEntries(orders.map((order) => [order.order_number, order])) });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.post("/api/team-chat/channels/:id/read", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId } = ctx;
+    const channel = await teamChatChannel(supabase, orgId, user.id, req.params.id);
+    if (!channel) return res.status(404).json({ error: "Conversation not found" });
+    const messageId = String(req.body?.message_id || "");
+    if (!TEAM_CHAT_ID_RE.test(messageId)) return res.status(400).json({ error: "Invalid message" });
+    const { data: message, error } = await supabase.from("team_messages").select("id, created_at")
+      .eq("org_id", orgId).eq("channel_id", channel.id).eq("id", messageId).maybeSingle();
+    if (error) throw error;
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    await touchTeamChatMember(supabase, orgId, channel.id, user.id, { last_read_message_id: message.id, last_read_at: message.created_at });
+    return res.json({ success: true });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.post("/api/team-chat/channels/:id/typing", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId } = ctx;
+    const channel = await teamChatChannel(supabase, orgId, user.id, req.params.id);
+    if (!channel) return res.status(404).json({ error: "Conversation not found" });
+    await touchTeamChatMember(supabase, orgId, channel.id, user.id, { typing_at: new Date().toISOString() });
+    return res.json({ success: true });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+// Adds the reaction, or takes it back if this person already gave it.
+app.post("/api/team-chat/messages/:id/reactions", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId } = ctx;
+    const emoji = req.body?.emoji;
+    if (!TEAM_CHAT_REACTIONS.includes(emoji)) return res.status(400).json({ error: "Choose a reaction" });
+    if (!TEAM_CHAT_ID_RE.test(req.params.id)) return res.status(400).json({ error: "Invalid message" });
+    const { data: message, error } = await supabase.from("team_messages").select("id, channel_id")
+      .eq("org_id", orgId).eq("id", req.params.id).maybeSingle();
+    if (error) throw error;
+    if (!message || !(await teamChatChannel(supabase, orgId, user.id, message.channel_id))) return res.status(404).json({ error: "Message not found" });
+
+    const mine = () => supabase.from("team_message_reactions");
+    const { data: given, error: givenError } = await mine().select("emoji")
+      .eq("org_id", orgId).eq("message_id", message.id).eq("user_id", user.id).eq("emoji", emoji).maybeSingle();
+    if (givenError) throw givenError;
+    const { error: toggleError } = given
+      ? await mine().delete().eq("org_id", orgId).eq("message_id", message.id).eq("user_id", user.id).eq("emoji", emoji)
+      : await mine().insert({ message_id: message.id, org_id: orgId, user_id: user.id, emoji });
+    if (toggleError && toggleError.code !== "23505") throw toggleError;
+    return res.json({ reacted: !given });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+// Admins add or remove people from a channel. #general always has everyone.
+async function teamChatManagedChannel(req, res) {
+  const ctx = await teamChatUser(req, res);
+  if (!ctx) return null;
+  if (ctx.role !== "admin") {
+    res.status(403).json({ error: "Only admins can change channel members" });
+    return null;
+  }
+  if (!TEAM_CHAT_ID_RE.test(req.params.id)) {
+    res.status(404).json({ error: "Channel not found" });
+    return null;
+  }
+  const { data: channel, error } = await ctx.supabase.from("team_channels").select("id, kind, name")
+    .eq("id", req.params.id).eq("org_id", ctx.orgId).maybeSingle();
+  if (error) throw error;
+  if (!channel || channel.kind !== "channel") {
+    res.status(404).json({ error: "Channel not found" });
+    return null;
+  }
+  if (channel.name === TEAM_CHAT_EVERYONE_CHANNEL) {
+    res.status(400).json({ error: `Everyone is always in #${TEAM_CHAT_EVERYONE_CHANNEL}` });
+    return null;
+  }
+  return { ...ctx, channel };
+}
+
+app.post("/api/team-chat/channels/:id/members", async (req, res) => {
+  try {
+    const ctx = await teamChatManagedChannel(req, res);
+    if (!ctx) return;
+    const [userId] = await teamChatStaffIds(ctx.supabase, ctx.orgId, [req.body?.user_id || ""]);
+    if (!userId) return res.status(404).json({ error: "Teammate not found" });
+    await addTeamChatMembers(ctx.supabase, ctx.orgId, ctx.channel.id, [userId]);
+    return res.status(201).json({ user_id: userId });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
+app.delete("/api/team-chat/channels/:id/members/:userId", async (req, res) => {
+  try {
+    const ctx = await teamChatManagedChannel(req, res);
+    if (!ctx) return;
+    if (!TEAM_CHAT_ID_RE.test(req.params.userId)) return res.status(400).json({ error: "Invalid teammate" });
+    const { error } = await ctx.supabase.from("team_channel_members").delete()
+      .eq("channel_id", ctx.channel.id).eq("org_id", ctx.orgId).eq("user_id", req.params.userId);
+    if (error) throw error;
+    return res.json({ success: true });
   } catch (err) {
     return sendError(res, err);
   }
