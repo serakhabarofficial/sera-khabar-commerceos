@@ -36,6 +36,7 @@ import {
   ActivityLog,
   CampaignLinks,
   CampaignLinkDetail,
+  TeamInbox,
 } from "./dashboardPages";
 // All other routes are code-split so the dashboard's initial bundle stays
 // small (fast first load in production). Home and Dashboard stay eager.
@@ -126,6 +127,7 @@ const AppRoutes = () => (
     >
       <Route path="/" element={<Home />} />
       <Route path="/orders" element={<Dashboard />} />
+      <Route path="/team-inbox" element={<TeamInbox />} />
       <Route path="/overview" element={<Overview />} />
       <Route path="/reports/staff" element={<StaffPerformance />} />
       <Route path="/reports/business" element={<AdminRoute><BusinessReport /></AdminRoute>} />

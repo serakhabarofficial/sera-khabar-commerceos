@@ -1,0 +1,59 @@
+/* Arc's chat thread reads its tokens from CSS variables whose names clash
+   with shadcn's (--accent, --border, --background hold HSL triples there).
+   Scoping them to the thread keeps the rest of the dashboard untouched. */
+.team-chat-theme {
+  --background: #fafaf8;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-muted: #efeee9;
+  --foreground: #0b0b0a;
+  --text-secondary: rgba(11, 11, 10, 0.62);
+  --text-muted: rgba(11, 11, 10, 0.45);
+  --border: #e6e5e0;
+  --border-subtle: #efeee9;
+  --border-strong: #d3d2cd;
+  --accent: #0b0b0a;
+  --accent-subtle: rgba(11, 11, 10, 0.08);
+  --accent-foreground: #ffffff;
+  --danger: #c2410c;
+  --success: #22a05b;
+  --shadow-floating: 0 20px 48px rgba(0, 0, 0, 0.1), 0 3px 10px rgba(0, 0, 0, 0.045);
+  --radius-pill: 9999px;
+  --font-body: inherit;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.375rem;
+  --tracking-body: -0.005em;
+  --leading-body: 1.42;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-instant: 120ms;
+  --duration-fast: 160ms;
+  --duration-standard: 240ms;
+}
+
+/* Order card details open and close with a quick height ease. */
+.team-order-collapse[data-state="open"] { animation: team-order-open 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+.team-order-collapse[data-state="closed"] { animation: team-order-close 150ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes team-order-open { from { height: 0; opacity: 0; } to { height: var(--radix-collapsible-content-height); opacity: 1; } }
+@keyframes team-order-close { from { height: var(--radix-collapsible-content-height); opacity: 1; } to { height: 0; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .team-order-collapse[data-state] { animation: none; }
+}
+
+/* Loading placeholders breathe gently instead of shimmering. */
+.team-skeleton { animation: team-skeleton-breathe 1.6s ease-in-out infinite; }
+@keyframes team-skeleton-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) {
+  .team-skeleton { animation: none; }
+}
+
+/* The thread placeholder waits a moment before fading in, so loads that finish quickly never show it. */
+.team-placeholder-in { animation: team-placeholder-in 200ms cubic-bezier(0.23, 1, 0.32, 1) 150ms both; }
+@keyframes team-placeholder-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .team-placeholder-in { animation-duration: 1ms; }
+}

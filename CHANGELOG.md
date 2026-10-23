@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0.0] - 2026-10-24
+
+### Added
+
+- Team Inbox brings staff channels and private direct messages into the Merchant Suite, with unread counts, online and typing indicators, reactions, and message retries. Admins can create channels and manage their members.
+- Tag orders by number, customer name, or phone with @, then open the order from its card beside the conversation.
+
+### Fixed
+
+- Switching between loaded conversations no longer replays loading skeletons or entrance fades.
+- Retried sends cannot duplicate messages or move read receipts backward. Hidden mobile threads keep their unread counts, and every failed message retains its retry control.
+
+### Database
+
+- Adds five service-role-only chat tables with row-level security and member-scoped conversation summaries. The three Team Inbox migrations are already applied to the Sera Khabar project.
+
 ## [0.1.0.72] - 2026-10-16
 
 ### Fixed
