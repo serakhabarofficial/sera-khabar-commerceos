@@ -753,7 +753,7 @@ describe("OrderDetail", () => {
 
     renderPage();
     const cart = await screen.findByRole("region", { name: "Order cart" });
-    expect(within(cart).getByText("Premium Mango")).toBeInTheDocument();
+    expect(await within(cart).findByText("Premium Mango")).toBeInTheDocument();
     expect(within(cart).getByText("Honey Jar")).toBeInTheDocument();
   });
 
