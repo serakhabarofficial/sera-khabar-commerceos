@@ -65,17 +65,15 @@ it("keeps an unapplied customer draft on owner loss and cache refresh", async ()
   expect(screen.getByLabelText("Customer name")).toHaveValue("Retained draft");
   expect(screen.getByRole("status")).toHaveTextContent(/draft.*retained/i);
 });
-it("reserves only an explicitly opened protection review and closes it before switching", async () => {
+it("approves protection reviews without reserving them", async () => {
   mount("review");
-  await screen.findByText("Second"); expect(acquisitions).toEqual([]);
+  await screen.findByText("Second");
+  expect(acquisitions).toEqual([]);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /open review/i })).not.toBeInTheDocument();
   const articles = screen.getAllByRole("article");
-  expect(within(articles[0]).getByRole("button", { name: /approve order/i })).toBeDisabled();
-  fireEvent.click(within(articles[0]).getByRole("button", { name: "Open review" }));
-  await waitFor(() => expect(within(articles[0]).getByRole("button", { name: /approve order/i })).toBeEnabled());
-  expect(acquisitions).toEqual(["/api/order-handling/review/one"]);
-  expect(within(articles[1]).getByRole("button", { name: /approve order/i })).toBeDisabled();
-  fireEvent.click(within(articles[0]).getByRole("button", { name: "Close review" }));
-  expect(within(articles[0]).getByRole("button", { name: /approve order/i })).toBeDisabled();
+  expect(within(articles[0]).getByRole("button", { name: /approve order/i })).toBeEnabled();
+  expect(within(articles[1]).getByRole("button", { name: /approve order/i })).toBeEnabled();
 });
 
 it("refreshes a cached abandoned checkout after initial acquisition before editing", async () => {

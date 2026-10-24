@@ -36,8 +36,6 @@ function policy(req) {
   if (match && UUID.test(match[1])) return { kind: "order", id: match[1] };
   match = path.match(/^\/api\/abandoned-checkouts\/([^/]+)(?:\/convert)?$/);
   if (match) return { kind: "abandoned", id: match[1] };
-  match = path.match(/^\/api\/order-protection\/reviews\/([^/]+)$/);
-  if (match) return { kind: "review", id: match[1] };
   match = path.match(/^\/api\/order-calls\/([^/]+)$/);
   if (match) return { lookup: "order_calls", id: match[1] };
   match = path.match(/^\/api\/order-board\/cards\/([^/]+)(?:\/updates)?$/);
@@ -79,10 +77,9 @@ export async function resolveHandlingTargets(req, supabase, orgId, selected = po
     return targets("order", [row.order_id]);
   }
   if (selected.attempt) {
-    const row = await lookup(supabase, orgId, "order_risk_attempts", selected.attempt, "order_id,review_id");
+    const row = await lookup(supabase, orgId, "order_risk_attempts", selected.attempt, "order_id");
     if (row.order_id) return targets("order", [row.order_id]);
-    if (row.review_id) return targets("review", [row.review_id]);
-    return []; // Assessment with no order/review is not a processing workspace.
+    return []; // A held review is not a handling workspace.
   }
   if (selected.ai) {
     const body = selected.ai;

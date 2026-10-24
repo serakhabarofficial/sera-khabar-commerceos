@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useOrderHandling } from "@/hooks/useOrderHandling";
-import { OrderHandlingNotice } from "@/components/orders/OrderHandlingNotice";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import {
@@ -101,7 +99,6 @@ export function OrderProtectionReviewQueue() {
   const [reviews, setReviews] = useState<ProtectionReview[]>(() => cachedReviews() ?? []);
   const [loading, setLoading] = useState(() => !cachedReviews());
   const [error, setError] = useState("");
-  const [openReviewId, setOpenReviewId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [contactStatus, setContactStatus] = useState<Record<string, ContactStatus>>(() => contactStatusOf(cachedReviews() ?? []));
@@ -134,14 +131,6 @@ export function OrderProtectionReviewQueue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the cache is read once, on open
   }, [loadReviews]);
 
-  const handling = useOrderHandling("review", openReviewId, { beforeStart: async () => {
-    const latest = await fetchProtectionReviews();
-    if (!latest.reviews.some(review => review.id === openReviewId)) throw new Error("Review is no longer available");
-    setReviews(latest.reviews);
-    setContactStatus(contactStatusOf(latest.reviews));
-    queryClient.setQueryData(pageKeys.protectionReviews, latest);
-  } });
-
   const markCopied = (key: string) => {
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
     setCopiedKey(key);
@@ -160,13 +149,11 @@ export function OrderProtectionReviewQueue() {
   };
 
   const handleAction = async (reviewId: string, action: "approve" | "reject", rejectReason?: "fake" | "other") => {
-    if (openReviewId !== reviewId || !handling.canEdit) return;
     setBusyId(reviewId);
     setError("");
     try {
       if (rejectReason) await updateProtectionReview(reviewId, action, rejectReason);
       else await updateProtectionReview(reviewId, action);
-      setOpenReviewId(null);
       setReviews((current) => current.filter((review) => review.id !== reviewId));
       void refreshNavCounts(queryClient);
       setSelectedIds((current) => {
@@ -184,7 +171,6 @@ export function OrderProtectionReviewQueue() {
   };
 
   const handleContactStatus = async (reviewId: string, nextStatus: ContactStatus) => {
-    if (openReviewId !== reviewId || !handling.canEdit) return;
     const previousStatus = contactStatus[reviewId] || "open";
     setContactStatus((current) => ({ ...current, [reviewId]: nextStatus }));
     setOpenStatusMenuId(null);
@@ -314,7 +300,6 @@ export function OrderProtectionReviewQueue() {
         {reviews.map((review) => {
           const callHref = protectionTelHref(review.phone);
           const whatsAppHref = protectionWhatsAppHref(review.phone);
-          const canHandle = openReviewId === review.id && handling.canEdit;
           const isUpdating = busyId === review.id;
           const selected = selectedIds.has(review.id);
           const status = contactStatus[review.id] || "open";
@@ -439,24 +424,17 @@ export function OrderProtectionReviewQueue() {
                 </div>
               </div>
 
-              <div className="mt-3 flex justify-end">
-                <button type="button" className={cn(actionChip, actionChipNeutral)} onClick={() => { setOpenStatusMenuId(null); setOpenReviewId(openReviewId === review.id ? null : review.id); }}>{openReviewId === review.id ? "Close review" : "Open review"}</button>
-              </div>
-              {openReviewId === review.id && <div className="mt-3"><OrderHandlingNotice handling={handling} onBack={() => setOpenReviewId(null)} /></div>}
               <div className="mt-4 flex flex-col gap-2 border-t border-black/[0.07] pt-3 sm:ml-[30px] lg:flex-row lg:items-center lg:justify-between">
                 <div data-testid={`protection-contact-actions-${review.id}`} className="flex flex-wrap items-center gap-1.5">
                   {callHref ? (
-                    <a href={canHandle ? callHref : undefined} aria-disabled={!canHandle} tabIndex={canHandle ? undefined : -1} onClick={event => { if (!canHandle) event.preventDefault(); }} aria-label={`Call ${review.phone}`} className={cn(actionChip, actionChipNeutral)}>
+                    <a href={callHref} aria-label={`Call ${review.phone}`} className={cn(actionChip, actionChipNeutral)}>
                       <Phone size={13} weight="light" aria-hidden />
                       Call
                     </a>
                   ) : null}
                   {whatsAppHref ? (
                     <a
-                      href={canHandle ? whatsAppHref : undefined}
-                      aria-disabled={!canHandle}
-                      tabIndex={canHandle ? undefined : -1}
-                      onClick={event => { if (!canHandle) event.preventDefault(); }}
+                      href={whatsAppHref}
                       target="_blank"
                       rel="noreferrer"
                       aria-label={`Open WhatsApp for ${review.phone}`}
@@ -481,7 +459,7 @@ export function OrderProtectionReviewQueue() {
                   >
                     <DropdownMenuTrigger
                       aria-label={`Contact status: ${status === "open" ? "Awaiting contact" : "Contacted"}`}
-                      disabled={isUpdating || !canHandle}
+                      disabled={isUpdating}
                       className={cn(actionChip, "w-[10.5rem] justify-start", status === "open" ? actionChipNeutral : actionChipApprove)}
                     >
                       <span aria-hidden className={cn("h-1.5 w-1.5 shrink-0 rounded-full", status === "open" ? "bg-rose-400" : "bg-lime-500")} />
@@ -517,12 +495,12 @@ export function OrderProtectionReviewQueue() {
                   </DropdownMenu>
                 </div>
                 <div data-testid={`protection-decision-actions-${review.id}`} className="flex flex-wrap items-center gap-1.5 lg:justify-end">
-                  <button type="button" className={cn(actionChip, actionChipNeutral)} disabled={isUpdating || !canHandle} onClick={() => void handleAction(review.id, "reject", "fake")}>Reject as fake</button>
+                  <button type="button" className={cn(actionChip, actionChipNeutral)} disabled={isUpdating} onClick={() => void handleAction(review.id, "reject", "fake")}>Reject as fake</button>
                   <button
                     type="button"
                     aria-label={`Reject order for ${review.customer_name || "unnamed customer"}`}
                     className={cn(actionChip, actionChipNeutral)}
-                    disabled={isUpdating || !canHandle}
+                    disabled={isUpdating}
                     onClick={() => void handleAction(review.id, "reject")}
                   >
                     <X weight="light" size={13} aria-hidden="true" />
@@ -532,7 +510,7 @@ export function OrderProtectionReviewQueue() {
                     type="button"
                     aria-label={`Approve order for ${review.customer_name || "unnamed customer"}`}
                     className={cn(actionChip, actionChipApprove)}
-                    disabled={isUpdating || !canHandle}
+                    disabled={isUpdating}
                     onClick={() => void handleAction(review.id, "approve")}
                   >
                     {isUpdating ? <Spinner size="sm" /> : <Check weight="light" size={13} aria-hidden="true" />}

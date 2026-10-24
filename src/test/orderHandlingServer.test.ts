@@ -92,6 +92,13 @@ describe("order handling HTTP enforcement", () => {
       release(); expect((await saving).status).toBe(200);
     } finally { release(); await f.close(); }
   });
+  it("lets order protection reviews proceed without a handling reservation", async () => {
+    const f = await fixture({ conflict: true }); try {
+      expect((await f.request(`/api/order-protection/reviews/${id}`, { action: "approve" }, "PATCH")).status).toBe(200);
+      expect(f.rpc).not.toHaveBeenCalled();
+      expect(f.changed).toEqual([`/api/order-protection/reviews/${id}`]);
+    } finally { await f.close(); }
+  });
   it("leaves read telemetry accessible to viewers without a write claim", async () => {
     const f = await fixture({ conflict: true }); try {
       expect((await f.request(`/api/orders/${id}/activity/view`)).status).toBe(200);
@@ -110,7 +117,6 @@ describe("order handling HTTP enforcement", () => {
     ["POST", `/api/orders/${id}/send-sms`, {}],
     ["PATCH", `/api/abandoned-checkouts/${id}`, { action: "contacted" }],
     ["POST", `/api/abandoned-checkouts/${id}/convert`, {}],
-    ["PATCH", `/api/order-protection/reviews/${id}`, { action: "approve" }],
     ["POST", "/api/send-to-courier", { orderId: id }],
     ["POST", "/api/send-to-pathao", { orderId: id }],
     ["POST", "/api/send-to-courier/bulk", { orderIds: [id] }],
