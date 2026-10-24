@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, Hash, Package, Plus } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/arc/avatar/avatar";
-import { ChatThread, type ChatDraft, type ChatMessage, type ChatParticipant } from "@/components/arc/chat-thread/chat-thread";
+import { ChatThread, type ChatAttachment, type ChatDraft, type ChatMessage, type ChatParticipant } from "@/components/arc/chat-thread/chat-thread";
 import { TeamOrderPanel } from "@/components/team-inbox/TeamOrderPanel";
 import { TeamOrderCard, TeamOrderCardPlaceholder } from "@/components/team-inbox/TeamOrderCard";
 import { TeamChannelMembers } from "@/components/team-inbox/TeamChannelMembers";
@@ -14,16 +14,23 @@ import "@/components/team-inbox/team-inbox.css";
 import { cn } from "@/lib/utils";
 import { formatTaka } from "@/lib/orderEditor";
 import {
-  TEAM_CHAT_CHANNELS_KEY, TEAM_CHAT_REACTIONS, TEAM_CHAT_UNREAD_KEY, channelTitle, defaultTeamConversation, extractOrderNumbers, getTeamChatThread, postTeamChat, splitOrderMentions,
-  teamChatThreadKey, useTeamChatChannels, useTeamChatThread,
-  type TeamChatMessage, type TeamChatOrder, type TeamChatStaff, type TeamChatThread,
+  TEAM_CHAT_ACCEPT, TEAM_CHAT_ATTACHMENTS_PER_MESSAGE, TEAM_CHAT_CHANNELS_KEY, TEAM_CHAT_REACTIONS, TEAM_CHAT_UNREAD_KEY, TEAM_CHAT_VOICE_MAX_MS, channelTitle, defaultTeamConversation,
+  extractOrderNumbers, getTeamChatThread, postTeamChat, splitOrderMentions, stableAttachmentUrl, teamChatFileProblem, teamChatThreadKey, uploadTeamChatFile, useTeamChatChannels, useTeamChatThread,
+  type TeamChatAttachment, type TeamChatMessage, type TeamChatOrder, type TeamChatStaff, type TeamChatThread, type TeamChatUploaded,
 } from "@/lib/teamChat";
 
 const label = "text-[8px] font-medium uppercase tracking-[0.3em] text-black/45";
 // Typing is reported at most this often while someone keeps typing.
 const TYPING_EVERY_MS = 3000;
 
-type Pending = { id: string; channelId: string; body: string; createdAt: string; failed: boolean };
+// A file waiting to send shows from its local copy; once uploaded it is not uploaded again on retry.
+type PendingFile = { file: File; url: string; kind: ChatAttachment["kind"]; durationMs?: number; uploaded?: TeamChatUploaded };
+type Pending = { id: string; channelId: string; body: string; files: PendingFile[]; createdAt: string; failed: boolean };
+
+const shownAttachment = (attachment: TeamChatAttachment, url: string | undefined): ChatAttachment => ({
+  id: attachment.id, name: attachment.name, kind: attachment.kind === "voice" ? "audio" : attachment.kind, url, size: attachment.size,
+  width: attachment.width ?? undefined, height: attachment.height ?? undefined, duration: attachment.duration_ms ?? undefined,
+});
 
 // Placeholders hold the page's shape while it loads, so content fades in
 // where it will stay instead of popping into an empty pane.
@@ -136,6 +143,10 @@ export default function TeamInbox() {
   // same row settle from Sending to Sent instead of one row swapped for another.
   const shownIds = useRef(new Map<string, string>());
   const shown = useCallback((id: string) => shownIds.current.get(id) ?? id, []);
+  // Attachment links stay the same across polls; local copies of sent files are freed on leaving.
+  const attachmentUrls = useRef(new Map<string, { url: string; expiresAt: number }>());
+  const localUrls = useRef<string[]>([]);
+  useEffect(() => () => localUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
   const staff = useMemo(() => list?.staff ?? [], [list?.staff]);
   const viewerId = list?.viewer_id ?? "";
@@ -160,11 +171,13 @@ export default function TeamInbox() {
       id: shown(message.id), authorId: message.author_id, createdAt: message.created_at,
       text: onlyOrders(message.body) && message.order_numbers.every((number) => orders[number]) ? undefined : message.body,
       orderNumbers: message.order_numbers,
+      attachments: (message.attachments ?? []).map((attachment) => shownAttachment(attachment, stableAttachmentUrl(attachmentUrls.current, attachment))),
       reactions: message.reactions, status: message.author_id === viewerId ? "sent" as const : undefined,
     })),
     ...pending.filter((item) => item.channelId === channelId).map((item) => ({
-      id: item.id, authorId: viewerId, text: onlyOrders(item.body) && !item.failed ? undefined : item.body, createdAt: item.createdAt, status: item.failed ? "failed" as const : "sending" as const,
+      id: item.id, authorId: viewerId, text: onlyOrders(item.body) && !item.failed ? undefined : item.body || undefined, createdAt: item.createdAt, status: item.failed ? "failed" as const : "sending" as const,
       orderNumbers: extractOrderNumbers(item.body), waiting: !item.failed,
+      attachments: item.files.map((entry, index) => ({ id: `${item.id}-file-${index}`, name: entry.file.name, kind: entry.kind, url: entry.url, size: entry.file.size, duration: entry.durationMs })),
     })),
   ], [currentThread?.messages, pending, channelId, viewerId, shown, orders]);
 
@@ -216,8 +229,17 @@ export default function TeamInbox() {
 
   const deliver = useCallback(async (item: Pending) => {
     try {
-      const { message, orders: sentOrders } = await postTeamChat<{ message: TeamChatMessage; orders: Record<string, TeamChatOrder> }>(`/api/team-chat/channels/${item.channelId}/messages`, { body: item.body, client_message_id: item.id.replace(/^pending-/, "") });
+      const uploaded = await Promise.all(item.files.map((entry) => entry.uploaded ?? uploadTeamChatFile(item.channelId, entry.file, { durationMs: entry.durationMs })));
+      setPending((all) => all.map((entry) => entry.id === item.id ? { ...entry, files: entry.files.map((file, index) => ({ ...file, uploaded: uploaded[index] })) } : entry));
+      const { message, orders: sentOrders } = await postTeamChat<{ message: TeamChatMessage; orders: Record<string, TeamChatOrder> }>(`/api/team-chat/channels/${item.channelId}/messages`, {
+        body: item.body, client_message_id: item.id.replace(/^pending-/, ""), ...(uploaded.length ? { attachments: uploaded } : {}),
+      });
       shownIds.current.set(message.id, item.id);
+      // The sent files keep showing from their local copies, so nothing reloads as the message settles.
+      (message.attachments ?? []).forEach((attachment, index) => {
+        const local = item.files[index];
+        if (local) attachmentUrls.current.set(attachment.id, { url: local.url, expiresAt: Date.now() + 6 * 60 * 60_000 });
+      });
       rememberOrders(sentOrders ?? {});
       queryClient.setQueryData<TeamChatThread>(teamChatThreadKey(item.channelId), (current) =>
         current && !current.messages.some((existing) => existing.id === message.id)
@@ -232,8 +254,18 @@ export default function TeamInbox() {
   }, [queryClient, rememberOrders]);
 
   const onSend = useCallback((draft: ChatDraft) => {
-    if (!channelId || !draft.text.trim()) return;
-    const item: Pending = { id: `pending-${crypto.randomUUID()}`, channelId, body: draft.text.trim(), createdAt: new Date().toISOString(), failed: false };
+    if (!channelId) return;
+    const picked = draft.files.filter((file) => {
+      const problem = teamChatFileProblem(file);
+      if (problem) toast.error(problem);
+      return !problem;
+    });
+    if (picked.length > TEAM_CHAT_ATTACHMENTS_PER_MESSAGE) toast.error(`Send up to ${TEAM_CHAT_ATTACHMENTS_PER_MESSAGE} files at a time`);
+    const files: PendingFile[] = picked.slice(0, TEAM_CHAT_ATTACHMENTS_PER_MESSAGE).map((file) => ({ file, url: URL.createObjectURL(file), kind: file.type.startsWith("image/") ? "image" : "file" }));
+    if (draft.voice) files.push({ file: draft.voice.file, url: URL.createObjectURL(draft.voice.file), kind: "audio", durationMs: draft.voice.durationMs });
+    localUrls.current.push(...files.map((entry) => entry.url));
+    if (!draft.text.trim() && !files.length) return;
+    const item: Pending = { id: `pending-${crypto.randomUUID()}`, channelId, body: draft.text.trim(), files, createdAt: new Date().toISOString(), failed: false };
     setPending((all) => [...all, item]);
     lastTyped.current = 0;
     void deliver(item);
@@ -265,6 +297,11 @@ export default function TeamInbox() {
       .catch((error) => toast.error(error instanceof Error ? error.message : "Reaction not saved"))
       .finally(() => void queryClient.invalidateQueries({ queryKey: key }));
   }, [channelId, queryClient]);
+
+  const onVoiceError = useCallback((error: unknown) => {
+    const refused = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
+    toast.error(refused ? "Allow microphone access in your browser to record a voice message" : "Could not start recording. Check your microphone.");
+  }, []);
 
   const onTyping = useCallback(() => {
     if (!channelId || Date.now() - lastTyped.current < TYPING_EVERY_MS) return;
@@ -426,7 +463,11 @@ export default function TeamInbox() {
                 onReact={onReact}
                 onRetry={onRetry}
                 reactions={[...TEAM_CHAT_REACTIONS]}
-                allowAttachments={false}
+                allowAttachments
+                accept={TEAM_CHAT_ACCEPT}
+                allowVoice
+                maxVoiceMs={TEAM_CHAT_VOICE_MAX_MS}
+                onVoiceError={onVoiceError}
                 placeholder={channel?.kind === "channel" ? `Message #${channel.name}` : `Message ${title}`}
                 label={title}
                 renderText={renderText}
