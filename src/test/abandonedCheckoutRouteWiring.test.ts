@@ -31,6 +31,24 @@ describe("abandoned checkout route wiring", () => {
     expect(capture).not.toMatch(/req\.body(?:\?\.)?\.org(?:Id|_id)?/);
   });
 
+  it("fills a returning visit from the browser's last order in the same workspace, server-side only", () => {
+    const capture = routeSection(
+      'app.post("/api/custom-orders/abandoned-checkouts"',
+      'app.post("/api/custom-orders/webhook"',
+    );
+    const lookup = routeSection(
+      "async function fillCaptureFromReturningVisitor",
+      "async function persistAbandonedCheckoutCapture",
+    );
+
+    expect(capture).toContain("fillCaptureFromReturningVisitor(supabase, orgId, capture, analyticsVisitorFromHeaders(req.headers))");
+    expect(capture).toContain("if (!hasCaptureContact(capture)) return res.status(202).json({ ok: true });");
+    expect(lookup).toContain('.from("analytics_order_facts")');
+    expect(lookup).toContain('.from("orders")');
+    expect(lookup.match(/\.eq\("org_id", orgId\)/g)).toHaveLength(2);
+    expect(capture).not.toMatch(/json\(\{[^}]*(?:phone|customer_name|address)/);
+  });
+
   it("keys capture rate limits by the trusted client IP forwarded from the storefront proxy", () => {
     const limiter = routeSection(
       "async function allowAbandonedCheckoutCapture",

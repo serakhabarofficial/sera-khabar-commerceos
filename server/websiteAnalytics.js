@@ -161,3 +161,14 @@ export function analyticsSessionFromHeaders(headers) {
   const value = headers?.[ANALYTICS_SESSION_HEADER];
   return isAnalyticsId(value) ? value.toLowerCase() : null;
 }
+
+// The storefront checkout proxy forwards the shopper's ms_vid browser cookie in
+// this header so a returning buyer can be recognised. Like the visit header it
+// is unsigned: it only selects which past order's details fill a new draft, and
+// those details never travel back to the browser.
+export const ANALYTICS_VISITOR_HEADER = "x-mlbd-analytics-visitor-id";
+
+export function analyticsVisitorFromHeaders(headers) {
+  const value = headers?.[ANALYTICS_VISITOR_HEADER];
+  return isAnalyticsId(value) ? value.toLowerCase() : null;
+}

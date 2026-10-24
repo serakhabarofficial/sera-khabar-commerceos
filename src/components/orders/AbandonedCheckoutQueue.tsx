@@ -217,7 +217,7 @@ export function AbandonedCheckoutQueue({
     return (
       <div className="flex min-h-48 flex-col items-center justify-center px-6 py-12 text-center">
         <p className="text-sm font-medium text-black">No active abandoned checkouts</p>
-        <p className="mt-1 text-xs text-black">New checkout drafts with a valid phone number will appear here.</p>
+        <p className="mt-1 text-xs text-black">New checkout drafts will appear here.</p>
       </div>
     );
   }

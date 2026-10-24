@@ -75,11 +75,33 @@ describe("abandoned checkout capture parsing", () => {
       { ...validCapture, items: [{ ...validCapture.items[0], quantity: 0 }] },
       { ...validCapture, total: -1 },
       { ...validCapture, campaign: { utmSource: "facebook", unknown: "nope" } },
+      { ...validCapture, customerName: undefined, phone: undefined, address: undefined },
+      { ...validCapture, returningVisit: false },
+      { ...validCapture, returningVisit: "yes" },
     ];
 
     for (const capture of invalidCaptures) {
       expect(() => parseAbandonedCheckoutCapture(capture)).toThrow(AbandonedCheckoutValidationError);
     }
+  });
+
+  it("accepts a draft before the phone is complete", () => {
+    const parsed = parseAbandonedCheckoutCapture({ ...validCapture, phone: undefined });
+    expect(parsed).toMatchObject({ customerName: "Farzana Akter", phone: null, address: "House 1, Road 2, Dhaka" });
+    expect(parsed).not.toHaveProperty("returningVisit");
+    expect(parseAbandonedCheckoutCapture({ ...validCapture, customerName: undefined, phone: "", address: "Dhaka" }).phone).toBeNull();
+  });
+
+  it("accepts an empty form only as a returning-visit signal", () => {
+    const parsed = parseAbandonedCheckoutCapture({ ...validCapture, customerName: undefined, phone: undefined, address: undefined, returningVisit: true });
+    expect(parsed).toMatchObject({ customerName: null, phone: null, address: null, returningVisit: true });
+  });
+
+  it("never lets a blank field erase a detail the draft already holds", () => {
+    const patch = buildCaptureUpdatePatch(parseAbandonedCheckoutCapture({ ...validCapture, phone: undefined, address: "  " }));
+    expect(patch).toMatchObject({ customer_name: "Farzana Akter" });
+    expect(patch).not.toHaveProperty("phone");
+    expect(patch).not.toHaveProperty("address");
   });
 
   it("canonicalizes the opaque UUID before deriving the server-side order reconciliation hash", () => {

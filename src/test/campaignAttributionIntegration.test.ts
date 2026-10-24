@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { database, handlers, http, link, orgId, signedHeaders, uuid, foreignOrg } from "./campaignHandlerHarness";
 import { assessOrderRisk } from "../../server/risk/pipeline.js";
 import { createProtectionReview } from "../../server/orderProtectionStore.js";
-import { buildPersonalDataScrubPatch, parseAbandonedCheckoutCapture, hashAbandonedCheckoutDraftKey } from "../../server/abandonedCheckouts.js";
+import { buildPersonalDataScrubPatch, parseAbandonedCheckoutCapture, hashAbandonedCheckoutDraftKey, hasCaptureContact, normalizeBdPhone } from "../../server/abandonedCheckouts.js";
 import { storefrontVisibleVariants } from "../../server/publicCatalog.js";
-import { analyticsSessionFromHeaders, isAnalyticsId } from "../../server/websiteAnalytics.js";
+import { analyticsSessionFromHeaders, analyticsVisitorFromHeaders, isAnalyticsId } from "../../server/websiteAnalytics.js";
 import { signCampaignReceipt } from "../../server/campaignEvents.js";
 
 const body = { customerName: "Customer", phone: "01712345678", address: "House 12, Road 8, Dhaka", items: [{ variantId: uuid(20), quantity: 2 }], abandonedCheckoutDraftKey: uuid(30), campaign_link_id: uuid(999), campaign_attributed_at: "2000-01-01T00:00:00Z" };
@@ -25,11 +25,11 @@ function fixture(extra: Record<string, unknown> = {}, seed: Record<string, Recor
     buildAttributionPatch: () => ({}), prepareStatusEvent: () => null, recordStatusEvent: async () => {}, buildStatusEvent: () => ({}),
     getOrderApprovalDetailsError: () => null, enrichOrderItems: async (_db: unknown, _org: unknown, items: unknown) => items, isOrderDispatched: () => false,
     requireOrderProtectionStaff: async () => ({ user: { id: uuid(1) }, supabase: db, orgId }),
-    analyticsSessionFromHeaders, isAnalyticsId,
+    analyticsSessionFromHeaders, analyticsVisitorFromHeaders, isAnalyticsId, hasCaptureContact, normalizeBdPhone,
     sendError: (res: { status: (status: number) => { json: (body: unknown) => unknown } }, error: { statusCode?: number; message: string }) => res.status(error.statusCode || 500).json({ error: error.message }),
     ...extra,
   });
-  harness.load(["ABANDONED_CHECKOUT_DASHBOARD_FIELDS", "handlePublicHandleOrderSubmit", "persistAbandonedCheckoutCapture", "recoverCapturedCheckoutForOrder", "linkHeldReviewToAbandonedCheckout", "approveHeldProtectionReview", "closeHeldReviewForConvertedCheckout", "ANALYTICS_ORDER_TIMEOUT_MS", "recordOrderAnalyticsFact", "rememberCaptureVisit"], [
+  harness.load(["ABANDONED_CHECKOUT_DASHBOARD_FIELDS", "handlePublicHandleOrderSubmit", "fillCaptureFromReturningVisitor", "persistAbandonedCheckoutCapture", "recoverCapturedCheckoutForOrder", "linkHeldReviewToAbandonedCheckout", "approveHeldProtectionReview", "closeHeldReviewForConvertedCheckout", "ANALYTICS_ORDER_TIMEOUT_MS", "recordOrderAnalyticsFact", "rememberCaptureVisit"], [
     'app.post("/api/public/v1/:handle/orders"', 'app.post("/api/custom-orders/abandoned-checkouts"', 'app.post("/api/abandoned-checkouts/:id/convert"', 'app.get("/api/orders/:id",',
     'app.patch("/api/order-protection/reviews/:id"',
   ]);
@@ -231,5 +231,46 @@ describe("website visit linkage through actual purchase HTTP handlers", () => {
       cart: captureBody.items, phone: body.phone, customer_name: body.customerName, address: body.address, delivery_rate: 0 }] });
     expect((await http(converted.app, "POST", `/api/abandoned-checkouts/${uuid(31)}/convert`, { status: "pending" })).status).toBe(201);
     expect(factCalls(converted.db)).toHaveLength(0);
+  });
+});
+describe("returning visitor recognition through the capture handler", () => {
+  const browserId = uuid(60);
+  const visit = { draftKey: uuid(30), source: "landing", sourcePath: "/step/am-sotto-achar", returningVisit: true,
+    items: captureBody.items, subtotal: 200, deliveryRate: 0, total: 200 };
+  const seed = () => ({
+    analytics_order_facts: [
+      { org_id: orgId, order_id: uuid(61), visitor_id: browserId, submitted_at: "2026-10-01T00:00:00.000Z" },
+      { org_id: orgId, order_id: uuid(62), visitor_id: browserId, submitted_at: "2026-10-20T00:00:00.000Z" },
+      { org_id: foreignOrg, order_id: uuid(63), visitor_id: browserId, submitted_at: "2026-10-23T00:00:00.000Z" },
+    ],
+    orders: [
+      { id: uuid(61), org_id: orgId, customer_name: "Old Name", phone: "01811111111", address: "Old address" },
+      { id: uuid(62), org_id: orgId, customer_name: "Rahim Uddin", phone: "+8801712345678", address: "House 5, Rajshahi" },
+      { id: uuid(63), org_id: foreignOrg, customer_name: "Other Shop", phone: "01999999999", address: "Elsewhere" },
+    ],
+  });
+
+  it("fills an empty landing visit from this browser's latest order in this workspace", async () => {
+    const { app, db } = fixture({}, seed());
+    const result = await http(app, "POST", "/api/custom-orders/abandoned-checkouts", visit, { ...signedHeaders(), "x-mlbd-analytics-visitor-id": browserId });
+    expect(result.status).toBe(201);
+    expect(JSON.stringify(result.body)).not.toContain("01712345678");
+    expect(db.tables.abandoned_checkouts).toHaveLength(1);
+    expect(db.tables.abandoned_checkouts[0]).toMatchObject({ customer_name: "Rahim Uddin", phone: "01712345678", address: "House 5, Rajshahi", source_path: "/step/am-sotto-achar" });
+  });
+
+  it("drops an empty visit from a first-time or unidentified browser", async () => {
+    for (const headers of [{ ...signedHeaders(), "x-mlbd-analytics-visitor-id": uuid(64) }, signedHeaders()]) {
+      const { app, db } = fixture({}, seed());
+      expect((await http(app, "POST", "/api/custom-orders/abandoned-checkouts", visit, headers)).status).toBe(202);
+      expect(db.tables.abandoned_checkouts ?? []).toHaveLength(0);
+    }
+  });
+
+  it("saves a name typed before the phone is complete", async () => {
+    const { app, db } = fixture();
+    const { phone: _phone, ...withoutPhone } = captureBody;
+    expect((await http(app, "POST", "/api/custom-orders/abandoned-checkouts", withoutPhone, signedHeaders())).status).toBe(201);
+    expect(db.tables.abandoned_checkouts[0]).toMatchObject({ customer_name: "Customer", phone: null });
   });
 });
