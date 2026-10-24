@@ -7,7 +7,7 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { convertMetaSpendToBdt } from "./metaAdCurrency.js";
 import { countsAsLivePresence, normalizeTrackerKind, shouldForwardTrackerHit } from "./trackerHits.js";
-import { analyticsSessionFromHeaders, isAnalyticsId, parseTrackerAnalyticsHit } from "./websiteAnalytics.js";
+import { analyticsSessionFromHeaders, analyticsVisitorFromHeaders, isAnalyticsId, parseTrackerAnalyticsHit } from "./websiteAnalytics.js";
 import { planSteadfastDeliveryUpdate, steadfastCourierNote, verifySteadfastRequest } from "./steadfastWebhook.js";
 import {
   STEADFAST_LOOKUP_CONCURRENCY,
@@ -89,6 +89,7 @@ import {
   buildStaffActionPatch,
   canAcceptBrowserCapture,
   hashAbandonedCheckoutDraftKey,
+  hasCaptureContact,
   isAbandonedCheckoutDraftKey,
   normalizeAbandonedCheckoutConvertOverrides,
   normalizeBdPhone,
@@ -9418,6 +9419,48 @@ async function rememberCaptureVisit(supabase, orgId, checkout, sessionId, now) {
   }
 }
 
+// A returning visit arrives with an empty form. Fill it from this browser's most
+// recent order so the team can follow up; with no earlier order it stays empty
+// and is dropped. The filled details stay server-side.
+async function fillCaptureFromReturningVisitor(supabase, orgId, capture, visitorId) {
+  if (!capture.returningVisit || hasCaptureContact(capture) || !visitorId) return capture;
+  try {
+    const { data: fact, error: factError } = await supabase
+      .from("analytics_order_facts")
+      .select("order_id")
+      .eq("org_id", orgId)
+      .eq("visitor_id", visitorId)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (factError) throw factError;
+    if (!fact?.order_id) return capture;
+
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select("customer_name, phone, address")
+      .eq("org_id", orgId)
+      .eq("id", fact.order_id)
+      .maybeSingle();
+    if (orderError) throw orderError;
+    if (!order) return capture;
+
+    const text = (value, max) => {
+      const normalized = typeof value === "string" ? value.trim() : "";
+      return normalized && normalized.length <= max ? normalized : null;
+    };
+    return {
+      ...capture,
+      customerName: text(order.customer_name, 120),
+      phone: normalizeBdPhone(order.phone),
+      address: text(order.address, 500),
+    };
+  } catch {
+    console.warn("[AbandonedCheckout] returning visitor lookup failed");
+    return capture;
+  }
+}
+
 async function persistAbandonedCheckoutCapture(supabase, orgId, capture, now) {
   const { data: existing, error: existingError } = await supabase
     .from("abandoned_checkouts")
@@ -9568,6 +9611,8 @@ app.post("/api/custom-orders/abandoned-checkouts", async (req, res) => {
     } catch {
       return res.status(400).json({ error: "Invalid checkout capture" });
     }
+    capture = await fillCaptureFromReturningVisitor(supabase, orgId, capture, analyticsVisitorFromHeaders(req.headers));
+    if (!hasCaptureContact(capture)) return res.status(202).json({ ok: true });
 
     const now = new Date();
     const checkout = await persistAbandonedCheckoutCapture(supabase, orgId, capture, now);

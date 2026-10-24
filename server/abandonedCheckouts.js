@@ -33,6 +33,7 @@ const CAPTURE_KEYS = new Set([
   "deliveryRate",
   "total",
   "campaign",
+  "returningVisit",
 ]);
 const ITEM_KEYS = new Set(["productName", "variantName", "quantity", "unitPrice"]);
 const CAMPAIGN_KEYS = new Set(["utmSource", "utmMedium", "utmCampaign", "utmContent", "utmTerm"]);
@@ -154,8 +155,18 @@ export function parseAbandonedCheckoutCapture(body) {
   const sourcePath = requiredString(body.sourcePath, 1, 120);
   if (!isValidAbandonedCheckoutSource(source, sourcePath)) invalidCapture();
 
-  const phone = normalizeBdMobileInput(body.phone);
-  if (!phone) invalidCapture();
+  // A draft may arrive before the phone is complete. A phone that is present must be valid.
+  const hasPhone = body.phone !== undefined && body.phone !== null && body.phone !== "";
+  const phone = hasPhone ? normalizeBdMobileInput(body.phone) : null;
+  if (hasPhone && !phone) invalidCapture();
+  if (body.returningVisit !== undefined && body.returningVisit !== true) invalidCapture();
+  const returningVisit = body.returningVisit === true;
+
+  const customerName = optionalString(body.customerName, 120);
+  const address = optionalString(body.address, 500);
+  // An empty form is only accepted as a returning-visit signal; the server fills it from the
+  // visitor's last order or drops it.
+  if (!customerName && !phone && !address && !returningVisit) invalidCapture();
 
   const cart = parseCart(body.items);
   const subtotal = boundedMoney(body.subtotal);
@@ -167,15 +178,20 @@ export function parseAbandonedCheckoutCapture(body) {
     draftKey,
     source,
     sourcePath,
-    customerName: optionalString(body.customerName, 120),
+    customerName,
     phone,
-    address: optionalString(body.address, 500),
+    address,
     cart,
     subtotal,
     deliveryRate,
     total,
     campaign: parseCampaign(body.campaign),
+    ...(returningVisit ? { returningVisit: true } : {}),
   };
+}
+
+export function hasCaptureContact(capture) {
+  return Boolean(capture?.customerName || capture?.phone || capture?.address);
 }
 
 export function hashAbandonedCheckoutDraftKey(draftKey) {
@@ -224,10 +240,11 @@ export function buildCaptureInsertRow(orgId, capture, now = new Date()) {
 }
 
 export function buildCaptureUpdatePatch(capture) {
+  // A blank or half-typed field never erases a detail the draft already holds.
   return {
-    customer_name: capture.customerName,
-    phone: capture.phone,
-    address: capture.address,
+    ...(capture.customerName ? { customer_name: capture.customerName } : {}),
+    ...(capture.phone ? { phone: capture.phone } : {}),
+    ...(capture.address ? { address: capture.address } : {}),
     cart: capture.cart,
     subtotal: capture.subtotal,
     delivery_rate: capture.deliveryRate,
