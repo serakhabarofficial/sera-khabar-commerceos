@@ -76,6 +76,7 @@ const runtimeTables = Object.freeze([
   "team_messages",
   "team_message_reactions",
   "team_presence",
+  "team_message_attachments",
   "order_handling_leases",
 ]);
 
@@ -380,6 +381,23 @@ begin
   ) then
     raise exception 'product-images bucket configuration is missing';
   end if;
+  if not exists (
+    select 1 from storage.buckets
+    where id = 'team-attachments'
+      and not public
+      and file_size_limit = 20971520
+      and 'audio/webm' = any(allowed_mime_types)
+      and not ('text/html' = any(allowed_mime_types))
+  ) then
+    raise exception 'team-attachments bucket must be private with its type allow-list';
+  end if;
+  if has_table_privilege('authenticated', 'public.team_message_attachments', 'select,insert,update,delete')
+     or has_table_privilege('anon', 'public.team_message_attachments', 'select,insert,update,delete')
+     or has_function_privilege('authenticated', 'public.team_chat_post_message(uuid, uuid, uuid, uuid, text, text[], jsonb)', 'execute')
+     or has_function_privilege('anon', 'public.team_chat_post_message(uuid, uuid, uuid, uuid, text, text[], jsonb)', 'execute')
+     or not has_function_privilege('service_role', 'public.team_chat_post_message(uuid, uuid, uuid, uuid, text, text[], jsonb)', 'execute') then
+    raise exception 'Team Inbox attachments must be reachable only by the server';
+  end if;
   if exists (
     values
       ('orders', 'source'),
@@ -659,6 +677,57 @@ async function verifyCustomerContextConcurrency(connection) {
   }
 }
 
+// Team Inbox: a message and its files save together, an empty message is
+// refused, a reused id conflicts, and the list previews file-only messages.
+const teamAttachmentBehaviorSql = `
+begin;
+set local role service_role;
+insert into public.team_channels (id, org_id, kind, name)
+values ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'channel', 'general');
+insert into public.team_channel_members (channel_id, org_id, user_id)
+values ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002');
+do $$
+declare
+  preview text;
+begin
+  perform public.team_chat_post_message('40000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+    '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '', '{}',
+    '[{"kind":"voice","storage_path":"o/c/u/a.webm","file_name":"Voice message","mime_type":"audio/webm","size_bytes":2048,"duration_ms":4200},
+      {"kind":"image","storage_path":"o/c/u/b.jpg","file_name":"Photo","mime_type":"image/jpeg","size_bytes":1024,"width":800,"height":600}]');
+  if (select count(*) from public.team_message_attachments where message_id = '40000000-0000-0000-0000-000000000001') <> 2 then
+    raise exception 'team_chat_post_message did not save the attachments';
+  end if;
+  select last_body into preview from public.team_chat_summaries('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002');
+  if preview is distinct from 'Voice message' then
+    raise exception 'Attachment-only messages preview as %, not Voice message', preview;
+  end if;
+  begin
+    perform public.team_chat_post_message(null, '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001', '', '{}', '[]');
+    raise exception 'An empty message was saved';
+  exception when check_violation then null;
+  end;
+  begin
+    perform public.team_chat_post_message('40000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+      '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'again', '{}', '[]');
+    raise exception 'A reused message id was saved twice';
+  exception when unique_violation then null;
+  end;
+  begin
+    perform public.team_chat_post_message(null, '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000001', 'with a bad file', '{}',
+      '[{"kind":"script","storage_path":"o/c/u/c.html","file_name":"x","mime_type":"text/html","size_bytes":1}]');
+    raise exception 'An attachment of an unknown kind was saved';
+  exception when check_violation then null;
+  end;
+  if exists (select 1 from public.team_messages where body = 'with a bad file') then
+    raise exception 'A message was saved without its attachments';
+  end if;
+end
+$$;
+rollback;
+`;
+
 async function verifyFreshDatabase(runNumber) {
   const workDirectory = mkdtempSync(join(tmpdir(), "serakhabar-baseline-"));
   const dataDirectory = join(workDirectory, "data");
@@ -696,6 +765,7 @@ async function verifyFreshDatabase(runNumber) {
     run(psql, [...connection, "-c", rlsBehaviorSql], { stdio: "pipe" });
     run(psql, [...connection, "-c", warehouseBehaviorSql], { stdio: "pipe" });
     run(psql, [...connection, "-c", customerProfileBehaviorSql], { stdio: "pipe" });
+    run(psql, [...connection, "-c", teamAttachmentBehaviorSql], { stdio: "pipe" });
     await verifyCustomerContextConcurrency(connection);
     process.stdout.write(`Baseline reset ${runNumber}: passed\n`);
   } finally {

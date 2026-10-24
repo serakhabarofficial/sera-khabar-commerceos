@@ -43,3 +43,51 @@ export function normalizeChannelName(input) {
 export function teamChatDmKey(a, b) {
   return [String(a), String(b)].sort().join(":");
 }
+
+// Photos, documents and voice messages. The team-attachments bucket accepts
+// the same types and size (supabase/migrations/20261024120000_team_chat_attachments.sql).
+export const TEAM_CHAT_ATTACHMENTS_PER_MESSAGE = 10;
+export const TEAM_CHAT_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
+export const TEAM_CHAT_ATTACHMENT_NAME_MAX = 200;
+export const TEAM_CHAT_VOICE_MAX_MS = 5 * 60_000;
+
+// Each allowed type, its kind, and the extension its stored copy gets.
+// No HTML or SVG: a browser would run them.
+export const TEAM_CHAT_ATTACHMENT_TYPES = Object.freeze({
+  "image/jpeg": ["image", "jpg"],
+  "image/png": ["image", "png"],
+  "image/webp": ["image", "webp"],
+  "image/gif": ["image", "gif"],
+  "application/pdf": ["file", "pdf"],
+  "application/msword": ["file", "doc"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ["file", "docx"],
+  "application/vnd.ms-excel": ["file", "xls"],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ["file", "xlsx"],
+  "text/csv": ["file", "csv"],
+  "text/plain": ["file", "txt"],
+  "audio/webm": ["voice", "webm"],
+  "audio/mp4": ["voice", "m4a"],
+  "audio/ogg": ["voice", "ogg"],
+  "audio/mpeg": ["voice", "mp3"],
+});
+
+/** "audio/webm;codecs=opus" → "audio/webm". */
+export function teamChatBaseMime(type) {
+  return String(type ?? "").split(";")[0].trim().toLowerCase();
+}
+
+/** "image", "file" or "voice" for an allowed type, else null. */
+export function teamChatAttachmentKind(type) {
+  return TEAM_CHAT_ATTACHMENT_TYPES[teamChatBaseMime(type)]?.[0] ?? null;
+}
+
+/** The extension the stored copy of this type gets. */
+export function teamChatAttachmentExtension(type) {
+  return TEAM_CHAT_ATTACHMENT_TYPES[teamChatBaseMime(type)]?.[1] ?? null;
+}
+
+/** The file's own name without folders or control characters, or a plain one for its kind. */
+export function cleanAttachmentName(name, kind) {
+  const base = String(name ?? "").split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim();
+  return base.slice(0, TEAM_CHAT_ATTACHMENT_NAME_MAX) || (kind === "image" ? "Photo" : kind === "voice" ? "Voice message" : "File");
+}
