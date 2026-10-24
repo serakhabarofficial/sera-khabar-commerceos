@@ -160,7 +160,10 @@ import {
 import { getBangladeshDateKey, validateOrderHoldDetails } from "../shared/orderHold.js";
 import { CALL_NOTE_MAX, CALL_OPEN_WINDOW_MS, CALL_SAID_CODES, CALL_SAID_OPTIONS, MICROSIP_EVENTS, callerIdPhone, planMicrosipEvent } from "../shared/orderCalls.js";
 import { classifyOrderStatus, isDeliveryProblemNote, stuckReason } from "../shared/orderStatus.js";
-import { TEAM_CHAT_MESSAGE_MAX, TEAM_CHAT_REACTIONS, extractOrderNumbers, normalizeChannelName, teamChatDmKey } from "../shared/teamChat.js";
+import {
+  TEAM_CHAT_ATTACHMENTS_PER_MESSAGE, TEAM_CHAT_ATTACHMENT_MAX_BYTES, TEAM_CHAT_MESSAGE_MAX, TEAM_CHAT_REACTIONS, TEAM_CHAT_VOICE_MAX_MS,
+  cleanAttachmentName, extractOrderNumbers, normalizeChannelName, teamChatAttachmentExtension, teamChatAttachmentKind, teamChatBaseMime, teamChatDmKey,
+} from "../shared/teamChat.js";
 import { buildHomeMetrics, homeWindows, isHomeChannel, rankAttentionCards, shortProductName, topProducts } from "./homeSummary.js";
 import { visitorLocation } from "./bdPlaces.js";
 import { releaseDueOrderHolds } from "./orderHoldMaintenance.js";
@@ -1747,6 +1750,112 @@ app.get("/api/team-chat/unread", async (req, res) => {
   }
 });
 
+// Photos, documents and voice messages live in the private team-attachments
+// bucket under {org}/{channel}/{author}/. Browsers upload straight to storage
+// with a one-time link and read with signed links, both issued here.
+const TEAM_CHAT_BUCKET = "team-attachments";
+// The part of a stored path after the author's folder: a random id and the type's extension.
+const TEAM_CHAT_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{2,4}$/;
+const TEAM_CHAT_ATTACHMENT_FIELDS = "id, message_id, position, kind, storage_path, file_name, mime_type, size_bytes, width, height, duration_ms";
+// How long a signed link works. A link is reused until its last hour, so the
+// thread's polling keeps the same URLs and images never reload.
+const TEAM_CHAT_LINK_SECONDS = 6 * 60 * 60;
+const teamChatLinks = new Map();
+
+function teamChatBadFile(message) {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+// Each message's attachments, in order, with links to open them. A link that
+// cannot be signed comes back empty rather than failing the thread.
+async function teamChatAttachments(supabase, orgId, messageIds) {
+  const byMessage = new Map();
+  if (!messageIds.length) return byMessage;
+  const { data, error } = await supabase.from("team_message_attachments").select(TEAM_CHAT_ATTACHMENT_FIELDS)
+    .eq("org_id", orgId).in("message_id", messageIds).order("position", { ascending: true });
+  if (error) throw error;
+  const rows = data || [];
+  const fresh = Date.now() + 60 * 60_000;
+  const unsigned = rows.filter((row) => !(teamChatLinks.get(row.storage_path)?.expiresAt > fresh));
+  if (unsigned.length) {
+    if (teamChatLinks.size > 5000) teamChatLinks.clear();
+    const expiresAt = Date.now() + TEAM_CHAT_LINK_SECONDS * 1000;
+    const bucket = supabase.storage.from(TEAM_CHAT_BUCKET);
+    // PDFs open in the app, so they are signed like photos. Other documents
+    // download under their own name.
+    const documents = unsigned.filter((row) => row.kind === "file" && row.mime_type !== "application/pdf");
+    const media = unsigned.filter((row) => row.kind !== "file" || row.mime_type === "application/pdf");
+    try {
+      const [mediaLinks, ...documentLinks] = await Promise.all([
+        media.length ? bucket.createSignedUrls(media.map((row) => row.storage_path), TEAM_CHAT_LINK_SECONDS) : { data: [] },
+        ...documents.map((row) => bucket.createSignedUrl(row.storage_path, TEAM_CHAT_LINK_SECONDS, { download: row.file_name })),
+      ]);
+      if (mediaLinks.error) throw mediaLinks.error;
+      for (const link of mediaLinks.data || []) if (link.signedUrl && !link.error) teamChatLinks.set(link.path, { url: link.signedUrl, expiresAt });
+      documentLinks.forEach((link, index) => {
+        if (link.data?.signedUrl) teamChatLinks.set(documents[index].storage_path, { url: link.data.signedUrl, expiresAt });
+      });
+    } catch (err) {
+      console.warn("[Team chat] attachment links not signed:", errorMessage(err));
+    }
+  }
+  for (const row of rows) {
+    const link = teamChatLinks.get(row.storage_path);
+    const list = byMessage.get(row.message_id) || [];
+    list.push({
+      id: row.id, kind: row.kind, name: row.file_name, mime_type: row.mime_type, size: row.size_bytes,
+      width: row.width, height: row.height, duration_ms: row.duration_ms,
+      url: link?.url || null, url_expires_at: link ? new Date(link.expiresAt).toISOString() : null,
+    });
+    byMessage.set(row.message_id, list);
+  }
+  return byMessage;
+}
+
+// The files a message names, checked against what is actually in storage: the
+// stored type decides the kind and the stored size is the one kept.
+async function teamChatUploadedFiles(supabase, files) {
+  return Promise.all(files.map(async (file) => {
+    const { data, error } = await supabase.storage.from(TEAM_CHAT_BUCKET).info(file.path);
+    if (error || !data) throw teamChatBadFile("A file did not finish uploading. Attach it again.");
+    const mimeType = teamChatBaseMime(data.contentType || data.metadata?.mimetype);
+    const kind = teamChatAttachmentKind(mimeType);
+    const size = Number(data.size ?? data.metadata?.size);
+    if (!kind || !Number.isInteger(size) || size < 1 || size > TEAM_CHAT_ATTACHMENT_MAX_BYTES) throw teamChatBadFile("That file type or size cannot be sent");
+    const pixels = (value) => Number.isInteger(value) && value >= 1 && value <= 20000 ? value : null;
+    const duration = Number.isInteger(file.duration_ms) ? Math.min(Math.max(file.duration_ms, 0), TEAM_CHAT_VOICE_MAX_MS + 5000) : null;
+    return {
+      kind, storage_path: file.path, file_name: cleanAttachmentName(file.name, kind), mime_type: mimeType, size_bytes: size,
+      width: kind === "image" ? pixels(file.width) : null, height: kind === "image" ? pixels(file.height) : null,
+      duration_ms: kind === "voice" ? duration : null,
+    };
+  }));
+}
+
+// A one-time link to upload one file straight to storage, in the sender's own
+// folder for this conversation. Vercel functions take only about 4.5 MB per
+// request, so the file itself never passes through here.
+app.post("/api/team-chat/channels/:id/uploads", async (req, res) => {
+  try {
+    const ctx = await teamChatUser(req, res);
+    if (!ctx) return;
+    const { supabase, user, orgId } = ctx;
+    const channel = await teamChatChannel(supabase, orgId, user.id, req.params.id);
+    if (!channel) return res.status(404).json({ error: "Conversation not found" });
+    const contentType = teamChatBaseMime(req.body?.type);
+    if (!teamChatAttachmentKind(contentType)) return res.status(400).json({ error: "Send photos, PDFs, Word, Excel or text files, or voice messages" });
+    const size = req.body?.size;
+    if (!Number.isInteger(size) || size < 1 || size > TEAM_CHAT_ATTACHMENT_MAX_BYTES) return res.status(400).json({ error: "Files must be 20 MB or smaller" });
+
+    const path = `${orgId}/${channel.id}/${user.id}/${crypto.randomUUID()}.${teamChatAttachmentExtension(contentType)}`;
+    const { data, error } = await supabase.storage.from(TEAM_CHAT_BUCKET).createSignedUploadUrl(path);
+    if (error || !data?.signedUrl) throw new Error(`Could not prepare the upload: ${errorMessage(error)}`);
+    return res.status(201).json({ path, upload_url: data.signedUrl, content_type: contentType });
+  } catch (err) {
+    return sendError(res, err);
+  }
+});
+
 app.get("/api/team-chat/channels/:id/messages", async (req, res) => {
   try {
     const ctx = await teamChatUser(req, res);
@@ -1762,10 +1871,11 @@ app.get("/api/team-chat/channels/:id/messages", async (req, res) => {
     const ids = messages.map((message) => message.id);
     const orderNumbers = [...new Set(messages.flatMap((message) => message.order_numbers || []))];
 
-    const [{ data: reactions, error: reactionsError }, { data: members, error: membersError }, { data: orders, error: ordersError }] = await Promise.all([
+    const [{ data: reactions, error: reactionsError }, { data: members, error: membersError }, { data: orders, error: ordersError }, attachments] = await Promise.all([
       ids.length ? supabase.from("team_message_reactions").select("message_id, user_id, emoji").eq("org_id", orgId).in("message_id", ids) : { data: [] },
       supabase.from("team_channel_members").select("user_id, last_read_message_id, typing_at").eq("org_id", orgId).eq("channel_id", channel.id),
       orderNumbers.length ? supabase.from("orders").select("id, order_number, customer_name, price, status, courier_name").eq("org_id", orgId).in("order_number", orderNumbers) : { data: [] },
+      teamChatAttachments(supabase, orgId, ids),
     ]);
     if (reactionsError) throw reactionsError;
     if (membersError) throw membersError;
@@ -1785,7 +1895,7 @@ app.get("/api/team-chat/channels/:id/messages", async (req, res) => {
       viewer_id: user.id,
       channel,
       members: channel.kind === "channel" ? (members || []).map((member) => member.user_id) : null,
-      messages: messages.map((message) => ({ ...message, reactions: [...(byMessage.get(message.id)?.values() || [])] })),
+      messages: messages.map((message) => ({ ...message, reactions: [...(byMessage.get(message.id)?.values() || [])], attachments: attachments.get(message.id) || [] })),
       read_by: Object.fromEntries((members || []).filter((member) => member.user_id !== user.id && member.last_read_message_id && ids.includes(member.last_read_message_id))
         .map((member) => [member.user_id, member.last_read_message_id])),
       typing: (members || []).filter((member) => member.user_id !== user.id && member.typing_at && new Date(member.typing_at).getTime() > typingSince).map((member) => member.user_id),
@@ -1802,12 +1912,20 @@ app.post("/api/team-chat/channels/:id/messages", async (req, res) => {
     if (!ctx) return;
     const { supabase, user, orgId } = ctx;
     const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
-    if (!body) return res.status(400).json({ error: "Write a message" });
+    const files = req.body?.attachments ?? [];
+    if (!Array.isArray(files) || files.length > TEAM_CHAT_ATTACHMENTS_PER_MESSAGE) return res.status(400).json({ error: `Attach up to ${TEAM_CHAT_ATTACHMENTS_PER_MESSAGE} files` });
+    if (!body && !files.length) return res.status(400).json({ error: "Write a message" });
     if (body.length > TEAM_CHAT_MESSAGE_MAX) return res.status(400).json({ error: `Keep messages under ${TEAM_CHAT_MESSAGE_MAX} characters` });
     const clientId = req.body?.client_message_id;
     if (clientId !== undefined && (typeof clientId !== "string" || !TEAM_CHAT_ID_RE.test(clientId))) return res.status(400).json({ error: "Invalid message id" });
     const channel = await teamChatChannel(supabase, orgId, user.id, req.params.id);
     if (!channel) return res.status(404).json({ error: "Conversation not found" });
+    // Only files this person uploaded to this conversation, each once.
+    const folder = `${orgId}/${channel.id}/${user.id}/`;
+    const paths = files.map((file) => typeof file?.path === "string" ? file.path : "");
+    if (paths.some((path) => !path.startsWith(folder) || !TEAM_CHAT_FILE_RE.test(path.slice(folder.length))) || new Set(paths).size !== paths.length) {
+      return res.status(400).json({ error: "Attach the files again" });
+    }
 
     const findSent = () => supabase.from("team_messages").select(TEAM_CHAT_MESSAGE_FIELDS)
       .eq("org_id", orgId).eq("channel_id", channel.id).eq("author_id", user.id).eq("id", clientId).maybeSingle();
@@ -1819,9 +1937,10 @@ app.post("/api/team-chat/channels/:id/messages", async (req, res) => {
       message = data;
     }
     if (!message) {
-      const { data, error } = await supabase.from("team_messages")
-        .insert({ ...(clientId ? { id: clientId } : {}), org_id: orgId, channel_id: channel.id, author_id: user.id, body, order_numbers: extractOrderNumbers(body) })
-        .select(TEAM_CHAT_MESSAGE_FIELDS).single();
+      const attachments = await teamChatUploadedFiles(supabase, files);
+      const { data, error } = await supabase.rpc("team_chat_post_message", {
+        p_id: clientId ?? null, p_org: orgId, p_channel: channel.id, p_author: user.id, p_body: body, p_order_numbers: extractOrderNumbers(body), p_attachments: attachments,
+      }).select(TEAM_CHAT_MESSAGE_FIELDS).single();
       if (error?.code === "23505" && clientId) {
         const existing = await findSent();
         if (existing.error) throw existing.error;
@@ -1848,7 +1967,13 @@ app.post("/api/team-chat/channels/:id/messages", async (req, res) => {
       if (ordersError) console.warn("[Team chat] sent order cards unavailable:", errorMessage(ordersError));
       else orders = data || [];
     }
-    return res.status(201).json({ message: { ...message, reactions: [] }, orders: Object.fromEntries(orders.map((order) => [order.order_number, order])) });
+    let attachments = [];
+    try {
+      attachments = (await teamChatAttachments(supabase, orgId, [message.id])).get(message.id) || [];
+    } catch (err) {
+      console.warn("[Team chat] sent attachments unavailable:", errorMessage(err));
+    }
+    return res.status(201).json({ message: { ...message, reactions: [], attachments }, orders: Object.fromEntries(orders.map((order) => [order.order_number, order])) });
   } catch (err) {
     return sendError(res, err);
   }

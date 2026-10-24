@@ -31,11 +31,44 @@ function fixture(seed: Record<string, Record<string, unknown>[]> = {}, role = "a
     team_messages: [],
     team_message_reactions: [],
     team_presence: [],
+    team_message_attachments: [],
     ...seed,
   });
-  // team_chat_summaries, computed the way the SQL function does.
+  // Files in the team-attachments bucket, by path, as the browser left them.
+  const objects = new Map<string, { size: number; contentType: string }>();
+  const signed: string[][] = [];
+  const bucket = {
+    createSignedUploadUrl: async (path: string) => ({ data: { signedUrl: `https://storage.test/upload/${path}?token=t`, token: "t", path }, error: null }),
+    info: async (path: string) => objects.has(path) ? { data: objects.get(path), error: null } : { data: null, error: { message: "Object not found", statusCode: "404" } },
+    createSignedUrls: async (paths: string[]) => { signed.push(paths); return { data: paths.map((path) => ({ path, signedUrl: `https://storage.test/sign/${path}`, error: null })), error: null }; },
+    createSignedUrl: async (path: string, _ttl: number, options: { download?: string }) => { signed.push([path]); return { data: { signedUrl: `https://storage.test/sign/${path}?download=${encodeURIComponent(options?.download ?? "")}` }, error: null }; },
+  };
+  // team_chat_post_message saves a message and its attachments together, as the SQL function does.
+  const postMessage = (args: Record<string, unknown>) => {
+    const t = db.tables;
+    const id = (args.p_id as string) || uuid(20000 + (t.team_messages || []).length);
+    if ((t.team_messages || []).some((m) => m.id === id)) return { data: null, error: { code: "23505", message: "duplicate key" } };
+    const files = (args.p_attachments as Record<string, unknown>[]) || [];
+    if (!args.p_body && !files.length) return { data: null, error: { code: "23514", message: "empty" } };
+    const message = { id, org_id: args.p_org, channel_id: args.p_channel, author_id: args.p_author, body: args.p_body, order_numbers: args.p_order_numbers, created_at: new Date().toISOString() };
+    t.team_messages = [...(t.team_messages || []), message];
+    t.team_message_attachments = [...(t.team_message_attachments || []), ...files.map((file, position) => ({ id: uuid(30000 + (t.team_message_attachments || []).length + position), org_id: args.p_org, message_id: id, position, ...file }))];
+    const { org_id: _org, ...row } = message;
+    return { data: row, error: null };
+  };
   Object.assign(db, {
-    rpc: async (name: string, args: { p_org: string; p_user: string }) => {
+    storage: { from: (name: string) => { if (name !== "team-attachments") throw new Error(`Unexpected bucket ${name}`); return bucket; } },
+    rpc: (name: string, args: Record<string, unknown>) => {
+      if (name === "team_chat_post_message") {
+        const result = Promise.resolve(postMessage(args));
+        const chain = Object.assign(result, { select: () => chain, single: () => chain });
+        return chain;
+      }
+      return summaries(name, args as { p_org: string; p_user: string });
+    },
+  });
+  // team_chat_summaries, computed the way the SQL function does.
+  const summaries = async (name: string, args: { p_org: string; p_user: string }) => {
       if (name !== "team_chat_summaries") throw new Error(`Unexpected RPC ${name}`);
       const t = db.tables;
       const rows = (t.team_channels || []).filter((c) => c.org_id === args.p_org).flatMap((c) => {
@@ -46,19 +79,19 @@ function fixture(seed: Record<string, Record<string, unknown>[]> = {}, role = "a
         return [{ channel_id: c.id, unread }];
       });
       return { data: rows, error: null };
-    },
-  });
+  };
   const harness = handlers(db, {
     ...teamChat,
     getUser: async (token: string) => ({ user: token ? { id: token.replace("Bearer ", "") } : null }),
     getUserOrg: async () => ({ orgId, role }),
-    sendError: (res: { status: (code: number) => { json: (body: unknown) => unknown } }, e: Error) => res.status(500).json({ error: e.message }),
+    sendError: (res: { status: (code: number) => { json: (body: unknown) => unknown } }, e: Error & { statusCode?: number }) => res.status(e.statusCode || 500).json({ error: e.message }),
   });
   harness.load(
-    ["TEAM_CHAT_ID_RE", "TEAM_CHAT_MESSAGE_FIELDS", "TEAM_CHAT_PAGE", "TEAM_CHAT_TYPING_MS", "TEAM_CHAT_ONLINE_MS", "TEAM_CHAT_EVERYONE_CHANNEL", "TEAM_CHAT_DEFAULT_CHANNELS", "TEAM_CHAT_ORDER_FIELDS", "TEAM_CHAT_ORDER_RESULTS", "errorMessage", "teamChatUser", "teamChatChannel", "touchTeamChatMember", "addTeamChatMembers", "teamChatStaffIds", "teamChatManagedChannel", "markTeamPresence", "teamChatSummaries"],
+    ["TEAM_CHAT_ID_RE", "TEAM_CHAT_MESSAGE_FIELDS", "TEAM_CHAT_PAGE", "TEAM_CHAT_TYPING_MS", "TEAM_CHAT_ONLINE_MS", "TEAM_CHAT_EVERYONE_CHANNEL", "TEAM_CHAT_DEFAULT_CHANNELS", "TEAM_CHAT_ORDER_FIELDS", "TEAM_CHAT_ORDER_RESULTS", "errorMessage", "teamChatUser", "teamChatChannel", "touchTeamChatMember", "addTeamChatMembers", "teamChatStaffIds", "teamChatManagedChannel", "markTeamPresence", "teamChatSummaries",
+      "TEAM_CHAT_BUCKET", "TEAM_CHAT_FILE_RE", "TEAM_CHAT_ATTACHMENT_FIELDS", "TEAM_CHAT_LINK_SECONDS", "teamChatLinks", "teamChatAttachments", "teamChatUploadedFiles", "teamChatBadFile"],
     ['app.get("/api/team-chat/', 'app.post("/api/team-chat/', 'app.delete("/api/team-chat/'],
   );
-  return { ...harness, db };
+  return { ...harness, db, objects, signed };
 }
 
 describe("team inbox", () => {
@@ -247,5 +280,115 @@ describe("team inbox", () => {
     const made = await http(admin.app, "POST", "/api/team-chat/channels", { name: "#Eid Stock", topic: " Eid prep " }, as(ME));
     expect(made.status).toBe(201);
     expect(made.body.channel).toMatchObject({ name: "eid-stock", topic: "Eid prep" });
+  });
+});
+
+describe("team inbox attachments", () => {
+  const folder = (channel: string, who: string) => `${orgId}/${channel}/${who}/`;
+  // Asks for an upload link, then "uploads" the file the way the browser does.
+  async function upload(app: Parameters<typeof http>[0], objects: Map<string, { size: number; contentType: string }>, file: { type: string; size: number }, who = ME, channel = DISPATCH) {
+    const link = await http(app, "POST", `/api/team-chat/channels/${channel}/uploads`, file, as(who));
+    if (link.status === 201) objects.set(link.body.path, { size: file.size, contentType: link.body.content_type });
+    return link;
+  }
+
+  it("gives a one-time upload link inside the sender's folder for that conversation", async () => {
+    const { app } = fixture();
+    const link = await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/uploads`, { type: "audio/webm;codecs=opus", size: 4096 }, as(ME));
+    expect(link.status).toBe(201);
+    expect(link.body.path).toMatch(new RegExp(`^${folder(DISPATCH, ME)}[0-9a-f-]{36}\\.webm$`));
+    expect(link.body.content_type).toBe("audio/webm");
+    expect(link.body.upload_url).toContain(link.body.path);
+  });
+
+  it("refuses upload links for other people's conversations, unsafe types and big files", async () => {
+    const { app } = fixture();
+    expect((await http(app, "POST", `/api/team-chat/channels/${DM_RAFI_NUSRAT}/uploads`, { type: "image/png", size: 10 }, as(ME))).status).toBe(404);
+    expect((await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/uploads`, { type: "text/html", size: 10 }, as(ME))).status).toBe(400);
+    expect((await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/uploads`, { type: "image/svg+xml", size: 10 }, as(ME))).status).toBe(400);
+    expect((await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/uploads`, { type: "application/pdf", size: 20 * 1024 * 1024 + 1 }, as(ME))).status).toBe(400);
+    expect((await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/uploads`, { type: "application/pdf" }, as(ME))).status).toBe(400);
+    expect((await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/uploads`, { type: "image/png", size: 10 }, {})).status).toBe(401);
+  });
+
+  it("sends photos, a document and a voice message with no caption", async () => {
+    const { app, db, objects } = fixture();
+    const photo = await upload(app, objects, { type: "image/jpeg", size: 2048 });
+    const pdf = await upload(app, objects, { type: "application/pdf", size: 9000 });
+    const voice = await upload(app, objects, { type: "audio/webm", size: 5000 });
+    const sent = await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/messages`, { body: "", attachments: [
+      { path: photo.body.path, name: "IMG_2041.jpg", width: 1200, height: 900 },
+      { path: pdf.body.path, name: "../Invoice Oct.pdf", width: 5 },
+      { path: voice.body.path, name: "voice.webm", duration_ms: 4200 },
+    ] }, as(ME));
+    expect(sent.status).toBe(201);
+    expect(sent.body.message.body).toBe("");
+    expect(sent.body.message.attachments.map((a: { kind: string; name: string }) => [a.kind, a.name])).toEqual([["image", "IMG_2041.jpg"], ["file", "Invoice Oct.pdf"], ["voice", "voice.webm"]]);
+    expect(sent.body.message.attachments[0]).toMatchObject({ width: 1200, height: 900, size: 2048, mime_type: "image/jpeg" });
+    expect(sent.body.message.attachments[1]).toMatchObject({ width: null, height: null });
+    expect(sent.body.message.attachments[2]).toMatchObject({ duration_ms: 4200 });
+    expect(sent.body.message.attachments[0].url).toBe(`https://storage.test/sign/${photo.body.path}`);
+    // A PDF opens in the app, so the link is not forced to download.
+    expect(sent.body.message.attachments[1].url).toBe(`https://storage.test/sign/${pdf.body.path}`);
+    expect(sent.body.message.attachments[0]).not.toHaveProperty("storage_path");
+    expect(db.tables.team_message_attachments).toHaveLength(3);
+
+    const thread = await http(app, "GET", `/api/team-chat/channels/${DISPATCH}/messages`, undefined, as(RAFI));
+    expect(thread.body.messages[0].attachments.map((a: { kind: string }) => a.kind)).toEqual(["image", "file", "voice"]);
+    expect(thread.body.messages[0].attachments[0].url_expires_at).toEqual(expect.any(String));
+  });
+
+  it("takes the kind and size from the stored file, not from what the browser claims", async () => {
+    const { app, objects } = fixture();
+    const link = await upload(app, objects, { type: "image/png", size: 100 });
+    objects.set(link.body.path, { size: 777, contentType: "image/png" });
+    const sent = await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/messages`, { body: "x", attachments: [{ path: link.body.path, name: "a.png", duration_ms: 9 }] }, as(ME));
+    expect(sent.body.message.attachments[0]).toMatchObject({ kind: "image", size: 777, duration_ms: null });
+  });
+
+  it("only attaches files the sender uploaded to this conversation", async () => {
+    const { app, db, objects } = fixture();
+    const rafis = await upload(app, objects, { type: "image/png", size: 10 }, RAFI);
+    const elsewhere = await upload(app, objects, { type: "image/png", size: 10 }, ME, GENERAL);
+    const send = (path: string) => http(app, "POST", `/api/team-chat/channels/${DISPATCH}/messages`, { body: "look", attachments: [{ path }] }, as(ME));
+    expect((await send(rafis.body.path)).status).toBe(400);
+    expect((await send(elsewhere.body.path)).status).toBe(400);
+    expect((await send(`${folder(DISPATCH, ME)}../../${foreignOrg}/x.png`)).status).toBe(400);
+    expect((await send(`${folder(DISPATCH, ME)}${uuid(5)}.png`)).status).toBe(400);
+    expect(db.tables.team_messages).toHaveLength(0);
+  });
+
+  it("refuses a file that was never uploaded, repeats and more than ten files", async () => {
+    const { app, objects } = fixture();
+    const link = await upload(app, objects, { type: "image/png", size: 10 });
+    const send = (attachments: unknown) => http(app, "POST", `/api/team-chat/channels/${DISPATCH}/messages`, { body: "", attachments }, as(ME));
+    objects.delete(link.body.path);
+    expect((await send([{ path: link.body.path }])).body.error).toMatch(/upload/i);
+    objects.set(link.body.path, { size: 10, contentType: "image/png" });
+    expect((await send([{ path: link.body.path }, { path: link.body.path }])).status).toBe(400);
+    expect((await send(Array.from({ length: 11 }, () => ({ path: link.body.path })))).status).toBe(400);
+    expect((await send("nope")).status).toBe(400);
+    expect((await send([])).status).toBe(400);
+  });
+
+  it("does not attach the files twice when a send is retried", async () => {
+    const { app, db, objects } = fixture();
+    const link = await upload(app, objects, { type: "image/png", size: 10 });
+    const body = { body: "", attachments: [{ path: link.body.path }], client_message_id: uuid(80) };
+    await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/messages`, body, as(ME));
+    const retry = await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/messages`, body, as(ME));
+    expect(retry.status).toBe(201);
+    expect(retry.body.message.attachments).toHaveLength(1);
+    expect(db.tables.team_message_attachments).toHaveLength(1);
+  });
+
+  it("signs each file once while its link is fresh, so polling does not reload images", async () => {
+    const { app, objects, signed } = fixture();
+    const link = await upload(app, objects, { type: "image/png", size: 10 });
+    await http(app, "POST", `/api/team-chat/channels/${DISPATCH}/messages`, { body: "", attachments: [{ path: link.body.path }] }, as(ME));
+    const first = await http(app, "GET", `/api/team-chat/channels/${DISPATCH}/messages`, undefined, as(ME));
+    const second = await http(app, "GET", `/api/team-chat/channels/${DISPATCH}/messages`, undefined, as(RAFI));
+    expect(second.body.messages[0].attachments[0].url).toBe(first.body.messages[0].attachments[0].url);
+    expect(signed.flat().filter((path) => path === link.body.path)).toHaveLength(1);
   });
 });

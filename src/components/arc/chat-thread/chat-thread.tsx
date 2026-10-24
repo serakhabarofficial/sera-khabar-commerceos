@@ -1,10 +1,11 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from "react";
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from "motion/react";
 import type { Transition } from "motion/react";
-import { ArrowDown, ArrowUp, FileText, Paperclip, RotateCw, SmilePlus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, FileText, Mic, Paperclip, Pause, Play, RotateCw, SmilePlus, X } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./chat-thread.module.css";
 
@@ -18,7 +19,7 @@ export interface ChatParticipant {
 export interface ChatAttachment {
   id: string;
   name: string;
-  kind: "image" | "file";
+  kind: "image" | "file" | "audio";
   url?: string;
   /** Bytes. */
   size?: number;
@@ -26,6 +27,8 @@ export interface ChatAttachment {
   width?: number;
   height?: number;
   alt?: string;
+  /** Length of a recording, in ms. Recorders often leave it out of the file, so it is passed alongside. */
+  duration?: number;
 }
 
 export interface ChatReaction {
@@ -51,6 +54,8 @@ export interface ChatMessage {
 export interface ChatDraft {
   text: string;
   files: File[];
+  /** A voice message recorded in the composer, sent on its own. */
+  voice?: { file: File; durationMs: number };
 }
 
 /** Words the composer shows or announces. Each has an English default. */
@@ -63,6 +68,14 @@ export interface ChatComposerLabels {
   attachments?: string;
   /** Accessible name of the button that takes a file back out. */
   removeFile?: (name: string) => string;
+  /** Accessible name of the microphone button. */
+  recordVoice?: string;
+  /** Shown while recording. */
+  recording?: string;
+  /** Accessible name of the button that throws a recording away. */
+  cancelRecording?: string;
+  /** Accessible name of the button that sends a recording. */
+  sendRecording?: string;
 }
 
 /** Every word the thread shows or announces. Each has an English default; words with a count or names are functions, so an app can apply its own plural rules. */
@@ -92,6 +105,10 @@ export interface ChatThreadLabels extends ChatComposerLabels {
   reactWith?: (emoji: string) => string;
   /** Accessible name of a reaction under a message. */
   reactionCount?: (emoji: string, count: number, includesYou: boolean) => string;
+  play?: string;
+  pause?: string;
+  /** Accessible name of a voice message's progress bar. */
+  voiceMessage?: string;
 }
 
 const COMPOSER_LABELS: Required<ChatComposerLabels> = {
@@ -99,6 +116,10 @@ const COMPOSER_LABELS: Required<ChatComposerLabels> = {
   attach: "Attach files",
   attachments: "Attachments",
   removeFile: name => `Remove ${name}`,
+  recordVoice: "Record a voice message",
+  recording: "Recording",
+  cancelRecording: "Cancel recording",
+  sendRecording: "Send voice message",
 };
 
 const firstName = (name: string) => name.split(" ")[0];
@@ -119,6 +140,9 @@ const THREAD_LABELS: Omit<Required<ChatThreadLabels>, "today" | "yesterday"> = {
   reactions: "Reactions",
   reactWith: emoji => `React with ${emoji}`,
   reactionCount: (emoji, count, includesYou) => `${emoji} ${count}${includesYou ? ", including you" : ""}`,
+  play: "Play",
+  pause: "Pause",
+  voiceMessage: "Voice message",
 };
 
 /** A key passed as undefined keeps its default too. */
@@ -158,6 +182,12 @@ export interface ChatThreadProps {
   allowAttachments?: boolean;
   /** File types the attach button offers, as for `<input accept>`. */
   accept?: string;
+  /** Offer a microphone button that records a voice message, where the browser can record. */
+  allowVoice?: boolean;
+  /** Recordings stop and send at this length, in ms. Defaults to five minutes. */
+  maxVoiceMs?: number;
+  /** Called when recording cannot start, usually because the microphone was refused. */
+  onVoiceError?: (error: unknown) => void;
   /** Messages from one person closer together than this, in ms, share a group. Defaults to five minutes. */
   groupWindow?: number;
   locale?: string;
@@ -270,11 +300,86 @@ function useAutoHeight(mirror: RefObject<HTMLElement | null>, maxHeight: number,
 
 type Pending = { id: string; file: File; url?: string };
 
+/** "0:07", "4:32". */
+function formatDuration(ms = 0) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+// Chrome and Firefox record Opus in WebM or Ogg; Safari records AAC in MP4.
+const VOICE_TYPES = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus", "audio/webm"];
+const canRecord = () => typeof window !== "undefined" && typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+
+/** Records from the microphone. `stop(true)` hands the recording to `onDone`; `stop(false)` throws it away. Very short taps are dropped. */
+function useVoiceRecorder(maxMs: number, onDone: (file: File, durationMs: number) => void, onError?: (error: unknown) => void) {
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const session = useRef<{ recorder: MediaRecorder; stream: MediaStream; keep: boolean } | null>(null);
+  const done = useRef(onDone);
+  useEffect(() => { done.current = onDone; }, [onDone]);
+
+  const stop = useCallback((keep: boolean) => {
+    const current = session.current;
+    if (!current) return;
+    current.keep = keep;
+    if (current.recorder.state !== "inactive") current.recorder.stop();
+    else current.stream.getTracks().forEach(track => track.stop());
+  }, []);
+
+  const start = useCallback(async () => {
+    if (session.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferred = VOICE_TYPES.find(type => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined);
+      const chunks: Blob[] = [];
+      const began = Date.now();
+      session.current = { recorder, stream, keep: false };
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = () => {
+        const { keep } = session.current ?? { keep: false };
+        session.current = null;
+        stream.getTracks().forEach(track => track.stop());
+        setStartedAt(null);
+        const durationMs = Date.now() - began;
+        const type = (recorder.mimeType || preferred || "audio/webm").split(";")[0]!;
+        if (!keep || durationMs < 600 || !chunks.length) return;
+        const extension = type === "audio/mp4" ? "m4a" : type.split("/")[1];
+        done.current(new File(chunks, `Voice message.${extension}`, { type }), durationMs);
+      };
+      recorder.start(250);
+      setElapsed(0);
+      setStartedAt(began);
+    } catch (error) {
+      session.current = null;
+      onError?.(error);
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    if (startedAt === null) return;
+    const tick = window.setInterval(() => {
+      const ms = Date.now() - startedAt;
+      setElapsed(ms);
+      if (ms >= maxMs) stop(true);
+    }, 200);
+    return () => window.clearInterval(tick);
+  }, [maxMs, startedAt, stop]);
+
+  // Leaving the thread mid-recording throws the recording away and frees the microphone.
+  useEffect(() => () => stop(false), [stop]);
+
+  return { recording: startedAt !== null, elapsed, start, stop };
+}
+
 export interface ChatComposerProps {
   onSend: (draft: ChatDraft) => void;
   placeholder?: string;
   allowAttachments?: boolean;
   accept?: string;
+  allowVoice?: boolean;
+  maxVoiceMs?: number;
+  onVoiceError?: (error: unknown) => void;
   disabled?: boolean;
   /** Words for localization. Leave out any key to keep its English default. */
   labels?: ChatComposerLabels;
@@ -283,8 +388,8 @@ export interface ChatComposerProps {
 
 export interface ChatComposerHandle { focus: () => void }
 
-/** The message box on its own: autosizing text, attachments by button, paste, or drop, and a send button that morphs when there is something to send. */
-export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({ onSend, placeholder = "Message", allowAttachments = true, accept, disabled, labels, className }, ref) {
+/** The message box on its own: autosizing text, attachments by button, paste, or drop, a microphone for voice messages, and a send button that morphs when there is something to send. */
+export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({ onSend, placeholder = "Message", allowAttachments = true, accept, allowVoice = false, maxVoiceMs = 5 * 60_000, onVoiceError, disabled, labels, className }, ref) {
   const t = withDefaults(COMPOSER_LABELS, labels);
   const reduced = !!useReducedMotion();
   const [text, setText] = useState("");
@@ -297,6 +402,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const height = useAutoHeight(mirrorRef, 6 * 22 + 18, reduced);
   const ready = !disabled && (text.trim().length > 0 || files.length > 0);
   const counter = useRef(0);
+  const hydrated = useHydrated();
+  const voice = allowVoice && hydrated && canRecord();
+  const recorder = useVoiceRecorder(maxVoiceMs, (file, durationMs) => {
+    onSend({ text: "", files: [], voice: { file, durationMs } });
+    setSent(count => count + 1);
+  }, onVoiceError);
+  // With nothing typed, the send button is the microphone.
+  const mic = voice && !ready && !disabled;
 
   useImperativeHandle(ref, () => ({ focus: () => areaRef.current?.focus() }), []);
 
@@ -366,6 +479,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       </motion.div>}
     </AnimatePresence>
     <div className={styles.inputRow}>
+      {recorder.recording ? <div className={styles.recorder} role="group" aria-label={t.recording}>
+        <button type="button" className={styles.attach} aria-label={t.cancelRecording} onClick={() => recorder.stop(false)}><X size={18} strokeWidth={1.75} /></button>
+        <div className={styles.recordingBox}>
+          <span className={styles.recordingDot} aria-hidden="true" />
+          <span className={styles.recordingTime} role="timer" aria-live="off">{formatDuration(recorder.elapsed)}</span>
+          <span className={styles.recordingLabel}>{t.recording}</span>
+          <button type="button" className={styles.send} data-ready="" aria-label={t.sendRecording} onClick={() => recorder.stop(true)}>
+            <span className={styles.sendIcon}><ArrowUp size={16} strokeWidth={2.25} /></span>
+          </button>
+        </div>
+      </div> : <>
       {allowAttachments && <>
         <button type="button" className={styles.attach} aria-label={t.attach} disabled={disabled} onClick={() => pickerRef.current?.click()}><Paperclip size={18} strokeWidth={1.75} /></button>
         <input ref={pickerRef} type="file" multiple accept={accept} hidden onChange={event => { add(event.target.files); event.target.value = ""; }} />
@@ -376,16 +500,18 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         <textarea ref={areaRef} className={styles.textarea} value={text} rows={1} placeholder={placeholder} disabled={disabled} aria-label={placeholder}
           onChange={event => setText(event.target.value)} onKeyDown={onKeyDown} onPaste={onPaste} />
       </motion.div>
-      <button type="button" className={styles.send} data-ready={ready || undefined} aria-label={t.send} aria-disabled={!ready} onClick={send}>
+      <button type="button" className={styles.send} data-ready={ready || undefined} data-mic={mic || undefined} aria-label={mic ? t.recordVoice : t.send} aria-disabled={!ready && !mic}
+        onClick={() => mic ? void recorder.start() : send()}>
         <AnimatePresence initial={false} mode="popLayout">
-          <motion.span key={sent} className={styles.sendIcon}
+          <motion.span key={`${sent}-${mic}`} className={styles.sendIcon}
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -18, transition: { duration: duration.fast, ease: standard } }}
             transition={reduced ? { duration: duration.fast } : spring.snappy}>
-            <ArrowUp size={16} strokeWidth={2.25} />
+            {mic ? <Mic size={17} strokeWidth={1.75} /> : <ArrowUp size={16} strokeWidth={2.25} />}
           </motion.span>
         </AnimatePresence>
       </button>
       </div>
+      </>}
     </div>
   </div>;
 });
@@ -396,7 +522,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
  */
 export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function ChatThread({
   participants, currentUserId, messages: messagesProp, defaultMessages, typing = [], readBy, onSend, onReact, onRetry,
-  reactions = DEFAULT_REACTIONS, placeholder = "Message", composer = true, allowAttachments = true, accept,
+  reactions = DEFAULT_REACTIONS, placeholder = "Message", composer = true, allowAttachments = true, accept, allowVoice = false, maxVoiceMs, onVoiceError,
   groupWindow = 5 * 60_000, locale = "en-US", label = "Conversation", labels, renderText, renderAfter, className,
 }, ref) {
   const t = useMemo(() => withDefaults({ ...THREAD_LABELS, today: relativeDay(locale, 0), yesterday: relativeDay(locale, -1) }, labels), [labels, locale]);
@@ -408,6 +534,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
   const controlled = messagesProp !== undefined;
   const people = useMemo(() => new Map(participants.map(entry => [entry.id, entry])), [participants]);
   const composerRef = useRef<ChatComposerHandle>(null);
+  const [preview, setPreview] = useState<ChatAttachment | null>(null);
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
@@ -453,46 +580,108 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
   const contentRef = useRef<HTMLDivElement>(null);
   const y = useMotionValue(0);
   const stick = useRef(true);
+  // Opening a conversation stays on the newest message until the reader scrolls away.
+  const followLatest = useRef(true);
+  const holding = useRef(false);
+  const dragging = useRef(false);
   const lastHeight = useRef(0);
   const reducedRef = useRef(reduced);
   useEffect(() => { reducedRef.current = reduced; }, [reduced]);
   const [atBottom, setAtBottom] = useState(true);
   const [far, setFar] = useState(false);
   const [seen, setSeen] = useState(() => messages.length);
+  const tail = messages.length ? `${messages.length}:${messages[messages.length - 1]!.id}:${messages[messages.length - 1]!.attachments?.length ?? 0}` : "0";
+
+  const pinToEnd = useCallback((spring = false) => {
+    const scroller = scrollRef.current;
+    if (!scroller || (!followLatest.current && !stick.current)) return;
+    const before = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    holding.current = true;
+    scroller.scrollTop = scroller.scrollHeight;
+    holding.current = false;
+    stick.current = true;
+    setAtBottom(true);
+    setFar(false);
+    setSeen(messages.length);
+    if (spring && before < STICK_DISTANCE) {
+      const content = contentRef.current;
+      if (!content || reducedRef.current) return;
+      const delta = content.offsetHeight - lastHeight.current;
+      if (delta > 0 && delta < scroller.clientHeight) {
+        y.jump(y.get() + delta);
+        animate(y, 0, SETTLE);
+      }
+    }
+  }, [messages.length, y]);
 
   useLayoutEffect(() => {
     const scroller = scrollRef.current, content = contentRef.current;
     if (!scroller || !content) return;
     lastHeight.current = content.offsetHeight;
-    scroller.scrollTop = scroller.scrollHeight;
-    if (typeof ResizeObserver === "undefined") return;
+    pinToEnd();
+    const pinSoon = () => { if (followLatest.current) pinToEnd(); };
+    let frame = requestAnimationFrame(() => { pinSoon(); frame = requestAnimationFrame(pinSoon); });
+    const onLoad = (event: Event) => { if (event.target instanceof HTMLImageElement) pinSoon(); };
+    const onPointerDown = () => { dragging.current = true; };
+    const onPointerUp = () => { dragging.current = false; };
+    const onWheel = (event: WheelEvent) => { if (event.deltaY < 0) followLatest.current = false; };
+    const onTouchMove = () => { followLatest.current = false; };
+    scroller.addEventListener("load", onLoad, true);
+    scroller.addEventListener("wheel", onWheel, { passive: true });
+    scroller.addEventListener("touchmove", onTouchMove, { passive: true });
+    scroller.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      scroller.removeEventListener("load", onLoad, true);
+      scroller.removeEventListener("wheel", onWheel);
+      scroller.removeEventListener("touchmove", onTouchMove);
+      scroller.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+    if (typeof ResizeObserver === "undefined") return stop;
     const observer = new ResizeObserver(() => {
-      const height = content.offsetHeight, delta = height - lastHeight.current;
-      lastHeight.current = height;
-      if (!stick.current) return;
-      scroller.scrollTop = scroller.scrollHeight;
-      if (delta > 0 && delta < scroller.clientHeight && !reducedRef.current) {
-        y.jump(y.get() + delta);
-        animate(y, 0, SETTLE);
-      }
+      const height = content.offsetHeight;
+      const grew = height - lastHeight.current;
+      if (!followLatest.current && !stick.current) { lastHeight.current = height; return; }
+      pinToEnd(grew > 0 && grew < scroller.clientHeight);
+      lastHeight.current = content.offsetHeight;
     });
     observer.observe(content);
-    return () => observer.disconnect();
-  }, [y]);
+    observer.observe(scroller);
+    return () => { observer.disconnect(); stop(); };
+  }, [pinToEnd, tail, y]);
 
   // Your own message always brings the thread back to the bottom.
   const known = useRef(new Set(messages.map(message => message.id)));
   useLayoutEffect(() => {
     const fresh = messages.filter(message => !known.current.has(message.id));
     fresh.forEach(message => known.current.add(message.id));
-    if (fresh.some(message => message.authorId === currentUserId)) stick.current = true;
+    if (fresh.some(message => message.authorId === currentUserId)) {
+      stick.current = true;
+      followLatest.current = true;
+    }
   }, [currentUserId, messages]);
 
   const onScroll = () => {
     const scroller = scrollRef.current;
-    if (!scroller) return;
+    if (!scroller || holding.current) return;
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    // A photo settling in after the thread opens moves the end down. Stay with it
+    // until the reader actually scrolls up.
+    if (dragging.current && distance >= STICK_DISTANCE) followLatest.current = false;
+    if (followLatest.current && distance >= STICK_DISTANCE) {
+      holding.current = true;
+      scroller.scrollTop = scroller.scrollHeight;
+      holding.current = false;
+      stick.current = true;
+      setAtBottom(true);
+      setFar(false);
+      setSeen(messages.length);
+      return;
+    }
     stick.current = distance < STICK_DISTANCE;
+    if (stick.current) followLatest.current = true;
     setAtBottom(stick.current);
     setFar(distance > FAR_DISTANCE);
     if (stick.current) setSeen(messages.length);
@@ -502,7 +691,10 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
     const scroller = scrollRef.current;
     if (!scroller) return;
     stick.current = true;
+    followLatest.current = true;
+    holding.current = true;
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: smooth && !reducedRef.current ? "smooth" : "auto" });
+    holding.current = false;
   }, []);
 
   useImperativeHandle(ref, () => ({ scrollToBottom, focusComposer: () => composerRef.current?.focus() }), [scrollToBottom]);
@@ -531,6 +723,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
   const counter = useRef(0);
   const send = (draft: ChatDraft) => {
     stick.current = true;
+    followLatest.current = true;
     const result = onSend?.(draft);
     if (controlled) return result;
     const attachments: ChatAttachment[] = draft.files.map((file, index) => ({
@@ -538,6 +731,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
       kind: file.type.startsWith("image/") ? "image" : "file",
       url: URL.createObjectURL(file),
     }));
+    if (draft.voice) attachments.push({ id: `local-voice-${++counter.current}`, name: draft.voice.file.name, size: draft.voice.file.size, kind: "audio", url: URL.createObjectURL(draft.voice.file), duration: draft.voice.durationMs });
     setInner(current => [...current, { id: `local-${Date.now()}-${++counter.current}`, authorId: currentUserId, text: draft.text || undefined, attachments, createdAt: new Date(), status: "sent" }]);
   };
 
@@ -561,7 +755,8 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
                   const showStatus = mine && (index === lastMine || message.status === "failed");
                   const status = message.status === "failed" ? "failed" : message.status === "sending" ? "sending" : readIndex >= index ? "read" : message.status ?? "sent";
                   const images = message.attachments?.filter(entry => entry.kind === "image" && entry.url) ?? [];
-                  const files = message.attachments?.filter(entry => entry.kind !== "image" || !entry.url) ?? [];
+                  const voices = message.attachments?.filter(entry => entry.kind === "audio" && entry.url) ?? [];
+                  const files = message.attachments?.filter(entry => entry.kind === "file" || !entry.url) ?? [];
                   return <motion.li key={row.key} className={styles.row} data-chat-message-id={message.id} data-mine={mine || undefined} data-first={first || undefined} data-last={last || undefined} data-failed={message.status === "failed" || undefined}
                     initial={arrive(mine)} animate={{ opacity: 1, scale: 1, y: 0, x: 0, filter: "blur(0px)" }} exit={{ opacity: 0, transition: { duration: duration.exit } }}
                     transition={reduced ? { duration: duration.fast } : { ...ARRIVE, opacity: { duration: duration.standard, ease: enter }, filter: { duration: duration.standard, ease: enter } }}
@@ -576,16 +771,22 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
                         {!mine && last && <span className={styles.face}><Avatar person={author} size={28} /></span>}
                         <div className={styles.parts}>
                           {images.length > 0 && <div className={styles.gallery} data-count={Math.min(images.length, 4)}>
-                            {images.slice(0, 4).map((image, at) => <a key={image.id} className={styles.image} href={image.url} target="_blank" rel="noreferrer"
+                            {images.slice(0, 4).map((image, at) => <button key={image.id} type="button" className={styles.image} onClick={() => setPreview(image)}
                               style={images.length === 1 && image.width && image.height ? { aspectRatio: `${image.width} / ${image.height}` } : undefined}>
                               <img src={image.url} alt={image.alt ?? image.name} loading="lazy" />
                               {at === 3 && images.length > 4 && <span className={styles.more}>+{images.length - 4}</span>}
-                            </a>)}
+                            </button>)}
                           </div>}
-                          {files.map(file => <a key={file.id} className={styles.file} href={file.url} download={file.name} target="_blank" rel="noreferrer">
-                            <FileText size={18} strokeWidth={1.75} aria-hidden="true" />
-                            <span className={styles.fileText}><span className={styles.fileName}>{file.name}</span>{file.size !== undefined && <span className={styles.fileSize}>{formatBytes(file.size)}</span>}</span>
-                          </a>)}
+                          {voices.map(voice => <VoiceNote key={voice.id} attachment={voice} labels={t} />)}
+                          {files.map(file => /\.pdf$/i.test(file.name) && file.url
+                            ? <button key={file.id} type="button" className={styles.file} onClick={() => setPreview(file)}>
+                              <FileText size={18} strokeWidth={1.75} aria-hidden="true" />
+                              <span className={styles.fileText}><span className={styles.fileName}>{file.name}</span>{file.size !== undefined && <span className={styles.fileSize}>{formatBytes(file.size)}</span>}</span>
+                            </button>
+                            : <a key={file.id} className={styles.file} href={file.url} download={file.name} target="_blank" rel="noreferrer">
+                              <FileText size={18} strokeWidth={1.75} aria-hidden="true" />
+                              <span className={styles.fileText}><span className={styles.fileName}>{file.name}</span>{file.size !== undefined && <span className={styles.fileSize}>{formatBytes(file.size)}</span>}</span>
+                            </a>)}
                           {message.text && <div className={styles.bubble} title={hydrated ? date.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }) : undefined}>{renderText ? renderText(message) : message.text}</div>}
                           {renderAfter?.(message)}
                         </div>
@@ -647,9 +848,137 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
         </motion.button>}
       </AnimatePresence>
     </div>
-    {composer && <ChatComposer ref={composerRef} onSend={send} placeholder={placeholder} allowAttachments={allowAttachments} accept={accept} labels={t} />}
+    {composer && <ChatComposer ref={composerRef} onSend={send} placeholder={placeholder} allowAttachments={allowAttachments} accept={accept}
+      allowVoice={allowVoice} maxVoiceMs={maxVoiceMs} onVoiceError={onVoiceError} labels={t} />}
+    <AnimatePresence>
+      {preview?.url && <AttachmentPreview key={preview.id} attachment={preview} reduced={reduced} onClose={() => setPreview(null)} />}
+    </AnimatePresence>
   </div>;
 });
+
+/** A photo or PDF over the app. Escape, the backdrop, or the close icon dismisses it. */
+function AttachmentPreview({ attachment, reduced, onClose }: { attachment: ChatAttachment; reduced: boolean; onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const pdf = attachment.kind === "file";
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = previous; };
+  }, [onClose]);
+
+  return createPortal(
+    <motion.div className={styles.viewer} role="dialog" aria-modal="true" aria-label={attachment.name} onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? 0 : duration.standard, ease: standard }}>
+      <button ref={closeRef} type="button" className={styles.viewerClose} aria-label="Close" onClick={onClose}><X size={18} strokeWidth={1.75} /></button>
+      {pdf
+        ? <motion.iframe className={styles.viewerSheet} title={attachment.name} src={attachment.url} onClick={event => event.stopPropagation()}
+          initial={reduced ? false : { opacity: 0, y: 16, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8 }}
+          transition={reduced ? { duration: 0 } : { duration: duration.standard, ease: enter }} />
+        : <motion.img className={styles.viewerImage} src={attachment.url} alt={attachment.alt ?? attachment.name} onClick={event => event.stopPropagation()}
+          initial={reduced ? false : { opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .98 }}
+          transition={reduced ? { duration: 0 } : { duration: duration.standard, ease: enter }} />}
+    </motion.div>,
+    document.body,
+  );
+}
+
+/** A voice message: play and pause, a bar that fills as it plays and seeks when pressed, and the time. Starting one pauses any other. */
+function VoiceNote({ attachment, labels }: { attachment: ChatAttachment; labels: Pick<Required<ChatThreadLabels>, "play" | "pause" | "voiceMessage"> }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
+  // The recorder's length is the bar. Browser metadata for these files revises itself
+  // while they play, and following that makes the bar jump.
+  const recordedSeconds = (attachment.duration ?? 0) / 1000;
+  const [length, setLength] = useState(recordedSeconds);
+  const lengthRef = useRef(length);
+  lengthRef.current = length;
+  const positionRef = useRef(0);
+  // Pressing the bar is the only time the fill is allowed to move backward.
+  const seekToken = useRef(0);
+  const progress = length > 0 ? Math.min(1, position / length) : 0;
+  const showPosition = (seconds: number) => {
+    positionRef.current = seconds;
+    setPosition(seconds);
+  };
+
+  useEffect(() => {
+    if (!playing) return;
+    // The file clock on a just-recorded note runs ahead, then snaps back to the
+    // start. Following that snap pulls the bar backward. The bar uses its own
+    // clock from the moment play begins and ignores those corrections.
+    let anchorAt = performance.now();
+    let anchorPos = positionRef.current;
+    let token = seekToken.current;
+    let frame = 0;
+    const tick = () => {
+      const now = performance.now();
+      if (seekToken.current !== token) {
+        token = seekToken.current;
+        anchorPos = positionRef.current;
+        anchorAt = now;
+      }
+      const total = lengthRef.current;
+      let next = anchorPos + (now - anchorAt) / 1000;
+      if (total > 0) next = Math.min(total, next);
+      next = Math.max(anchorPos, next);
+      positionRef.current = next;
+      setPosition(next);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing]);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!audio.paused) { audio.pause(); return; }
+    const total = lengthRef.current;
+    if (audio.ended || (total > 0 && audio.currentTime >= total - 0.05)) {
+      audio.currentTime = 0;
+      showPosition(0);
+    }
+    document.querySelectorAll("audio[data-chat-voice]").forEach(other => { if (other !== audio) (other as HTMLAudioElement).pause(); });
+    void audio.play().catch(() => setPlaying(false));
+  };
+  const seek = (ratio: number) => {
+    const audio = audioRef.current;
+    const total = lengthRef.current;
+    if (!audio || !total) return;
+    const target = Math.max(0, Math.min(1, ratio)) * total;
+    audio.currentTime = target;
+    seekToken.current += 1;
+    showPosition(target);
+  };
+
+  return <div className={styles.voice}>
+    <button type="button" className={styles.voicePlay} aria-label={playing ? labels.pause : labels.play} onClick={toggle}>
+      {playing ? <Pause size={15} strokeWidth={2} fill="currentColor" /> : <Play size={15} strokeWidth={2} fill="currentColor" />}
+    </button>
+    <div className={styles.voiceTrack} role="slider" tabIndex={0} aria-label={labels.voiceMessage}
+      aria-valuemin={0} aria-valuemax={Math.round(length)} aria-valuenow={Math.round(position)} aria-valuetext={`${formatDuration(position * 1000)} of ${formatDuration(length * 1000)}`}
+      onPointerDown={event => { const box = event.currentTarget.getBoundingClientRect(); seek((event.clientX - box.left) / box.width); }}
+      onKeyDown={event => {
+        const step = event.key === "ArrowRight" ? 5 : event.key === "ArrowLeft" ? -5 : 0;
+        if (step && length) { event.preventDefault(); seek((position + step) / length); }
+      }}>
+      <span className={styles.voiceFill} style={{ transform: `scaleX(${progress})` }} />
+    </div>
+    <span className={styles.voiceTime}>{formatDuration((playing || position > 0 ? position : length) * 1000)}</span>
+    <audio ref={audioRef} src={attachment.url} preload="metadata" data-chat-voice=""
+      onLoadedMetadata={event => {
+        if (recordedSeconds > 0) return;
+        const seconds = event.currentTarget.duration;
+        if (Number.isFinite(seconds) && seconds > 0) setLength(seconds);
+      }}
+      onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+      onEnded={() => { setPlaying(false); showPosition(lengthRef.current); }} />
+  </div>;
+}
 
 function ReactionPicker({ open, mine, reactions, reduced, labels, id, onToggle, onClose, onPick }: { open: boolean; mine: boolean; reactions: string[]; reduced: boolean; labels: Pick<Required<ChatThreadLabels>, "addReaction" | "reactions" | "reactWith">; id: string; onToggle: () => void; onClose: () => void; onPick: (emoji: string) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
