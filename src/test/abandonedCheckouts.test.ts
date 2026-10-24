@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AbandonedCheckoutValidationError,
+  alreadyOrderedCheckoutIds,
+  buildAlreadyOrderedPatch,
   buildCaptureInsertRow,
   buildCaptureUpdatePatch,
   buildExpiryPatch,
@@ -277,5 +279,32 @@ describe("abandoned checkout convert override normalization", () => {
       .toThrow(AbandonedCheckoutValidationError);
     expect(() => normalizeAbandonedCheckoutConvertOverrides(42, "Dhaka"))
       .toThrow(AbandonedCheckoutValidationError);
+  });
+});
+
+describe("already-ordered incomplete checkouts", () => {
+  it("picks checkouts whose phone has an order waiting in Pending", () => {
+    const checkouts = [
+      { id: "a", phone: "01841469877" },
+      { id: "b", phone: "+880 1914-030873" },
+      { id: "c", phone: "01770088812" },
+      { id: "d", phone: null },
+    ];
+    const orders = [
+      { phone: "01841469877", status: "pending" },
+      { phone: "8801914030873", status: "pending" },
+      // Already confirmed or shipped: the customer may be ordering again, so keep the checkout.
+      { phone: "01770088812", status: "approved" },
+    ];
+    expect(alreadyOrderedCheckoutIds(checkouts, orders)).toEqual(["a", "b"]);
+  });
+
+  it("dismisses them with their own resolution so they are not counted as recoveries", () => {
+    const now = new Date("2026-10-25T00:00:00Z");
+    expect(buildAlreadyOrderedPatch(now)).toEqual({
+      status: "dismissed",
+      resolved_at: now.toISOString(),
+      resolution: "already_ordered",
+    });
   });
 });
