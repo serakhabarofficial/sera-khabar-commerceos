@@ -504,7 +504,7 @@ function FraudCell({ order, isChecking, onCheck }: {
                     { label: "Delivered", value: totalDelivered, className: "text-emerald-700" },
                     { label: "Returned", value: totalCancel, className: "text-red-700" },
                   ].map((stat) => (
-                    <div key={stat.label} className="flex flex-col gap-0.5">
+                    <div key={stat.label} className="flex flex-col items-center gap-0.5 text-center">
                       <span className={cn("text-lg font-light tabular-nums", stat.className)}>{stat.value}</span>
                       <span className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">{stat.label}</span>
                     </div>
