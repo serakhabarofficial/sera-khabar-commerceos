@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { classifyOrderStatus } from "../shared/orderStatus.js";
 
 export const ABANDONED_CHECKOUT_SOURCE_PATHS = Object.freeze({
   storefront: "/checkout",
@@ -306,6 +307,30 @@ export function buildRecoveredPatch(now = new Date()) {
     resolved_at: now.toISOString(),
     resolution: "ordered",
   };
+}
+
+// The customer already has an order waiting in Pending, so this incomplete
+// checkout (usually captured again after they ordered) needs no follow-up.
+// Kept apart from "ordered" so it never counts as a recovered checkout.
+export function buildAlreadyOrderedPatch(now = new Date()) {
+  return {
+    status: "dismissed",
+    resolved_at: now.toISOString(),
+    resolution: "already_ordered",
+  };
+}
+
+// Checkouts whose phone matches an order in the Pending tab, the same rule
+// behind the queue's "Already ordered" tag.
+export function alreadyOrderedCheckoutIds(checkouts, orders, now = Date.now()) {
+  const pendingPhones = new Set();
+  for (const order of orders) {
+    const phone = normalizeBdPhone(order.phone);
+    if (phone && classifyOrderStatus(order, now) === "pending") pendingPhones.add(phone);
+  }
+  return checkouts
+    .filter((checkout) => pendingPhones.has(normalizeBdPhone(checkout.phone)))
+    .map((checkout) => checkout.id);
 }
 
 // A held order staff rejected in Order Protection: the shopper's checkout is

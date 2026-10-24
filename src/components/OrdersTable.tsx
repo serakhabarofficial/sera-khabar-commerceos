@@ -58,7 +58,7 @@ import { Spinner } from "@/components/ui/ios-spinner";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { MagnifyingGlass, Warning } from "@phosphor-icons/react";
-import { DELIVERY_TIER_STYLES, courierRows, deliveryTier } from "@/lib/fraudRisk";
+import { DELIVERY_TIER_STYLES, KNOWN_COURIER_LOGOS, courierLogoFor, courierRows, deliveryTier } from "@/lib/fraudRisk";
 import { fraudLookupQuery, useFraudLookup } from "@/hooks/useFraudCheck";
 import { PopButton } from "@/components/ui/pop-button";
 import { Select as BuiSelect, SelectItem as BuiSelectItem } from "@/components/base/select/select";
@@ -337,10 +337,27 @@ interface OrdersTableProps {
   enableOrderIdLinks?: boolean;
 }
 
+// Logos the browser already holds paint at full opacity on the first frame.
+const loadedLogos = new Set<string>();
+function rememberLogo(src: string) {
+  const img = new Image();
+  img.onload = () => loadedLogos.add(src);
+  img.src = src;
+}
+
+// Downloads every courier logo once, the first time a risk pill renders,
+// so the first hover card already has them.
+let courierLogosWarmed = false;
+function warmCourierLogos() {
+  if (courierLogosWarmed) return;
+  courierLogosWarmed = true;
+  KNOWN_COURIER_LOGOS.forEach(rememberLogo);
+}
+
 // The slot is always the same size so names never swap for logos mid-hover;
-// the image fades in once it has actually loaded.
+// a logo that is still downloading fades in once it arrives.
 function CourierLogo({ src, name }: { src: string | null; name: string }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
+  const [status, setStatus] = useState<"loading" | "loaded" | "failed">(() => (src && loadedLogos.has(src) ? "loaded" : "loading"));
   if (!src || status === "failed") return <span className="capitalize text-black">{name}</span>;
   return (
     <span className="relative h-5 w-[64px]">
@@ -349,7 +366,7 @@ function CourierLogo({ src, name }: { src: string | null; name: string }) {
         alt={name}
         title={name}
         referrerPolicy="no-referrer"
-        onLoad={() => setStatus("loaded")}
+        onLoad={() => { loadedLogos.add(src); setStatus("loaded"); }}
         onError={() => setStatus("failed")}
         className={cn(
           "absolute inset-0 h-full w-full object-contain object-left mix-blend-multiply transition-opacity duration-150 ease-out",
@@ -360,22 +377,21 @@ function CourierLogo({ src, name }: { src: string | null; name: string }) {
   );
 }
 
-// Mounts only while the hover card is open. The lookup is cache-only, so it
-// adds courier logos without spending a FraudShield request.
+// Mounts only while the hover card is open. Rows show straight away from the
+// order's saved result; the cache-only lookup refreshes them when it lands
+// without spending a FraudShield request.
 function CourierBreakdown({ phone, fallback }: { phone: string | null; fallback: { name: string; delivered: number; total: number }[] }) {
   const lookup = useFraudLookup(phone);
   const fromCache = courierRows((lookup.data?.payload ?? null) as Parameters<typeof courierRows>[0]).filter((row) => row.total > 0);
   const rows = fromCache.length > 0
     ? fromCache.map((row) => ({ name: row.name, logo: row.logo, delivered: row.success, total: row.total }))
-    : fallback.map((row) => ({ ...row, logo: null }));
+    : fallback.map((row) => ({ ...row, logo: courierLogoFor(row.name) }));
 
   return (
     <div className="space-y-1.5 border-t border-black/[0.06] pt-2.5 text-xs">
       {rows.map((row) => (
         <div key={row.name} className="flex h-5 items-center justify-between">
-          {lookup.isLoading
-            ? <span className="h-5 w-[64px]" />
-            : <CourierLogo src={row.logo} name={row.name} />}
+          <CourierLogo src={row.logo} name={row.name} />
           <span className="tabular-nums text-black/60">{row.delivered}/{row.total} · {Math.round((row.delivered / row.total) * 100)}%</span>
         </div>
       ))}
@@ -392,7 +408,7 @@ function usePrefetchCourierLogos(phone: string | null) {
     if (!query.enabled) return;
     queryClient.fetchQuery(query).then((data) => {
       for (const row of courierRows((data?.payload ?? null) as Parameters<typeof courierRows>[0])) {
-        if (row.logo) new Image().src = row.logo;
+        if (row.logo && !loadedLogos.has(row.logo)) rememberLogo(row.logo);
       }
     }).catch(() => {});
   };
@@ -404,6 +420,7 @@ function FraudCell({ order, isChecking, onCheck }: {
   onCheck: () => void;
 }) {
   const prefetchLogos = usePrefetchCourierLogos(order.phone);
+  useEffect(warmCourierLogos, []);
   const rawFraudData = order.fraud_data as (Record<string, unknown> & { _error?: string }) | null;
   const hasError = Boolean(order.fraud_checked && (!rawFraudData || rawFraudData._error));
 

@@ -3,14 +3,15 @@ import { matchesOrderSearch } from "@/lib/orderSearch";
 export const BOARD_COLORS = ["amber", "rose", "violet", "blue", "teal", "slate", "green"] as const;
 export type BoardColor = (typeof BOARD_COLORS)[number];
 
-export const BOARD_COLOR_CLASSES: Record<BoardColor, { dot: string; chip: string }> = {
-  amber: { dot: "bg-amber-500", chip: "bg-amber-50 text-amber-800" },
-  rose: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700" },
-  violet: { dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700" },
-  blue: { dot: "bg-blue-500", chip: "bg-blue-50 text-blue-700" },
-  teal: { dot: "bg-teal-500", chip: "bg-teal-50 text-teal-700" },
-  slate: { dot: "bg-stone-400", chip: "bg-stone-100 text-stone-600" },
-  green: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700" },
+// `column` tints a board list in its colour, `ink` is its title text and `edge` marks the selected order.
+export const BOARD_COLOR_CLASSES: Record<BoardColor, { dot: string; chip: string; column: string; ink: string; edge: string }> = {
+  amber: { dot: "bg-amber-500", chip: "bg-amber-50 text-amber-800", column: "bg-amber-500/[0.08]", ink: "text-amber-800", edge: "border-l-amber-500" },
+  rose: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700", column: "bg-rose-500/[0.07]", ink: "text-rose-700", edge: "border-l-rose-500" },
+  violet: { dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700", column: "bg-violet-500/[0.07]", ink: "text-violet-700", edge: "border-l-violet-500" },
+  blue: { dot: "bg-blue-500", chip: "bg-blue-50 text-blue-700", column: "bg-blue-500/[0.07]", ink: "text-blue-700", edge: "border-l-blue-500" },
+  teal: { dot: "bg-teal-500", chip: "bg-teal-50 text-teal-700", column: "bg-teal-500/[0.08]", ink: "text-teal-700", edge: "border-l-teal-500" },
+  slate: { dot: "bg-stone-400", chip: "bg-stone-100 text-stone-600", column: "bg-stone-500/[0.07]", ink: "text-stone-600", edge: "border-l-stone-400" },
+  green: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700", column: "bg-emerald-500/[0.08]", ink: "text-emerald-700", edge: "border-l-emerald-500" },
 };
 
 // An order with this many items or more is a heavy parcel.

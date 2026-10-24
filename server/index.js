@@ -81,6 +81,8 @@ import {
 import {
   ACTIVE_ABANDONED_CHECKOUT_STATUSES,
   buildCaptureInsertRow,
+  alreadyOrderedCheckoutIds,
+  buildAlreadyOrderedPatch,
   buildCaptureUpdatePatch,
   buildExpiryPatch,
   buildPersonalDataScrubPatch,
@@ -7993,6 +7995,35 @@ const ABANDONED_CHECKOUT_DASHBOARD_FIELDS = [
   "campaign_attributed_at",
 ].join(", ");
 
+// Dismisses checkouts whose phone has an order in the Pending tab and returns
+// their ids. A failure only leaves them in the queue, so it never blocks the read.
+async function dismissAlreadyOrderedCheckouts(supabase, orgId, checkouts, now) {
+  const phones = [...new Set(checkouts.map((checkout) => normalizeBdPhone(checkout.phone)).filter(Boolean))];
+  if (phones.length === 0) return [];
+  try {
+    const variants = phones.flatMap((phone) => [phone, `88${phone}`, `+88${phone}`]);
+    const { data: orders, error } = await supabase
+      .from("orders")
+      .select("phone, status, fulfillment_status, courier_status, courier_name, courier_message, sent_to_courier, processing_at, courier_status_at")
+      .eq("org_id", orgId)
+      .in("phone", variants);
+    if (error) throw error;
+    const ids = alreadyOrderedCheckoutIds(checkouts, orders || [], now.getTime());
+    if (ids.length === 0) return [];
+    const { error: updateError } = await supabase
+      .from("abandoned_checkouts")
+      .update(buildAlreadyOrderedPatch(now))
+      .eq("org_id", orgId)
+      .in("id", ids)
+      .in("status", ACTIVE_ABANDONED_CHECKOUT_STATUSES);
+    if (updateError) throw updateError;
+    return ids;
+  } catch {
+    console.warn("[AbandonedCheckout] already-ordered cleanup failed");
+    return [];
+  }
+}
+
 app.get("/api/abandoned-checkouts", async (req, res) => {
   try {
     const token = getToken(req);
@@ -8011,10 +8042,15 @@ app.get("/api/abandoned-checkouts", async (req, res) => {
       .order("created_at", { ascending: false });
     if (error) throw error;
 
+    // A checkout from a customer whose order is already waiting in Pending
+    // (the "Already ordered" tag) is dismissed here, so it leaves the queue.
+    const alreadyOrderedIds = new Set(await dismissAlreadyOrderedCheckouts(supabase, orgId, data || [], now));
+    const active = (data || []).filter((checkout) => !alreadyOrderedIds.has(checkout.id));
+
     // Checkouts whose order is waiting in Order Protection get a review id so
     // staff see it is being handled there instead of chasing it twice.
     const heldByCheckout = new Map();
-    const checkoutIds = (data || []).map((checkout) => checkout.id);
+    const checkoutIds = active.map((checkout) => checkout.id);
     if (checkoutIds.length > 0) {
       const { data: heldReviews, error: heldError } = await supabase
         .from("order_protection_reviews")
@@ -8026,7 +8062,7 @@ app.get("/api/abandoned-checkouts", async (req, res) => {
       for (const review of heldReviews || []) heldByCheckout.set(review.abandoned_checkout_id, review.id);
     }
 
-    const checkouts = (data || [])
+    const checkouts = active
       .map((checkout) => ({ ...checkout, protection_review_id: heldByCheckout.get(checkout.id) || null }))
       .sort((left, right) => {
         if (left.status !== right.status) return left.status === "open" ? -1 : 1;
