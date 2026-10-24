@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { courierRows, maskPhone, relativeAge, resolveFraudLevel } from "@/lib/fraudRisk";
+import { courierRows, deliveryTier, maskPhone, relativeAge, resolveFraudLevel } from "@/lib/fraudRisk";
 
 describe("courierRows", () => {
   it("rewrites the dead logo host to the live one", () => {
@@ -70,5 +70,22 @@ describe("courierRows count label", () => {
     });
 
     expect(rows.map((row) => row.countLabel)).toEqual(["25+", "12/13"]);
+  });
+});
+
+describe("deliveryTier", () => {
+  it("bands the delivery rate into the Risk column tiers", () => {
+    expect(deliveryTier(100)).toBe("excellent");
+    expect(deliveryTier(90)).toBe("excellent");
+    expect(deliveryTier(89.9)).toBe("good");
+    expect(deliveryTier(70)).toBe("good");
+    expect(deliveryTier(69.9)).toBe("caution");
+    expect(deliveryTier(50)).toBe("caution");
+    expect(deliveryTier(49.9)).toBe("poor");
+    expect(deliveryTier(0)).toBe("poor");
+  });
+
+  it("treats a phone with no past parcels as new, not risky", () => {
+    expect(deliveryTier(null)).toBe("new");
   });
 });

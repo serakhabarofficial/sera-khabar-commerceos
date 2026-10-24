@@ -30,6 +30,26 @@ export const RISK_STYLES: Record<FraudLevel, { pill: string; strip: string; acce
   unknown: { pill: "bg-black/[0.05] text-black/60", strip: "",              accent: "text-black",     label: "Unknown" },
 };
 
+export type DeliveryTier = "excellent" | "good" | "caution" | "poor" | "new";
+
+// Orders table Risk column. `rate` is the delivered share of past parcels;
+// null means the phone has no courier history at all.
+export function deliveryTier(rate: number | null): DeliveryTier {
+  if (rate === null) return "new";
+  if (rate >= 90) return "excellent";
+  if (rate >= 70) return "good";
+  if (rate >= 50) return "caution";
+  return "poor";
+}
+
+export const DELIVERY_TIER_STYLES: Record<DeliveryTier, { label: string; range: string; text: string; bg: string; border: string; dot: string }> = {
+  excellent: { label: "Excellent",    range: "90–100%",    text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-700" },
+  good:      { label: "Good",         range: "70–89%",     text: "text-lime-700",    bg: "bg-lime-50",    border: "border-lime-200",    dot: "bg-lime-700" },
+  caution:   { label: "Caution",      range: "50–69%",     text: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   dot: "bg-amber-700" },
+  poor:      { label: "Poor record",  range: "below 50%",  text: "text-red-700",     bg: "bg-red-50",     border: "border-red-200",     dot: "bg-red-700" },
+  new:       { label: "New customer", range: "no history", text: "text-zinc-500",    bg: "bg-zinc-100",   border: "border-zinc-200",    dot: "bg-zinc-400" },
+};
+
 export function maskPhone(phone: string | null | undefined): string {
   const clean = String(phone || "").replace(/\D/g, "");
   return clean.length === 11 ? `${clean.slice(0, 3)}****${clean.slice(7)}` : "—";

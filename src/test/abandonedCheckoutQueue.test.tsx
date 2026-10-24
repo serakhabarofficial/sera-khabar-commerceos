@@ -163,7 +163,7 @@ describe("AbandonedCheckoutQueue", () => {
     expect(screen.getByRole("button", { name: "Dismiss checkout" })).toBeInTheDocument();
   });
 
-  it("supports selection and opens the detail page on row click", async () => {
+  it("supports selection and opens the detail page from the Open button only", async () => {
     const user = userEvent.setup();
     const onToggleSelect = vi.fn();
     const onSelectAll = vi.fn();
@@ -189,8 +189,29 @@ describe("AbandonedCheckoutQueue", () => {
     await user.click(screen.getByTestId("checkbox-abandoned-all"));
     expect(onSelectAll).toHaveBeenCalled();
 
-    await user.click(screen.getByText("Farzana Akter"));
+    // Clicking the card itself no longer navigates.
+    fireEvent.click(screen.getByText(checkout.address));
+    expect(onOpenCheckout).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Open checkout for Farzana Akter" }));
     expect(onOpenCheckout).toHaveBeenCalledWith(checkout.id);
+  });
+
+  it("opens the checkout in a new tab from the customer name", () => {
+    render(
+      <AbandonedCheckoutQueue
+        checkouts={[checkout]}
+        loading={false}
+        error={null}
+        actionInFlightId={null}
+        onAction={vi.fn()}
+      />,
+    );
+
+    const name = screen.getByRole("link", { name: "Farzana Akter" });
+    expect(name).toHaveAttribute("href", `/abandoned/${checkout.id}`);
+    expect(name).toHaveAttribute("target", "_blank");
+    expect(name).toHaveAttribute("rel", "noreferrer");
   });
 
   it("does not open the detail page when changing status from the dropdown", async () => {
@@ -212,11 +233,6 @@ describe("AbandonedCheckoutQueue", () => {
     await user.click(await screen.findByRole("menuitemradio", { name: "Contacted" }));
 
     expect(onAction).toHaveBeenCalledWith(checkout.id, "contacted");
-
-    // Radix portals the menu to <body>; selecting an item unmounts it and the
-    // trailing click lands on the row underneath. jsdom does not replay that
-    // click, so fire it explicitly to cover the real-browser behaviour.
-    fireEvent.click(screen.getByText("Farzana Akter"));
     expect(onOpenCheckout).not.toHaveBeenCalled();
   });
 

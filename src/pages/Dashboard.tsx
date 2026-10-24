@@ -2041,7 +2041,6 @@ export default function Dashboard() {
               onStatusUpdate={handleStatusUpdate}
               onOrderUpdate={handleOrderUpdate}
               isPrintView={activeOrderStatusFilter === "print"}
-              showRiskColumn={false}
               showCancellationReason={isCancelledTab}
               showHoldDetails={isHoldTab}
               selectedIds={selectedOrderIds}

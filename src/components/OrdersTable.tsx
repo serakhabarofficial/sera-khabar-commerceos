@@ -32,7 +32,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Chip } from "@/components/base/badges/chip";
 import { toast, DarkToast } from "@/components/ui/sonner";
-import { AlertTriangle, CheckCircle2, Clock3, HelpCircle, ShieldAlert, ShieldCheck, Truck, Search, StickyNote, Package, Check, FileText, Trash2, Printer, ChevronDown, Copy, MapPin, ShoppingBag, FileSpreadsheet } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, ShieldCheck, Truck, Search, StickyNote, Package, Check, FileText, Trash2, Printer, ChevronDown, Copy, MapPin, ShoppingBag, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -55,6 +55,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Spinner } from "@/components/ui/ios-spinner";
+import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { MagnifyingGlass, Warning } from "@phosphor-icons/react";
+import { DELIVERY_TIER_STYLES, courierRows, deliveryTier } from "@/lib/fraudRisk";
+import { fraudLookupQuery, useFraudLookup } from "@/hooks/useFraudCheck";
 import { PopButton } from "@/components/ui/pop-button";
 import { Select as BuiSelect, SelectItem as BuiSelectItem } from "@/components/base/select/select";
 import { useWarehouses } from "@/hooks/useWarehouses";
@@ -332,15 +337,65 @@ interface OrdersTableProps {
   enableOrderIdLinks?: boolean;
 }
 
-function SearchRiskIcon({ className }: { className?: string }) {
+// The slot is always the same size so names never swap for logos mid-hover;
+// the image fades in once it has actually loaded.
+function CourierLogo({ src, name }: { src: string | null; name: string }) {
+  const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
+  if (!src || status === "failed") return <span className="capitalize text-black">{name}</span>;
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <g clipPath="url(#clip0_risk)">
-        <path d="M10.6101 19.6599C15.5901 19.6599 19.6201 15.6299 19.6201 10.6499C19.6201 5.66989 15.5901 1.63989 10.6101 1.63989C5.6301 1.63989 1.6001 5.66989 1.6001 10.6499C1.6001 15.6299 5.6301 19.6599 10.6101 19.6599Z"/>
-        <path d="M22.3101 19.02C22.0501 18.29 21.3201 17.78 20.3201 17.63C19.5401 17.5 18.8201 17.72 18.3301 18.21C17.8401 18.71 17.6301 19.44 17.7601 20.23C18.0101 21.72 18.8101 22.16 19.2601 22.29C19.3901 22.33 19.5501 22.36 19.7501 22.36C20.2401 22.36 20.9101 22.16 21.6401 21.36C22.3201 20.61 22.5701 19.75 22.3101 19.02Z"/>
-      </g>
-    </svg>
+    <span className="relative h-5 w-[64px]">
+      <img
+        src={src}
+        alt={name}
+        title={name}
+        referrerPolicy="no-referrer"
+        onLoad={() => setStatus("loaded")}
+        onError={() => setStatus("failed")}
+        className={cn(
+          "absolute inset-0 h-full w-full object-contain object-left mix-blend-multiply transition-opacity duration-150 ease-out",
+          status === "loaded" ? "opacity-100" : "opacity-0",
+        )}
+      />
+    </span>
   );
+}
+
+// Mounts only while the hover card is open. The lookup is cache-only, so it
+// adds courier logos without spending a FraudShield request.
+function CourierBreakdown({ phone, fallback }: { phone: string | null; fallback: { name: string; delivered: number; total: number }[] }) {
+  const lookup = useFraudLookup(phone);
+  const fromCache = courierRows((lookup.data?.payload ?? null) as Parameters<typeof courierRows>[0]).filter((row) => row.total > 0);
+  const rows = fromCache.length > 0
+    ? fromCache.map((row) => ({ name: row.name, logo: row.logo, delivered: row.success, total: row.total }))
+    : fallback.map((row) => ({ ...row, logo: null }));
+
+  return (
+    <div className="space-y-1.5 border-t border-black/[0.06] pt-2.5 text-xs">
+      {rows.map((row) => (
+        <div key={row.name} className="flex h-5 items-center justify-between">
+          {lookup.isLoading
+            ? <span className="h-5 w-[64px]" />
+            : <CourierLogo src={row.logo} name={row.name} />}
+          <span className="tabular-nums text-black/60">{row.delivered}/{row.total} · {Math.round((row.delivered / row.total) * 100)}%</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Starts the lookup and logo downloads as soon as the pointer reaches the pill,
+// so they are usually ready by the time the hover card opens.
+function usePrefetchCourierLogos(phone: string | null) {
+  const queryClient = useQueryClient();
+  return () => {
+    const query = fraudLookupQuery(phone);
+    if (!query.enabled) return;
+    queryClient.fetchQuery(query).then((data) => {
+      for (const row of courierRows((data?.payload ?? null) as Parameters<typeof courierRows>[0])) {
+        if (row.logo) new Image().src = row.logo;
+      }
+    }).catch(() => {});
+  };
 }
 
 function FraudCell({ order, isChecking, onCheck }: {
@@ -348,170 +403,125 @@ function FraudCell({ order, isChecking, onCheck }: {
   isChecking: boolean;
   onCheck: () => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-
+  const prefetchLogos = usePrefetchCourierLogos(order.phone);
   const rawFraudData = order.fraud_data as (Record<string, unknown> & { _error?: string }) | null;
-  const hasError = order.fraud_checked && (!rawFraudData || rawFraudData._error);
+  const hasError = Boolean(order.fraud_checked && (!rawFraudData || rawFraudData._error));
 
-  let RiskIcon: React.ComponentType<{ className?: string }> = SearchRiskIcon;
-  let riskColor = "text-muted-foreground/30";
-  let riskBgColor = "";
-  let riskLabel = "";
-  let deliveryRate = 0;
-  let total_parcels = 0, total_delivered = 0, total_cancel = 0;
-
-  if (order.fraud_checked && !hasError && rawFraudData) {
-    const fd = rawFraudData as { total_parcels: number; total_delivered: number; total_cancel: number };
-    total_parcels = fd.total_parcels ?? 0;
-    total_delivered = fd.total_delivered ?? 0;
-    total_cancel = fd.total_cancel ?? 0;
-    deliveryRate = total_parcels > 0 ? (total_delivered / total_parcels) * 100 : 0;
-
-    if (total_parcels === 0) {
-      RiskIcon = HelpCircle;
-      riskColor = "text-muted-foreground";
-      riskBgColor = "bg-muted/50";
-      riskLabel = "New Customer";
-    } else if (deliveryRate >= 70) {
-      RiskIcon = ShieldCheck;
-      riskColor = "text-emerald-600";
-      riskBgColor = "bg-emerald-50";
-      riskLabel = "Safe";
-    } else if (deliveryRate >= 50) {
-      RiskIcon = AlertTriangle;
-      riskColor = "text-amber-600";
-      riskBgColor = "bg-amber-50";
-      riskLabel = "Caution";
-    } else {
-      RiskIcon = ShieldAlert;
-      riskColor = "text-red-600";
-      riskBgColor = "bg-red-50";
-      riskLabel = "High Risk";
-    }
+  if (isChecking) {
+    return <span className="inline-flex h-7 items-center"><Spinner className="text-muted-foreground/40" /></span>;
   }
 
-  return (
-    <div
-      className="relative inline-flex items-center justify-center"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Badge / trigger button */}
-      <button
-        onClick={() => { if (!isChecking && (!order.fraud_checked || hasError)) onCheck(); }}
-        disabled={isChecking}
-        className={cn(
-          "flex flex-col items-center justify-center rounded-md transition-all outline-none",
-          order.fraud_checked && !hasError
-            ? cn("gap-0.5 px-1.5 py-1", riskBgColor)
-            : "p-1.5 hover:bg-black/5 cursor-pointer",
-          hasError && !isChecking && "hover:bg-red-50 cursor-pointer"
-        )}
-        data-testid={`button-fraud-check-${order.id}`}
-      >
-        {isChecking ? (
-          <Spinner className="text-muted-foreground/40" />
-        ) : hasError ? (
-          <AlertTriangle className="h-3.5 w-3.5 text-destructive/60" />
-        ) : order.fraud_checked ? (
-          <>
-            <RiskIcon className={cn("h-3.5 w-3.5", riskColor)} />
-            <span className={cn("text-[10px] font-semibold tabular-nums", riskColor)}>
-              {total_parcels > 0 ? `${deliveryRate.toFixed(0)}%` : "N/A"}
-            </span>
-          </>
-        ) : (
-          <SearchRiskIcon className="h-3.5 w-3.5 text-muted-foreground/25" />
-        )}
-      </button>
-
-      {/* Hover detail card — only shown when checked and hovered */}
-      {hovered && order.fraud_checked && !isChecking && (
-        <div className="absolute left-full top-0 ml-2 z-[200] w-72 bg-card border border-border shadow-xl rounded-xl overflow-hidden pointer-events-none">
-          {hasError ? (
-            <div className="p-4 space-y-2">
-              <p className="text-[8px] font-medium tracking-[0.25em] text-black uppercase">FraudShield Error</p>
-              <p className="text-sm font-semibold text-destructive">Check failed</p>
+  if (!order.fraud_checked || hasError) {
+    return (
+      <HoverCard openDelay={150} closeDelay={80}>
+        <HoverCardTrigger asChild>
+          <button
+            type="button"
+            onClick={onCheck}
+            className={cn(
+              "inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-full border border-dashed bg-white px-2 text-[11px] font-medium transition-[transform,background-color] duration-150 ease-out active:scale-[0.97]",
+              hasError ? "border-red-200 text-red-700 hover:bg-red-50" : "border-black/15 text-black/50 hover:bg-black/[0.03]",
+            )}
+            data-testid={`button-fraud-check-${order.id}`}
+          >
+            {hasError ? <Warning weight="light" size={12} /> : <MagnifyingGlass weight="light" size={12} />}
+            {hasError ? "Retry" : "Check"}
+          </button>
+        </HoverCardTrigger>
+        {hasError && (
+          <HoverCardPrimitive.Portal>
+            <HoverCardContent side="bottom" align="start" className="w-64 space-y-2 rounded-xl p-4 duration-150 origin-[--radix-hover-card-content-transform-origin]">
+              <p className="text-[8px] font-medium tracking-[0.3em] text-black uppercase">FraudShield Error</p>
               <p className="text-xs text-muted-foreground break-words">
                 {rawFraudData?._error ?? "API couldn't be reached. Check your key in Settings → API Configuration."}
               </p>
-              <p className="text-[9px] font-medium tracking-[0.2em] text-black uppercase pt-1 border-t border-black/[0.06]">
-                Click icon to retry
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className={cn("px-4 py-3 border-b border-border/50", riskBgColor)}>
-                <div className="flex items-center gap-2">
-                  <RiskIcon className={cn("h-5 w-5", riskColor)} />
-                  <span className={cn("font-semibold", riskColor)}>{riskLabel}</span>
-                </div>
-                {total_parcels > 0 && (
-                  <p className="text-2xl font-bold mt-1 text-foreground">
-                    {deliveryRate.toFixed(1)}%{" "}
-                    <span className="text-sm font-normal text-muted-foreground">delivery rate</span>
-                  </p>
-                )}
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">{total_parcels}</p>
-                    <p className="text-xs text-muted-foreground">Total</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-emerald-600">{total_delivered}</p>
-                    <p className="text-xs text-muted-foreground">Delivered</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-red-600">{total_cancel}</p>
-                    <p className="text-xs text-muted-foreground">Cancelled</p>
-                  </div>
-                </div>
-                {total_parcels > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Delivery Success</span>
-                      <span>{total_delivered}/{total_parcels}</span>
-                    </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 rounded-full transition-all"
-                        style={{ width: `${deliveryRate}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {order.fraud_data?.apis && Object.keys(order.fraud_data.apis).length > 0 && (
-                  <div className="pt-3 border-t border-border/50">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">By Courier</p>
-                    <div className="space-y-1.5">
-                      {Object.entries(order.fraud_data.apis).map(([courier, data]) => {
-                        const cd = data as { total_delivered_parcels: number; total_parcels: number };
-                        const cr = cd.total_parcels > 0
-                          ? (cd.total_delivered_parcels / cd.total_parcels) * 100
-                          : 0;
-                        return (
-                          <div key={courier} className="flex items-center justify-between text-sm">
-                            <span className="text-foreground capitalize">{courier}</span>
-                            <span className="font-mono text-muted-foreground">
-                              {cd.total_delivered_parcels}/{cd.total_parcels}
-                              {cd.total_parcels > 0 && (
-                                <span className="ml-1 text-xs">({cr.toFixed(0)}%)</span>
-                              )}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
+            </HoverCardContent>
+          </HoverCardPrimitive.Portal>
+        )}
+      </HoverCard>
+    );
+  }
+
+  const fd = rawFraudData as { total_parcels?: number; total_delivered?: number; total_cancel?: number; apis?: Record<string, { total_parcels?: number; total_delivered_parcels?: number }> };
+  const totalParcels = fd.total_parcels ?? 0;
+  const totalDelivered = fd.total_delivered ?? 0;
+  const totalCancel = fd.total_cancel ?? 0;
+  const rate = totalParcels > 0 ? (totalDelivered / totalParcels) * 100 : null;
+  const tier = deliveryTier(rate);
+  const style = DELIVERY_TIER_STYLES[tier];
+  const couriers = Object.entries(fd.apis ?? {}).filter(([, c]) => (c.total_parcels ?? 0) > 0);
+
+  return (
+    <HoverCard openDelay={150} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <span
+          tabIndex={0}
+          onPointerEnter={prefetchLogos}
+          onFocus={prefetchLogos}
+          className={cn(
+            "inline-flex h-7 cursor-default items-center gap-1.5 whitespace-nowrap rounded-full border pl-2 pr-2.5 text-xs font-semibold tabular-nums outline-none transition-shadow duration-150 ease-out hover:ring-[3px] hover:ring-black/[0.04] focus-visible:ring-[3px] focus-visible:ring-black/10",
+            style.bg, style.border, style.text,
           )}
-        </div>
-      )}
-    </div>
+          aria-label={`${style.label}${rate === null ? "" : `, ${Math.round(rate)}% delivered`}`}
+          data-testid={`button-fraud-check-${order.id}`}
+        >
+          {tier === "poor" ? <Warning weight="fill" size={11} /> : <span className={cn("h-1.5 w-1.5 rounded-full", style.dot)} />}
+          {rate === null ? "New" : `${Math.round(rate)}%`}
+        </span>
+      </HoverCardTrigger>
+      <HoverCardPrimitive.Portal>
+        <HoverCardContent
+          side="bottom"
+          align="start"
+          className="w-[268px] overflow-hidden rounded-[14px] border-black/[0.08] bg-white p-0 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.18),0_2px_6px_rgba(0,0,0,0.05)] duration-150 origin-[--radix-hover-card-content-transform-origin]"
+        >
+          <div className={cn("border-b px-4 pb-3 pt-3.5", style.bg, style.border)}>
+            <p className={cn("flex items-center gap-1.5 text-[8px] font-semibold uppercase tracking-[0.28em]", style.text)}>
+              {tier === "poor" && <Warning weight="fill" size={10} />}
+              {style.label} · {style.range}
+            </p>
+            <p className="mt-1 text-3xl font-light tracking-tight text-black tabular-nums">
+              {rate === null ? "—" : `${Math.round(rate)}%`}
+              <span className="ml-1.5 text-xs font-normal tracking-normal text-black/50">
+                {rate === null ? "no past parcels" : "delivery success"}
+              </span>
+            </p>
+          </div>
+          <div className="space-y-3 px-4 pb-3.5 pt-3">
+            {rate === null ? (
+              <p className="text-[11px] leading-relaxed text-black/50">
+                This phone number has no delivery history with any courier. Treat as unknown, not risky.
+              </p>
+            ) : (
+              <>
+                <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full">
+                  <div className={cn("h-full rounded-full", style.dot)} style={{ width: `${rate}%` }} />
+                  <div className="h-full flex-1 rounded-full bg-black/[0.08]" />
+                </div>
+                <div className="grid grid-cols-3">
+                  {[
+                    { label: "Total", value: totalParcels, className: "text-black" },
+                    { label: "Delivered", value: totalDelivered, className: "text-emerald-700" },
+                    { label: "Returned", value: totalCancel, className: "text-red-700" },
+                  ].map((stat) => (
+                    <div key={stat.label} className="flex flex-col gap-0.5">
+                      <span className={cn("text-lg font-light tabular-nums", stat.className)}>{stat.value}</span>
+                      <span className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">{stat.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {couriers.length > 0 && (
+                  <CourierBreakdown
+                    phone={order.phone}
+                    fallback={couriers.map(([name, c]) => ({ name, delivered: c.total_delivered_parcels ?? 0, total: c.total_parcels ?? 0 }))}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </HoverCardContent>
+      </HoverCardPrimitive.Portal>
+    </HoverCard>
   );
 }
 
@@ -1434,13 +1444,13 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
             </TableHead>
             <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto">Order ID</TableHead>
             <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto">Customer</TableHead>
-            {showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Reason</TableHead>}
             {showRiskColumn && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Risk</TableHead>}
+            {showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Reason</TableHead>}
             {showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto">Cancelled</TableHead>}
             {!showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Warehouse</TableHead>}
             {!showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Ship To</TableHead>}
             <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Items</TableHead>
-            <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-right pr-4">Total</TableHead>
+            <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Total</TableHead>
             {!showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Order State</TableHead>}
             {!showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center pr-4">Fulfillment</TableHead>}
           </TableRow>
@@ -1576,16 +1586,6 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                       )}
                     </div>
                   </TableCell>
-                  {showCancellationReason && (
-                    <TableCell className="max-w-[260px] py-3">
-                      <CancellationReasonCell order={order} />
-                    </TableCell>
-                  )}
-                  {showCancellationReason && (
-                    <TableCell className="py-3">
-                      <CancelledAtCell order={order} />
-                    </TableCell>
-                  )}
                   {showRiskColumn && (
                     <TableCell className="text-center py-3">
                       <div className="flex items-center justify-center">
@@ -1597,13 +1597,23 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                       </div>
                     </TableCell>
                   )}
+                  {showCancellationReason && (
+                    <TableCell className="max-w-[260px] py-3">
+                      <CancellationReasonCell order={order} />
+                    </TableCell>
+                  )}
+                  {showCancellationReason && (
+                    <TableCell className="py-3">
+                      <CancelledAtCell order={order} />
+                    </TableCell>
+                  )}
                   {!showCancellationReason && (<>
                   <TableCell className="py-3 text-center" onClick={(event) => event.stopPropagation()}>
                     <BuiSelect aria-label={`Warehouse for ${order.order_number}`} placeholder="Select warehouse" selectedKey={order.warehouse_id || null} onSelectionChange={(key) => handleWarehouseChange(order, String(key))} className="items-center" triggerClassName={`h-8 w-auto max-w-full border-transparent ${order.warehouse_id ? "bg-status-lime-background text-status-lime-text hover:bg-status-lime-background" : "bg-status-yellow-background text-status-yellow-text hover:bg-status-yellow-background"}`} popoverClassName="w-[var(--trigger-width)]">
                       {warehouses.map((warehouse) => <BuiSelectItem key={warehouse.id} id={warehouse.id} textValue={warehouse.name}>{warehouse.name}</BuiSelectItem>)}
                     </BuiSelect>
                   </TableCell>
-                  <TableCell className="max-w-[150px] py-3">
+                  <TableCell className="max-w-[120px] 2xl:max-w-[150px] py-3">
                     <Tooltip delayDuration={0}>
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-1 group/addr cursor-default min-w-0">
@@ -1632,7 +1642,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                     </Tooltip>
                   </TableCell>
                   </>)}
-                  <TableCell className="max-w-[160px] py-3">
+                  <TableCell className="max-w-[130px] 2xl:max-w-[160px] py-3">
                     <Tooltip delayDuration={0}>
                       <TooltipTrigger asChild>
                          <div data-testid="order-items-preview" aria-label={`${lines.length || 0} order items`} className="flex items-center gap-1.5 group/prod cursor-default min-w-0">
@@ -1669,7 +1679,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                       </TooltipContent>
                     </Tooltip>
                   </TableCell>
-                  <TableCell className="text-right py-3 pr-4 tabular-nums">
+                  <TableCell className="text-center py-3 tabular-nums">
                     <EditableTotalCell order={order} onOrderUpdate={onOrderUpdate} />
                   </TableCell>
                   {!showCancellationReason && (<>
