@@ -67,6 +67,25 @@ export function relativeAge(iso: string | null | undefined, now: Date = new Date
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+// FraudShield's logo files, keyed by courier name in lower case. An order's
+// saved fraud result has the names but not the logos, so the hover card can
+// show these without waiting for a lookup.
+const COURIER_LOGOS: Record<string, string> = {
+  pathao: "https://fraudshield.bd/c-logo/pathao-logo.png",
+  steadfast: "https://fraudshield.bd/c-logo/steadfast-logo.png",
+  redx: "https://fraudshield.bd/c-logo/redx-logo.png",
+  paperfly: "https://fraudshield.bd/c-logo/paperfly-logo.png",
+  parceldex: "https://fraudshield.bd/c-logo/parceldex-logo.png",
+  carrybee: "https://fraudshield.bd/c-logo/carrybee-logo.webp",
+  courrierfast: "https://fraudshield.bd/c-logo/courierfast-logo.png",
+};
+
+export const KNOWN_COURIER_LOGOS = Object.values(COURIER_LOGOS);
+
+export function courierLogoFor(name: string) {
+  return COURIER_LOGOS[name.toLowerCase()] ?? null;
+}
+
 export function courierRows(payload: FraudPayload) {
   return Object.entries(payload?.courierData || {})
     .filter(([key]) => key !== "summary")

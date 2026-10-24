@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { courierRows, deliveryTier, maskPhone, relativeAge, resolveFraudLevel } from "@/lib/fraudRisk";
+import { courierLogoFor, courierRows, deliveryTier, maskPhone, relativeAge, resolveFraudLevel } from "@/lib/fraudRisk";
 
 describe("courierRows", () => {
   it("rewrites the dead logo host to the live one", () => {
@@ -87,5 +87,18 @@ describe("deliveryTier", () => {
 
   it("treats a phone with no past parcels as new, not risky", () => {
     expect(deliveryTier(null)).toBe("new");
+  });
+});
+
+describe("courierLogoFor", () => {
+  it("knows each courier's logo from the name an order already stores", () => {
+    expect(courierLogoFor("Pathao")).toBe("https://fraudshield.bd/c-logo/pathao-logo.png");
+    expect(courierLogoFor("RedX")).toBe("https://fraudshield.bd/c-logo/redx-logo.png");
+    expect(courierLogoFor("CarryBee")).toBe("https://fraudshield.bd/c-logo/carrybee-logo.webp");
+    expect(courierLogoFor("CourrierFast")).toBe("https://fraudshield.bd/c-logo/courierfast-logo.png");
+  });
+
+  it("returns null for a courier it does not know", () => {
+    expect(courierLogoFor("Sundarban")).toBeNull();
   });
 });
