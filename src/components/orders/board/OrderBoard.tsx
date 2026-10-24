@@ -1,20 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CalendarBlank, CaretDown, MagnifyingGlass, Plus, X, ArrowUpRight } from "@phosphor-icons/react";
 import { Badge } from "@/components/reui/badge";
 import { Frame, FrameHeader, FramePanel, FrameTitle } from "@/components/reui/frame";
-import {
-  Kanban,
-  KanbanBoard,
-  KanbanColumn,
-  KanbanColumnContent,
-  KanbanItem,
-  KanbanItemHandle,
-  KanbanOverlay,
-  type KanbanCommitMeta,
-} from "@/components/reui/kanban";
 import { useOrderBoard } from "@/hooks/useOrderBoard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { pickerPrimaryButtonClassName } from "@/components/base/date-picker/shared";
 import { cn } from "@/lib/utils";
 import { displayStatusLabel } from "@/lib/orderTransitions";
@@ -23,9 +14,7 @@ import {
   BOARD_COLOR_CLASSES,
   cardsInList,
   dropPosition,
-  isHeavyParcel,
   itemCount,
-  positionBetween,
   reminderLabel,
   reminderState,
   searchBoardOrders,
@@ -36,6 +25,7 @@ import {
 } from "@/lib/orderBoard";
 import { getBangladeshDateKey } from "../../../../shared/orderHold.js";
 import { BoardCardDialog } from "./BoardCardDialog";
+import { BoardCardDetail } from "./BoardCardDetail";
 
 const LIST_SUGGESTIONS = ["ফোন ধরছে না", "কাস্টমার নিচ্ছে না", "ঠিকানা ভুল", "অগ্রিম পেমেন্ট"];
 const NO_LISTS: BoardList[] = [];
@@ -46,8 +36,10 @@ const MENU_OUT = { duration: 0.12, ease: MENU_EASE };
 // The list's Add order panel grows open and folds shut, so the list resizes smoothly.
 const PANEL_IN = { duration: 0.24, ease: MENU_EASE };
 const PANEL_OUT = { duration: 0.18, ease: MENU_EASE };
+// The selected list's highlight slides between rail rows; the detail pane cross-fades.
+const RAIL_SLIDE = { duration: 0.22, ease: MENU_EASE };
+const DETAIL_IN = { duration: 0.18, ease: MENU_EASE };
 const NO_CARDS: BoardCard[] = [];
-const cardKey = (card: BoardCard) => card.id;
 
 function fmtTaka(n: number | null) {
   return "৳" + Number(n || 0).toLocaleString("en-BD", { maximumFractionDigits: 0 });
@@ -158,84 +150,211 @@ function AddToListMenu({
   );
 }
 
-function CardBody({ card, today }: { card: BoardCard; today: string }) {
-  const order = card.order;
-  const items = order?.items ?? [];
-  const count = itemCount(items);
-  const state = card.remind_on ? reminderState(card.remind_on, today) : null;
+
+/** "+ New list": a small popover with a live preview, a colour and quick-start names. */
+function NewListPopover({
+  lists,
+  side,
+  onCreate,
+}: {
+  lists: BoardList[];
+  side: "right" | "bottom";
+  onCreate: (name: string, color: BoardColor) => Promise<boolean>;
+}) {
+  const reduceMotion = useReducedMotion();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState<BoardColor>(BOARD_COLORS[0]);
+  const [saving, setSaving] = useState(false);
+  const suggestions = LIST_SUGGESTIONS.filter((s) => !lists.some((l) => l.name === s));
+  const trimmed = name.trim();
+  const tone = BOARD_COLOR_CLASSES[color];
+
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) return;
+    // Each new list starts on the next colour so neighbours look different.
+    setName("");
+    setColor(BOARD_COLORS[lists.length % BOARD_COLORS.length]);
+  };
+
+  const create = async () => {
+    if (!trimmed || saving) return;
+    setSaving(true);
+    const created = await onCreate(trimmed, color);
+    setSaving(false);
+    if (created) setOpen(false);
+  };
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[11px] text-muted-foreground">#{order?.order_number ?? "—"}</span>
-        {card.remind_on ? (
-          <span className={cn(
-            "inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-medium",
-            state === "overdue" ? "text-rose-600" : state === "today" ? "text-amber-700" : "text-muted-foreground",
-          )}>
-            <CalendarBlank weight="light" className="size-3.5" />
-            {reminderLabel(card.remind_on, today)}
-          </span>
-        ) : (
-          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{fmtTaka(order?.price ?? 0)}</span>
+    <PopoverPrimitive.Root open={open} onOpenChange={changeOpen}>
+      <PopoverPrimitive.Trigger asChild>
+        <button
+          type="button"
+          className="flex h-8 w-full items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[12.5px] text-black/45 transition-[background-color,color,transform] duration-150 hover:bg-black/[0.03] hover:text-black active:scale-[0.98] data-[state=open]:bg-black/[0.04] data-[state=open]:text-black"
+        >
+          <Plus weight="light" className="size-4" /> New list
+        </button>
+      </PopoverPrimitive.Trigger>
+      <AnimatePresence>
+        {open && (
+          <PopoverPrimitive.Portal forceMount>
+            <PopoverPrimitive.Content forceMount asChild side={side} align="end" sideOffset={10} collisionPadding={12}>
+              <motion.form
+                onSubmit={(e) => { e.preventDefault(); void create(); }}
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1, transition: MENU_IN }}
+                exit={reduceMotion ? { opacity: 0, transition: MENU_OUT } : { opacity: 0, scale: 0.96, transition: MENU_OUT }}
+                style={{ transformOrigin: "var(--radix-popover-content-transform-origin)" }}
+                className="z-[60] grid w-[296px] gap-4 rounded-2xl bg-white p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_16px_40px_-12px_rgba(0,0,0,0.22)] outline-none"
+              >
+                <div className="grid gap-0.5">
+                  <span className="text-[14px] font-semibold tracking-[-0.01em]">New list</span>
+                  <span className="text-[12px] text-black/45">Name it for whatever your team needs to follow up.</span>
+                </div>
+
+                {/* How the list will look in the rail. */}
+                <div className={cn("flex h-10 items-center gap-2.5 rounded-xl px-3 transition-colors duration-200", tone.column)}>
+                  <span className={cn("size-2 shrink-0 rounded-full transition-colors duration-200", tone.dot)} />
+                  <span className={cn("min-w-0 flex-1 truncate text-[13px] font-semibold transition-colors duration-200", trimmed ? tone.ink : "text-black/30")}>
+                    {trimmed || "List name"}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-black/35">0</span>
+                </div>
+
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={60}
+                  placeholder="যেমন: ফোন ধরছে না"
+                  aria-label="New list name"
+                  className="h-10 rounded-xl bg-black/[0.04] px-3 text-[13.5px] outline-none transition-[background-color,box-shadow] duration-150 placeholder:text-black/35 focus:bg-white focus:shadow-[0_0_0_1px_rgba(0,0,0,0.15)]"
+                />
+
+                <div className="grid gap-2">
+                  <span className="text-[9px] font-medium uppercase tracking-[0.3em] text-black/45">Colour</span>
+                  <div className="flex items-center gap-2" role="radiogroup" aria-label="List colour">
+                    {BOARD_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        role="radio"
+                        aria-checked={c === color}
+                        aria-label={c}
+                        onClick={() => setColor(c)}
+                        className={cn(
+                          "grid size-6 place-items-center rounded-full transition-transform duration-150 ease-out active:scale-90",
+                          c === color && "ring-2 ring-black/80 ring-offset-2",
+                        )}
+                      >
+                        <span className={cn("size-4 rounded-full", BOARD_COLOR_CLASSES[c].dot)} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {suggestions.length > 0 && (
+                  <div className="grid gap-2">
+                    <span className="text-[9px] font-medium uppercase tracking-[0.3em] text-black/45">Quick start</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {suggestions.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setName(s)}
+                          className={cn(
+                            "h-7 rounded-full px-2.5 text-[12px] transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.97]",
+                            name === s ? "bg-black text-white" : "bg-black/[0.04] text-black/65 hover:bg-black/[0.07] hover:text-black",
+                          )}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-1.5 border-t border-black/[0.06] pt-3">
+                  <PopoverPrimitive.Close className="h-8 rounded-lg px-3 text-[12.5px] text-black/55 transition-colors duration-150 hover:bg-black/[0.04] hover:text-black">
+                    Cancel
+                  </PopoverPrimitive.Close>
+                  <button
+                    type="submit"
+                    disabled={!trimmed || saving}
+                    className="h-8 rounded-lg bg-black px-3.5 text-[12.5px] font-medium text-white transition-[transform,opacity] duration-150 ease-out active:scale-[0.97] disabled:opacity-35"
+                  >
+                    {saving ? "Creating…" : "Create list"}
+                  </button>
+                </div>
+              </motion.form>
+            </PopoverPrimitive.Content>
+          </PopoverPrimitive.Portal>
         )}
-      </div>
-      <span className="text-sm font-medium leading-snug">{order?.customer_name || "Unnamed customer"}</span>
-      {card.note ? (
-        <p className="line-clamp-2 whitespace-pre-line text-xs text-muted-foreground">{card.note}</p>
-      ) : (
-        <p className="text-xs italic text-muted-foreground/60">Click to add a note</p>
-      )}
-      {order && (
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] tabular-nums text-muted-foreground">
-            {displayStatusLabel(order.status)} · {count} {count === 1 ? "item" : "items"}
-          </span>
-          {isHeavyParcel(items) && <Badge variant="info-outline" size="sm">Heavy</Badge>}
-        </div>
-      )}
-    </div>
+      </AnimatePresence>
+    </PopoverPrimitive.Root>
   );
 }
 
-function BoardCardItem({
-  card,
-  today,
-  onOpen,
-  ...props
-}: { card: BoardCard; today: string; onOpen: () => void } & Omit<ComponentProps<typeof KanbanItem>, "value" | "children">) {
+function OrderRow({ card, list, today, selected, onSelect }: {
+  card: BoardCard;
+  list: BoardList;
+  today: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const order = card.order;
+  const state = card.remind_on ? reminderState(card.remind_on, today) : null;
   return (
-    <KanbanItem
-      value={card.id}
-      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onOpen(); } }}
-      aria-label={`Order ${card.order?.order_number ?? ""}, ${card.order?.customer_name ?? ""}. Press Enter to open.`}
-      className="rounded-(--frame-panel-radius) outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      {...props}
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={selected || undefined}
+      data-board-row={card.id}
+      className={cn(
+        "grid w-full gap-1 border-l-2 px-4 py-3 text-left outline-none transition-colors duration-100 focus-visible:bg-black/[0.03]",
+        selected ? cn(BOARD_COLOR_CLASSES[list.color].column, BOARD_COLOR_CLASSES[list.color].edge) : "border-l-transparent [@media(hover:hover)]:hover:bg-[#FAFAF8]",
+      )}
     >
-      <KanbanItemHandle onClick={onOpen}>
-        <Frame variant="ghost" spacing="sm" className="p-0">
-          <FramePanel className="p-3 transition-shadow duration-150 hover:shadow-sm">
-            <CardBody card={card} today={today} />
-          </FramePanel>
-        </Frame>
-      </KanbanItemHandle>
-    </KanbanItem>
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-[13px] font-medium">{order?.customer_name || "Unnamed customer"}</span>
+        {card.remind_on && (
+          <span className={cn(
+            "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[10.5px] font-medium",
+            state === "overdue" ? "text-rose-600" : state === "today" ? "text-amber-700" : "text-black/45",
+          )}>
+            <CalendarBlank weight="light" className="size-3" />
+            {reminderLabel(card.remind_on, today)}
+          </span>
+        )}
+      </span>
+      <span className="truncate text-[11.5px] text-black/50">
+        {card.note || (
+          <>
+            <span className="font-mono text-[10.5px]">#{order?.order_number ?? "—"}</span> · {fmtTaka(order?.price ?? 0)}
+          </>
+        )}
+      </span>
+    </button>
   );
 }
 
 export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
   const board = useOrderBoard();
+  const isMobile = useIsMobile();
   const reduceMotion = useReducedMotion();
   const today = getBangladeshDateKey();
   const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const boardRootRef = useRef<HTMLDivElement>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [listSearch, setListSearch] = useState<{ listId: string; query: string } | null>(null);
-  const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [pickedListId, setPickedListId] = useState<string | null>(null);
+  const [pickedCardId, setPickedCardId] = useState<string | null>(null);
+  // Phones have no room for the detail pane, so a picked order opens in a dialog there.
+  const [dialogCardId, setDialogCardId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [addingList, setAddingList] = useState(false);
-  const [newListName, setNewListName] = useState("");
 
   const lists = board.data?.lists ?? NO_LISTS;
   const cards = board.data?.cards ?? NO_CARDS;
@@ -247,22 +366,36 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
     for (const c of cards) counts.set(c.list_id, (counts.get(c.list_id) ?? 0) + 1);
     return counts;
   }, [cards]);
-  const openCard = cards.find((c) => c.id === openCardId) ?? null;
 
-  // While a card is dragged the kanban previews the move in local state; the drop saves it.
-  const [dragColumns, setDragColumns] = useState<Record<string, BoardCard[]> | null>(null);
-  const savedColumns = useMemo(
-    () => Object.fromEntries(lists.map((list) => [list.id, cardsInList(cards, list.id)])) as Record<string, BoardCard[]>,
-    [lists, cards],
-  );
-  const columns = dragColumns ?? savedColumns;
-  // The kanban can still apply its final reorder after onDragEnd; clear once it has.
-  const endDrag = () => queueMicrotask(() => setDragColumns(null));
-  const commitMove = (value: Record<string, BoardCard[]>, meta: KanbanCommitMeta<BoardCard>) => {
-    if (meta.kind !== "item") return;
-    const list = value[meta.overContainer] ?? [];
-    const position = positionBetween(list[meta.overIndex - 1]?.position, list[meta.overIndex + 1]?.position);
-    void board.updateCard(String(meta.event.active.id), { list_id: meta.overContainer, position });
+  // The picked list and order fall back to the first one whenever theirs is gone
+  // (deleted, removed from the board, or moved to another list).
+  const activeList = (pickedListId ? listById.get(pickedListId) : undefined) ?? lists[0];
+  const listCards = useMemo(() => (activeList ? cardsInList(cards, activeList.id) : NO_CARDS), [cards, activeList]);
+  const activeCard = listCards.find((c) => c.id === pickedCardId) ?? listCards[0] ?? null;
+  const dialogCard = cards.find((c) => c.id === dialogCardId) ?? null;
+
+  const showCard = (card: BoardCard) => {
+    setPickedListId(card.list_id);
+    setPickedCardId(card.id);
+    if (isMobile) setDialogCardId(card.id);
+  };
+
+  const pickList = (listId: string) => {
+    setPickedListId(listId);
+    setPickedCardId(null);
+    setListSearch(null);
+    setRenaming(null);
+  };
+
+  // Up and down arrows walk the order list, like a mail inbox.
+  const walkRows = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    if (!activeCard) return;
+    e.preventDefault();
+    const index = listCards.findIndex((c) => c.id === activeCard.id);
+    const next = listCards[Math.min(listCards.length - 1, Math.max(0, index + (e.key === "ArrowDown" ? 1 : -1)))];
+    setPickedCardId(next.id);
+    rowsRef.current?.querySelector<HTMLElement>(`[data-board-row="${next.id}"]`)?.focus();
   };
 
   useEffect(() => {
@@ -277,7 +410,7 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
     return () => window.removeEventListener("pointerdown", close);
   }, [searchOpen]);
 
-  // A list's "Add order" panel closes on any click outside it.
+  // The list's "Add order" panel closes on any click outside it.
   const listSearchOpen = listSearch !== null;
   useEffect(() => {
     if (!listSearchOpen) return;
@@ -290,43 +423,25 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
     return () => window.removeEventListener("pointerdown", close);
   }, [listSearchOpen]);
 
-  // Fade the board's edge only on the side that has more lists to scroll to.
-  const listCount = board.data?.lists.length ?? 0;
-  useEffect(() => {
-    const el = boardRootRef.current?.querySelector<HTMLElement>("[data-slot=kanban-board]");
-    if (!el) return;
-    const update = () => {
-      const max = el.scrollWidth - el.clientWidth;
-      el.toggleAttribute("data-more-left", el.scrollLeft > 2);
-      el.toggleAttribute("data-more-right", el.scrollLeft < max - 2);
-    };
-    update();
-    el.addEventListener("scroll", update, { passive: true });
-    const resize = new ResizeObserver(update);
-    resize.observe(el);
-    return () => {
-      el.removeEventListener("scroll", update);
-      resize.disconnect();
-    };
-  }, [board.isLoading, listCount]);
-
   const addOrder = async (orderId: string, listId: string) => {
     const card = await board.addCard(orderId, listId);
     if (!card) return;
     setSearchOpen(false);
     setQuery("");
     setListSearch(null);
-    setOpenCardId(card.id);
+    showCard(card);
   };
 
-  const createList = async (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const color = BOARD_COLORS[lists.length % BOARD_COLORS.length];
-    if (await board.addList(trimmed, color)) {
-      setAddingList(false);
-      setNewListName("");
-    }
+  const createList = async (name: string, color: BoardColor) => {
+    const list = await board.addList(name, color);
+    if (list) pickList(list.id);
+    return Boolean(list);
+  };
+
+  const cardActions = {
+    onUpdate: (cardId: string, patch: Partial<Pick<BoardCard, "note" | "remind_on">>) => void board.updateCard(cardId, patch),
+    onMove: (cardId: string, listId: string) => void board.updateCard(cardId, { list_id: listId, position: dropPosition(cards, cardId, listId, 0) }),
+    onRemove: (cardId: string) => { setDialogCardId(null); void board.removeCard(cardId); },
   };
 
   if (board.isLoading) {
@@ -342,9 +457,10 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
   }
 
   const searchResults = searchBoardOrders(orders, query);
+  const ink = activeList ? BOARD_COLOR_CLASSES[activeList.color].ink : "";
 
   return (
-    <div ref={boardRootRef} className="flex min-h-[560px] flex-col" data-testid="order-board">
+    <div className="flex min-h-[560px] flex-col" data-testid="order-board">
       <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-3 pt-4">
         <div className="flex items-baseline gap-2.5">
           <span className="text-[14px] font-medium">{cards.length} {cards.length === 1 ? "order" : "orders"} on the board</span>
@@ -389,7 +505,11 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
                       key={order.id}
                       order={order}
                       inList={listByOrder.get(order.id)}
-                      onOpen={() => { setSearchOpen(false); setOpenCardId(cardByOrder.get(order.id)?.id ?? null); }}
+                      onOpen={() => {
+                        setSearchOpen(false);
+                        const card = cardByOrder.get(order.id);
+                        if (card) showCard(card);
+                      }}
                       action={(
                         <AddToListMenu
                           lists={lists}
@@ -422,205 +542,213 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
         </div>
       </div>
 
-      <Kanban
-        value={columns}
-        onValueChange={setDragColumns}
-        getItemValue={cardKey}
-        restoreOnCancel
-        onDragStart={() => setDragColumns(savedColumns)}
-        onDragEnd={endDrag}
-        onDragCancel={endDrag}
-        onValueCommit={commitMove}
-        className="flex flex-1 flex-col"
-      >
-        {/* Runs to the card edge; the empty ::after keeps a 12px gap after the last list. */}
-        <KanbanBoard className="board-edge-fade flex flex-1 items-start gap-3 overflow-x-auto pb-6 pl-3 pt-1 [scrollbar-width:thin] after:w-0 after:shrink-0 after:self-stretch after:content-['']">
+      <div className="mx-3 mb-4 grid min-h-[560px] flex-1 overflow-hidden rounded-2xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.07)] md:h-[min(760px,calc(100dvh-240px))] md:grid-cols-[200px_300px_minmax(0,1fr)] max-md:grid-rows-[auto_minmax(0,1fr)]">
+        {/* Lists */}
+        <nav aria-label="Board lists" className="flex gap-0.5 bg-[#FAFAF8] p-2.5 md:flex-col md:border-r md:border-black/[0.07] max-md:overflow-x-auto max-md:border-b max-md:border-black/[0.07]">
+          <span className="px-2 pb-2 pt-1 text-[9px] font-medium uppercase tracking-[0.3em] text-black/40 max-md:hidden">Lists</span>
           {lists.map((list) => {
-            const listCards = columns[list.id] ?? [];
+            const active = list.id === activeList?.id;
             return (
-              <KanbanColumn key={list.id} value={list.id} className="w-[290px] shrink-0 max-md:w-[82vw]">
-                <Frame spacing="sm" className="max-h-[720px]">
-                  <FrameHeader className="flex flex-row items-center gap-2">
-                    {renaming === list.id ? (
-                      <>
-                        <input
-                          autoFocus
-                          defaultValue={list.name}
-                          maxLength={60}
-                          aria-label="List name"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") e.currentTarget.blur();
-                            if (e.key === "Escape") { e.currentTarget.value = list.name; e.currentTarget.blur(); }
-                          }}
-                          onBlur={(e) => {
-                            const name = e.currentTarget.value.trim();
-                            if (name && name !== list.name) void board.updateList(list.id, { name });
-                            setRenaming(null);
-                          }}
-                          className="min-w-0 flex-1 rounded-md bg-background px-1.5 py-0.5 text-sm font-semibold outline-none ring-1 ring-ring/40"
-                        />
-                        {BOARD_COLORS.map((color: BoardColor) => (
-                          <button
-                            key={color}
-                            type="button"
-                            aria-label={`Color ${color}`}
-                            onPointerDown={(e) => e.preventDefault()}
-                            onClick={() => void board.updateList(list.id, { color })}
-                            className={cn("size-3 shrink-0 rounded-full transition-transform active:scale-90", BOARD_COLOR_CLASSES[color].dot, list.color === color && "ring-2 ring-black/25 ring-offset-1")}
-                          />
-                        ))}
-                      </>
-                    ) : (
-                      <>
-                        <div className={cn("size-2 shrink-0 rounded-full", BOARD_COLOR_CLASSES[list.color].dot)} />
-                        <FrameTitle className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            title="Rename or recolor"
-                            onClick={() => setRenaming(list.id)}
-                            className="-ml-1 max-w-full truncate rounded-md px-1 py-0.5 text-left hover:bg-background"
-                          >
-                            {list.name}
-                          </button>
-                        </FrameTitle>
-                        <Badge variant="outline" size="sm" className="ml-auto tabular-nums">{listCards.length}</Badge>
-                        {listCards.length === 0 && (
-                          <button
-                            type="button"
-                            aria-label={`Delete list ${list.name}`}
-                            onClick={() => void board.removeList(list.id)}
-                            className="grid size-5 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-                          >
-                            <X weight="light" className="size-3.5" />
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </FrameHeader>
-
-                  <KanbanColumnContent value={list.id} className="flex min-h-16 flex-col gap-2 overflow-y-auto p-0.5">
-                    {listCards.map((card) => (
-                      <BoardCardItem key={card.id} card={card} today={today} onOpen={() => setOpenCardId(card.id)} />
-                    ))}
-                    {listCards.length === 0 && (
-                      <div className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">এখানে অর্ডার টেনে আনুন</div>
-                    )}
-                  </KanbanColumnContent>
-
-                  <div>
-                  <AnimatePresence initial={false}>
-                    {listSearch?.listId === list.id ? (
-                      <motion.div
-                        key="list-search"
-                        data-board-list-search
-                        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto", transition: PANEL_IN }}
-                        exit={reduceMotion ? { opacity: 0, transition: PANEL_OUT } : { opacity: 0, height: 0, transition: PANEL_OUT }}
-                        className="overflow-hidden"
-                      >
-                      <div className="grid gap-1 rounded-(--frame-panel-radius) border border-border bg-card p-1.5 shadow-sm">
-                        <input
-                          autoFocus
-                          value={listSearch.query}
-                          onChange={(e) => setListSearch({ listId: list.id, query: e.target.value })}
-                          onKeyDown={(e) => { if (e.key === "Escape") setListSearch(null); }}
-                          placeholder="Order no, name or phone"
-                          aria-label={`Find an order to add to ${list.name}`}
-                          className="h-8 rounded-lg bg-muted/60 px-2.5 text-[12.5px] outline-none"
-                        />
-                        {searchBoardOrders(orders, listSearch.query, 5).map((order) => (
-                          <OrderResult
-                            key={order.id}
-                            order={order}
-                            inList={listByOrder.get(order.id)}
-                            onOpen={() => { setListSearch(null); setOpenCardId(cardByOrder.get(order.id)?.id ?? null); }}
-                            action={(
-                              <button type="button" onClick={() => void addOrder(order.id, list.id)} className="h-7 shrink-0 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground shadow-xs transition-[transform,background-color] duration-150 hover:bg-primary/90 active:scale-[0.97]">
-                                Add
-                              </button>
-                            )}
-                          />
-                        ))}
-                        <button type="button" onClick={() => setListSearch(null)} className="h-7 rounded-lg text-[12px] text-muted-foreground hover:bg-muted/60">Cancel</button>
-                      </div>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="list-add"
-                        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto", transition: PANEL_IN }}
-                        exit={reduceMotion ? { opacity: 0, transition: PANEL_OUT } : { opacity: 0, height: 0, transition: PANEL_OUT }}
-                        className="overflow-hidden"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setListSearch({ listId: list.id, query: "" })}
-                          className="flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:bg-background hover:text-foreground"
-                        >
-                          <Plus weight="light" className="size-4" /> Add order
-                        </button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  </div>
-                </Frame>
-              </KanbanColumn>
+              <button
+                key={list.id}
+                type="button"
+                onClick={() => pickList(list.id)}
+                aria-current={active || undefined}
+                className={cn(
+                  "relative flex h-8 shrink-0 items-center gap-2 rounded-lg px-2 text-left text-[12.5px] transition-colors duration-150",
+                  active ? "font-medium text-black" : "text-black/60 hover:text-black",
+                )}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="board-rail-active"
+                    transition={reduceMotion ? { duration: 0 } : RAIL_SLIDE}
+                    className="absolute inset-0 rounded-lg bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]"
+                  />
+                )}
+                <span className={cn("relative size-2 shrink-0 rounded-full", BOARD_COLOR_CLASSES[list.color].dot)} />
+                <span className="relative min-w-0 flex-1 truncate">{list.name}</span>
+                {/* Every count wears its list's colour: solid when the list has orders, a light tint when empty. */}
+                <span
+                  className={cn(
+                    "relative min-w-[22px] rounded-full px-1.5 py-px text-center text-[11px] font-semibold tabular-nums transition-colors duration-150",
+                    (countByList.get(list.id) ?? 0) > 0
+                      ? cn(BOARD_COLOR_CLASSES[list.color].dot, "text-white")
+                      : BOARD_COLOR_CLASSES[list.color].chip,
+                  )}
+                >
+                  {countByList.get(list.id) ?? 0}
+                </span>
+              </button>
             );
           })}
 
-          <div className="w-[260px] shrink-0">
-            {addingList ? (
-              <Frame spacing="sm">
-                <form
-                  className="grid gap-2 p-0.5"
-                  onSubmit={(e) => { e.preventDefault(); void createList(newListName); }}
-                >
-                  <input
-                    autoFocus
-                    value={newListName}
-                    onChange={(e) => setNewListName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Escape") setAddingList(false); }}
-                    maxLength={60}
-                    placeholder="List name"
-                    aria-label="New list name"
-                    className="h-9 rounded-lg border border-border bg-card px-2.5 text-[13px] outline-none focus:ring-1 focus:ring-ring/40"
-                  />
-                  <div className="flex flex-wrap gap-1">
-                    {LIST_SUGGESTIONS.filter((s) => !lists.some((l) => l.name === s)).map((s) => (
-                      <button key={s} type="button" onClick={() => void createList(s)} className="rounded-md border border-border bg-card px-2 py-0.5 text-[11.5px] text-muted-foreground hover:text-foreground">
-                        {s}
-                      </button>
+          <div className="shrink-0 md:mt-auto md:pt-2">
+            <NewListPopover lists={lists} side={isMobile ? "bottom" : "right"} onCreate={createList} />
+          </div>
+        </nav>
+
+        {/* Orders in the selected list */}
+        <section className="flex min-h-0 flex-col md:border-r md:border-black/[0.07]">
+          {activeList ? (
+            <>
+              <div className="flex min-h-12 items-center gap-2 border-b border-black/[0.07] px-4 py-2">
+                {renaming === activeList.id ? (
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                    <input
+                      autoFocus
+                      defaultValue={activeList.name}
+                      maxLength={60}
+                      aria-label="List name"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                        if (e.key === "Escape") { e.currentTarget.value = activeList.name; e.currentTarget.blur(); }
+                      }}
+                      onBlur={(e) => {
+                        const name = e.currentTarget.value.trim();
+                        if (name && name !== activeList.name) void board.updateList(activeList.id, { name });
+                        setRenaming(null);
+                      }}
+                      className="h-7 min-w-0 flex-1 rounded-md bg-white px-1.5 text-[14px] font-semibold outline-none ring-1 ring-black/10"
+                    />
+                    {BOARD_COLORS.map((color: BoardColor) => (
+                      <button
+                        key={color}
+                        type="button"
+                        aria-label={`Color ${color}`}
+                        onPointerDown={(e) => e.preventDefault()}
+                        onClick={() => void board.updateList(activeList.id, { color })}
+                        className={cn("size-3 shrink-0 rounded-full transition-transform active:scale-90", BOARD_COLOR_CLASSES[color].dot, activeList.color === color && "ring-2 ring-black/25 ring-offset-1")}
+                      />
                     ))}
                   </div>
-                  <div className="flex gap-1.5">
-                    <button type="submit" className="h-8 rounded-lg bg-black px-3 text-[12px] font-medium text-white active:scale-[0.97]">Add list</button>
-                    <button type="button" onClick={() => setAddingList(false)} className="h-8 rounded-lg px-3 text-[12px] text-muted-foreground hover:bg-background">Cancel</button>
-                  </div>
-                </form>
-              </Frame>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setAddingList(true)}
-                className="flex h-11 w-full items-center gap-2 rounded-xl border border-dashed border-border px-3.5 text-[13px] text-muted-foreground transition-[background-color,transform] duration-150 hover:bg-muted/50 hover:text-foreground active:scale-[0.98]"
-              >
-                <Plus weight="light" className="size-4" /> New list
-              </button>
-            )}
-          </div>
-        </KanbanBoard>
-        <KanbanOverlay className="rounded-md border-2 border-dashed bg-muted/10" />
-      </Kanban>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      title="Rename or recolor"
+                      onClick={() => setRenaming(activeList.id)}
+                      className={cn("-ml-1 min-w-0 truncate rounded-md px-1 py-0.5 text-left text-[14px] font-semibold tracking-[-0.01em] transition-colors duration-150 hover:bg-black/[0.04]", ink)}
+                    >
+                      {activeList.name}
+                    </button>
+                    <span className="text-[12px] tabular-nums text-black/40">{listCards.length}</span>
+                    {listCards.length === 0 && (
+                      <button
+                        type="button"
+                        aria-label={`Delete list ${activeList.name}`}
+                        onClick={() => void board.removeList(activeList.id)}
+                        className="grid size-6 place-items-center rounded-md text-black/40 hover:bg-black/[0.04] hover:text-black"
+                      >
+                        <X weight="light" className="size-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setListSearch(listSearch ? null : { listId: activeList.id, query: "" })}
+                      className={cn("ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-[12px] font-medium transition-[background-color,transform] duration-150 hover:bg-black/[0.04] active:scale-[0.97]", ink)}
+                    >
+                      <Plus weight="light" className="size-3.5" /> Add
+                    </button>
+                  </>
+                )}
+              </div>
 
-      <BoardCardDialog
-        card={openCard}
-        lists={lists}
-        today={today}
-        onClose={() => setOpenCardId(null)}
-        onUpdate={(cardId, patch) => void board.updateCard(cardId, patch)}
-        onMove={(cardId, listId) => void board.updateCard(cardId, { list_id: listId, position: dropPosition(cards, cardId, listId, 0) })}
-        onRemove={(cardId) => { setOpenCardId(null); void board.removeCard(cardId); }}
-      />
+              <AnimatePresence initial={false}>
+                {listSearch?.listId === activeList.id && (
+                  <motion.div
+                    key="list-search"
+                    data-board-list-search
+                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto", transition: PANEL_IN }}
+                    exit={reduceMotion ? { opacity: 0, transition: PANEL_OUT } : { opacity: 0, height: 0, transition: PANEL_OUT }}
+                    className="shrink-0 overflow-hidden border-b border-black/[0.07]"
+                  >
+                    <div className="grid gap-1 p-2">
+                      <input
+                        autoFocus
+                        value={listSearch.query}
+                        onChange={(e) => setListSearch({ listId: activeList.id, query: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Escape") setListSearch(null); }}
+                        placeholder="Order no, name or phone"
+                        aria-label={`Find an order to add to ${activeList.name}`}
+                        className="h-8 rounded-lg bg-black/[0.04] px-2.5 text-[12.5px] outline-none"
+                      />
+                      {searchBoardOrders(orders, listSearch.query, 5).map((order) => (
+                        <OrderResult
+                          key={order.id}
+                          order={order}
+                          inList={listByOrder.get(order.id)}
+                          onOpen={() => {
+                            setListSearch(null);
+                            const card = cardByOrder.get(order.id);
+                            if (card) showCard(card);
+                          }}
+                          action={(
+                            <button type="button" onClick={() => void addOrder(order.id, activeList.id)} className="h-7 shrink-0 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground shadow-xs transition-[transform,background-color] duration-150 hover:bg-primary/90 active:scale-[0.97]">
+                              Add
+                            </button>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div ref={rowsRef} onKeyDown={walkRows} className="min-h-0 flex-1 divide-y divide-black/[0.05] overflow-y-auto">
+                {listCards.map((card) => (
+                  <OrderRow
+                    key={card.id}
+                    card={card}
+                    list={activeList}
+                    today={today}
+                    selected={!isMobile && card.id === activeCard?.id}
+                    onSelect={() => showCard(card)}
+                  />
+                ))}
+                {listCards.length === 0 && (
+                  <div className="px-6 py-12 text-center text-[12.5px] text-black/40">
+                    এই লিস্টে কোনো অর্ডার নেই।
+                    <br />
+                    Use <span className="font-medium text-black/60">+ Add</span> or search above to put one here.
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center px-6 text-center text-[12.5px] text-black/40">Create a list to start using the board.</div>
+          )}
+        </section>
+
+        {/* The picked order */}
+        <section className="min-h-0 max-md:hidden">
+          {activeCard && activeList ? (
+            <motion.div
+              key={activeCard.id}
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, filter: "blur(2px)" }}
+              animate={{ opacity: 1, filter: "blur(0px)", transition: DETAIL_IN }}
+              className="h-full"
+            >
+              <BoardCardDetail card={activeCard} lists={lists} today={today} className="h-full" {...cardActions} />
+            </motion.div>
+          ) : (
+            <div className="flex h-full items-center justify-center px-8 text-center text-[12.5px] text-black/40">
+              Pick an order to see its note, follow-up date and updates.
+            </div>
+          )}
+        </section>
+      </div>
+
+      {isMobile && (
+        <BoardCardDialog
+          card={dialogCard}
+          lists={lists}
+          today={today}
+          onClose={() => setDialogCardId(null)}
+          {...cardActions}
+        />
+      )}
     </div>
   );
 }
