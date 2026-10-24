@@ -51,8 +51,9 @@ describe("FraudPanel", () => {
     renderPanel();
 
     await screen.findByText("Safe");
-    expect(screen.getByText(/42 delivered/)).toBeInTheDocument();
-    expect(screen.getByText(/3 cancelled/)).toBeInTheDocument();
+    expect(screen.getByText("Delivered").closest("div")).toHaveTextContent("42");
+    expect(screen.getByText("Cancelled").closest("div")).toHaveTextContent("3");
+    expect(screen.getByRole("img", { name: "93% success rate" })).toBeInTheDocument();
     expect(screen.queryByText("Steadfast")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /details/i }));
@@ -167,16 +168,14 @@ describe("FraudPanel", () => {
     expect(screen.getByText("Steadfast")).toBeInTheDocument();
   });
 
-  it("caps the courier list at 4 and keeps the rest reachable behind the '+N more' trigger", async () => {
+  it("folds couriers with no parcels into one tile and lists them on hover", async () => {
     const zeroCourier = (name: string, logo: string) => ({ name, logo, total_parcel: 0, success_parcel: 0, cancelled_parcel: 0, success_ratio: 0 });
     const payload = {
       courierData: {
         steadfast: { name: "Steadfast", logo: "https://x/s.png", total_parcel: 25, success_parcel: 24, cancelled_parcel: 1, success_ratio: 96 },
         redx: zeroCourier("RedX", "https://x/r.png"),
         carrybee: zeroCourier("CarryBee", "https://x/c.png"),
-        paperfly: zeroCourier("PaperFly", "https://x/pf.png"),
         parceldex: zeroCourier("ParcelDex", "https://x/pd.png"),
-        pathao: zeroCourier("Pathao", "https://x/p.png"),
       },
       fraudRiskScore: { score: 12, level: "safe", label: "নিরাপদ", breakdown: { success: 6, reports: 0, cancel: 4, volume: 2 } },
     };
@@ -189,16 +188,15 @@ describe("FraudPanel", () => {
     );
 
     await screen.findByText("Safe");
-    // 6 couriers in, sorted by volume: the 1 real one plus the first 3 empty
-    // ones fill the 4 visible rows; the last 2 (still zero) sit behind the trigger.
     expect(screen.getByText("Steadfast")).toBeInTheDocument();
-    expect(screen.getByText("RedX")).toBeInTheDocument();
+    expect(screen.queryByText("RedX")).not.toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+
+    await userEvent.hover(screen.getByText(/\+3 no parcels/));
+    expect(await screen.findByText("RedX")).toBeInTheDocument();
     expect(screen.getByText("CarryBee")).toBeInTheDocument();
-    expect(screen.getByText("PaperFly")).toBeInTheDocument();
-    expect(screen.getByText(/\+2 more couriers with no parcels/)).toBeInTheDocument();
-    // Hidden couriers stay in the DOM (hover-revealed), not removed outright.
     expect(screen.getByText("ParcelDex")).toBeInTheDocument();
-    expect(screen.getByText("Pathao")).toBeInTheDocument();
+    expect(screen.getAllByText("0 parcels")).toHaveLength(3);
   });
 
   it("does not query at all without a valid BD phone", () => {

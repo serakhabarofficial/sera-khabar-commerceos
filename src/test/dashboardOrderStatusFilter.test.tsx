@@ -111,7 +111,7 @@ describe("dashboard order status filter", () => {
     });
   });
 
-  it("hides the Risk column in the Dashboard orders table", async () => {
+  it("shows the Risk column in the Dashboard orders table", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -119,7 +119,7 @@ describe("dashboard order status filter", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByTestId("dashboard-risk-column")).toHaveTextContent("hidden");
+    expect(await screen.findByTestId("dashboard-risk-column")).toHaveTextContent("visible");
   });
 
   it("filters the fulfillment queue when a status summary is selected", async () => {

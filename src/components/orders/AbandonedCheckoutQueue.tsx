@@ -6,6 +6,7 @@ import {
   CaretDown,
   Check,
   Copy,
+  PencilSimple,
   Phone,
   Trash,
   WhatsappLogo,
@@ -146,7 +147,6 @@ export function AbandonedCheckoutQueue({
   // Radix portals menu content to <body>, so selecting an item unmounts it and
   // the trailing click lands on the row underneath — which would open the
   // detail page. Ignore row clicks while a menu is open and just after it closes.
-  const rowClickSuppressedUntil = useRef(0);
 
   useEffect(() => () => {
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
@@ -274,24 +274,9 @@ export function AbandonedCheckoutQueue({
           return (
             <article
               key={checkout.id}
-              tabIndex={0}
-              onClick={(event) => {
-                if (Date.now() < rowClickSuppressedUntil.current) return;
-                const target = event.target as HTMLElement;
-                if (target.closest("button, a, input, textarea, select, [role='button'], [role='checkbox'], [role='menuitemradio'], [role='menuitem'], [data-row-interactive='true']")) return;
-                onOpenCheckout(checkout.id);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                if (Date.now() < rowClickSuppressedUntil.current) return;
-                const target = event.target as HTMLElement;
-                if (target.closest("button, a, input, textarea, select, [role='button'], [role='checkbox'], [role='menuitemradio'], [role='menuitem'], [data-row-interactive='true']")) return;
-                event.preventDefault();
-                onOpenCheckout(checkout.id);
-              }}
               data-pending-match={firstPendingMatch ? "true" : undefined}
               className={cn(
-                "grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center",
+                "grid grid-cols-[auto_minmax(0,1fr)] gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center",
                 firstPendingMatch && "bg-status-rose-background/40 shadow-[inset_2px_0_0_var(--color-status-rose-text)]"
               )}
             >
@@ -329,7 +314,15 @@ export function AbandonedCheckoutQueue({
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <p className="text-sm font-medium text-black">{checkout.customer_name || "Customer name not provided"}</p>
+                  <a
+                    href={`/abandoned/${checkout.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open in a new tab"
+                    className="rounded-sm text-sm font-medium text-black underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                  >
+                    {checkout.customer_name || "Customer name not provided"}
+                  </a>
                   <span className={isNew
                     ? "rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-rose-600"
                     : "rounded-full bg-black/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-black"}
@@ -404,6 +397,15 @@ export function AbandonedCheckoutQueue({
               </div>
 
               <div className="col-start-2 flex flex-wrap items-center gap-1.5 lg:col-start-3 lg:justify-end">
+                <button
+                  type="button"
+                  aria-label={`Open checkout for ${checkout.customer_name || checkout.phone || "customer"}`}
+                  onClick={() => onOpenCheckout(checkout.id)}
+                  className={cn(actionChip, actionChipNeutral, "active:scale-[0.97]")}
+                >
+                  <PencilSimple size={13} weight="light" aria-hidden />
+                  Open
+                </button>
                 {callHref ? (
                   <a
                     href={callHref}
@@ -435,11 +437,7 @@ export function AbandonedCheckoutQueue({
                   <CopyGlyph copied={copiedKey === `${checkout.id}:summary`} />
                   {copiedKey === `${checkout.id}:summary` ? "Copied" : "Copy"}
                 </button>
-                <DropdownMenu
-                  onOpenChange={(open) => {
-                    rowClickSuppressedUntil.current = Date.now() + (open ? 60_000 : 400);
-                  }}
-                >
+                <DropdownMenu>
                   <DropdownMenuTrigger
                     aria-label={`Contact status: ${isNew ? ABANDONED_STATUS_LABEL.open : ABANDONED_STATUS_LABEL.contacted}`}
                     disabled={isUpdating}

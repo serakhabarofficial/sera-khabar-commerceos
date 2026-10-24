@@ -18,18 +18,22 @@ function lookupKey(phone: string | null) {
 
 // Cache-only. Deliberately a GET so that opening an order editor never spends
 // a FraudShield request.
-export function useFraudLookup(phone: string | null | undefined) {
+export function fraudLookupQuery(phone: string | null | undefined) {
   const normalized = normalizeBdPhone(phone);
-  return useQuery<FraudLookup>({
+  return {
     queryKey: lookupKey(normalized),
     enabled: Boolean(normalized),
     staleTime: 5 * 60_000,
-    queryFn: async () => {
+    queryFn: async (): Promise<FraudLookup> => {
       const res = await apiFetch(`/api/fraud/lookup?phone=${normalized}`);
       if (!res.ok) throw new Error("Could not read fraud data");
       return res.json();
     },
-  });
+  };
+}
+
+export function useFraudLookup(phone: string | null | undefined) {
+  return useQuery<FraudLookup>(fraudLookupQuery(phone));
 }
 
 export function useFraudCheckMutation(phone: string | null | undefined) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Check, Copy, LinkSimple, PencilSimple, Phone, X } from "@phosphor-icons/react";
+import { ArrowUpRight, Check, Copy, LinkSimple, MapPin, PencilSimple, Phone, X } from "@phosphor-icons/react";
 import { Chip } from "@/components/base/badges/chip";
 import { bdWhatsAppHref, normalizeBdPhone } from "@/lib/bdPhone";
 import { formatTaka } from "@/lib/orderEditor";
@@ -195,7 +195,10 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
             </div>
           </div>
         ) : (
-          <p className="break-words text-[12.5px] leading-relaxed text-black/60">{customer.address || "No delivery address"}</p>
+          <div className="flex items-start gap-2 rounded-lg bg-white px-3 py-2.5">
+            <MapPin weight="light" size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-black/50" />
+            <p className={`break-words text-[14px] leading-relaxed ${customer.address ? "font-medium text-black" : "text-black/40"}`}>{customer.address || "No delivery address"}</p>
+          </div>
         )}
 
         <div className="grid grid-cols-3 gap-1.5">
