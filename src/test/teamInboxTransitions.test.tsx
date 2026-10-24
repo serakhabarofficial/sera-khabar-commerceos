@@ -34,6 +34,7 @@ describe("team inbox transitions", () => {
 
     state.ready = true;
     rerender(<QueryClientProvider client={client}><MemoryRouter><TeamInbox /></MemoryRouter></QueryClientProvider>);
+    expect(screen.getByTestId("team-inbox")).toHaveClass("h-[calc(100dvh-4.5rem)]", "overflow-hidden");
     expect(screen.getByRole("log", { name: "# general" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /dispatch/ }));
     expect(screen.getByRole("log", { name: "# dispatch" })).toBeVisible();

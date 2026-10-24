@@ -389,7 +389,7 @@ export default function TeamInbox() {
   );
 
   return (
-    <div className="relative flex h-full min-h-[520px] overflow-hidden bg-[#FAFAF8] text-[#0b0b0a]">
+    <div data-testid="team-inbox" className="relative flex h-[calc(100dvh-4.5rem)] max-h-[calc(100dvh-4.5rem)] min-h-0 overflow-hidden bg-[#FAFAF8] text-[#0b0b0a] max-md:h-[calc(100dvh-8rem)] max-md:max-h-[calc(100dvh-8rem)]">
       <nav aria-label="Conversations" className={cn("team-chat-theme w-[272px] shrink-0 overflow-y-auto border-r border-[#ecebe7] px-2 py-4 max-md:w-full max-md:border-r-0", showThreadOnMobile && "max-md:hidden")}>
         <div className="flex items-center justify-between px-2.5 pb-2">
           <p className={label}>Channels</p>
@@ -425,7 +425,7 @@ export default function TeamInbox() {
         {listError && <p className="px-2.5 pt-3 text-[11px] text-[#c2410c]">{listError.message}</p>}
       </nav>
 
-      <section ref={threadPane} onScrollCapture={markVisibleRead} className={cn("relative flex min-w-0 flex-1 flex-col", !showThreadOnMobile && "max-md:hidden")}
+      <section ref={threadPane} onScrollCapture={markVisibleRead} className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !showThreadOnMobile && "max-md:hidden")}
         onInput={(event) => { onTyping(); orderMention.onInput(event); }} onKeyDownCapture={orderMention.onKeyDownCapture}>
         <header className="team-chat-theme flex items-center gap-3 border-b border-[#ecebe7] px-4 py-3">
           <button type="button" aria-label="Back to conversations" className="md:hidden -ml-1 inline-flex h-7 w-7 items-center justify-center rounded-lg text-black/60"
