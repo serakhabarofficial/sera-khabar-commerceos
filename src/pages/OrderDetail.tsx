@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { customerProfileHref } from "@/lib/customerProfile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowUpRight, CaretLeft, CaretRight, UserCircle } from "@phosphor-icons/react";
+import { useOrderHandling } from "@/hooks/useOrderHandling";
+import { OrderHandlingNotice, OrderHandlingWorkspace } from "@/components/orders/OrderHandlingNotice";
 import { apiFetch } from "@/lib/api";
 import { syncOrders } from "@/lib/ordersSync";
 import { readTabOrderQueue, type NavigableQueueTab } from "@/lib/pendingOrderQueue";
@@ -226,6 +228,8 @@ export default function OrderDetail() {
   const [additionReasons, setAdditionReasons] = useState<Record<string, AdditionReason | "">>({});
   const [cancellationReasonCode, setCancellationReasonCode] = useState<CancellationReason | "">("");
   const [cancellationReasonNote, setCancellationReasonNote] = useState("");
+  const [editingDetail, setEditingDetail] = useState<OrderDetailResponse | null>(null);
+  const [touched, setTouched] = useState(false);
   const initializedOrderId = useRef<string | null>(null);
   const initializedWithPlaceholder = useRef(false);
   const viewedOrderId = useRef<string | null>(null);
@@ -233,6 +237,8 @@ export default function OrderDetail() {
   const detailQuery = useQuery<OrderDetailResponse>({
     queryKey: [`/api/orders/${id}`],
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     enabled: Boolean(id),
     queryFn: async () => {
       const res = await apiFetch(`/api/orders/${id}`);
@@ -271,10 +277,12 @@ export default function OrderDetail() {
     queryFn: () => syncOrders<Order>(queryClient),
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!detailQuery.data || !id) return;
     const shouldInitialize = initializedOrderId.current !== id || (initializedWithPlaceholder.current && !detailQuery.isPlaceholderData);
     if (!shouldInitialize) return;
+    setEditingDetail(detailQuery.data);
+    setTouched(false);
     setDraft(detailQuery.data.items.map((item, index) => normalizedItem(item, index, id)));
     setCustomer(customerFromOrder(detailQuery.data.order));
     const legacy = legacyDiscountOf(detailQuery.data.order.discount, detailQuery.data.items);
@@ -308,7 +316,9 @@ export default function OrderDetail() {
     void apiFetch(`/api/orders/${id}/activity/view`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_surface: orderViewSurface(location.state) }) }).then((response) => response.ok && refreshOrderActivity(queryClient, `/api/orders/${id}/activity`)).catch(() => {});
   }, [detailQuery.data, detailQuery.isPlaceholderData, id, location.state, queryClient]);
 
-  const detail = detailQuery.data;
+  // Pin the edit baseline: background cache updates must not move optimistic
+  // versions forward underneath an unsaved draft.
+  const detail = editingDetail?.order.id === id ? editingDetail : detailQuery.data;
   const order = detail?.order;
   const cancellationReasonLabel = ["cancelled", "canceled"].includes((order?.status || "").toLowerCase()) && order?.cancellation_reason_code
     ? CANCELLATION_REASON_OPTIONS.find((option) => option.value === order.cancellation_reason_code)?.label ?? order.cancellation_reason_code
@@ -368,7 +378,18 @@ export default function OrderDetail() {
     return draft.filter((item) => Number(item.quantity) > (initial.get(orderItemActivityKey(item)) || 0)).map(orderItemActivityKey);
   }, [detail?.items, draft]);
   const cancellationRequired = ["cancelled", "canceled"].includes((statusDraft || "").toLowerCase()) && !["cancelled", "canceled"].includes((order?.status || "").toLowerCase());
-  const canEditCart = Boolean(detail && !detailQuery.isPlaceholderData && detail.canEditItems);
+  const dirty = touched || Boolean(detail && (JSON.stringify(customer) !== JSON.stringify(customerFromOrder(detail.order)) || !cartsMatch(draft, detail.items) || overallChanged || deliveryChanged || advanceChanged || proofChanged || statusChanged || sourceChanged || holdDetailsChanged));
+  const handling = useOrderHandling("order", id, { beforeStart: async () => {
+    const response = await apiFetch(`/api/orders/${id}`);
+    if (!response.ok) throw new Error("Could not refresh order");
+    const latest = await response.json() as OrderDetailResponse;
+    if (dirty) return; // Keep both the draft and its original optimistic version.
+    initializedOrderId.current = null;
+    setEditingDetail(latest);
+    queryClient.setQueryData([`/api/orders/${id}`], latest);
+  } });
+  const canEdit = handling.canEdit && !detailQuery.isPlaceholderData && !detailQuery.isError;
+  const canEditCart = Boolean(canEdit && detail?.canEditItems);
   const cartLocked = Boolean(detail && !detailQuery.isPlaceholderData && !detail.canEditItems);
   const history = useMemo(() => {
     const all = historyQuery.data || [];
@@ -409,7 +430,7 @@ export default function OrderDetail() {
   }
 
   async function save() {
-    if (!detail || !order || !id || detailQuery.isPlaceholderData || saving) return;
+    if (!canEdit || !detail || !order || !id || detailQuery.isPlaceholderData || saving) return;
     const originalCustomer = customerFromOrder(order);
     const detailsChanged = JSON.stringify(customer) !== JSON.stringify(originalCustomer) || sourceChanged;
     const cartChanged = !cartsMatch(draft, detail.items);
@@ -448,11 +469,9 @@ export default function OrderDetail() {
       let currentItems = detail.items;
       const failWith = async (segment: string, message: string, status?: number, code?: string) => {
         if (status === 409 && code === "stale_write") {
-          await queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
-          throw new Error("Order changed before it could be saved. Refresh and try again.");
+          throw new Error("Order changed before it could be saved. Your draft is retained; compare the latest order before retrying.");
         }
         if (completedSegments.length > 0) {
-          await queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
           const saved = completedSegments.join(", ");
           const remaining = pendingSegments.filter((entry) => !completedSegments.includes(entry) && entry !== segment).concat([segment]).join(", ");
           throw new Error(`Partial save: ${saved} saved, but ${remaining} was not saved (${message}). Refresh to see saved changes, then retry the remaining edits (a new save uses a new history group).`);
@@ -530,6 +549,8 @@ export default function OrderDetail() {
 
       queryClient.setQueryData<OrderDetailResponse>([`/api/orders/${id}`], (current) => current ? { ...current, order: currentOrder, items: currentItems } : current);
       queryClient.setQueryData<Order[]>(["/api/orders"], (current) => Array.isArray(current) ? current.map((item) => item.id === id ? { ...item, ...currentOrder } : item) : current);
+      setEditingDetail({ ...detail, order: currentOrder, items: currentItems });
+      setTouched(false);
       setDraft(currentItems.map((item, index) => normalizedItem(item, index, id)));
       setCustomer(customerFromOrder(currentOrder));
       const savedDeliveryRate = Number(currentOrder.delivery_rate) || 0;
@@ -611,6 +632,8 @@ export default function OrderDetail() {
         {order?.id && <OrderEditorTabSwitch value={editorTab} onChange={setEditorTab} showRisk={order.source === "website"} className={hasQueueNav ? "" : "sm:ml-auto"} />}
       </div>
 
+      <OrderHandlingNotice handling={handling} dirty={dirty} onBack={goBack} />
+      <OrderHandlingWorkspace canEdit={canEdit} onDraftChange={() => setTouched(true)}>
       {detailQuery.isPending ? <div data-testid="order-detail-loading" className="grid place-items-center py-24"><Spinner size="md" /></div> : detailQuery.error && (detailQuery.error as ApiError).status === 404 ? <div className="py-24 text-center"><p className="text-[15px] font-medium text-black">Order not found.</p><button type="button" onClick={goBack} className="mt-2 text-[13px] text-black underline">Back to orders</button></div> : detailQuery.error ? <div className="py-24 text-center text-[13px] text-red-600">{detailQuery.error.message}</div> : order && detail && (
         <motion.div
           key={id}
@@ -630,7 +653,7 @@ export default function OrderDetail() {
             }
             details={
               <div data-testid="order-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 gap-3 xl:h-[calc(100dvh-8.75rem)] xl:min-h-[600px] xl:grid-cols-[380px_minmax(0,1fr)]">
-                <CustomerDossier className="rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={order} customer={customer} disabled={saving} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} calls={callSteps} />
+                <CustomerDossier className="rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={order} customer={customer} disabled={saving || !canEdit} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} calls={callSteps} />
                 <section aria-label="Order cart" className="flex min-h-0 min-w-0 flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-black/[0.07] sm:p-5 xl:overflow-y-auto">
                   {cartLocked && <p className="rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-800">Editing is locked after courier dispatch.</p>}
                   <ProductPicker products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEditCart} locked={cartLocked} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} cartItems={draft} />
@@ -640,9 +663,9 @@ export default function OrderDetail() {
                   {/* Two rows: details on top, then Collect and Save side by side so they never drift apart. */}
                   <div className="grid shrink-0 gap-x-5 gap-y-4 border-t border-black/[0.07] pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
                     <OrderPaymentPanel items={draft} totals={totals} canEdit={canEditCart} overallDiscountType={overallType} overallDiscountValue={overallValue} onOverallDiscount={(type, value) => { setOverallType(type); setOverallValue(value); }} onRemoveOverallDiscount={() => { setOverallType(null); setOverallValue(0); }} deliveryOn={deliveryOn} onToggleDelivery={setDeliveryOn} advance={clampedAdvance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethodDraft} advanceReference={advanceReferenceDraft} onAdvanceMethodChange={setAdvanceMethodDraft} onAdvanceReferenceChange={setAdvanceReferenceDraft} />
-                    <OrderSavePanel status={statusDraft} savedStatus={order.status ?? null} onStatusChange={setStatusDraft} holdDetails={holdDetailsDraft} onHoldDetailsChange={setHoldDetailsDraft} cancellationRequired={cancellationRequired} cancellationReasonCode={cancellationReasonCode} cancellationReasonNote={cancellationReasonNote} onCancellationReasonChange={setCancellationReasonCode} onCancellationReasonNoteChange={setCancellationReasonNote} saving={saving} saveDisabled={detailQuery.isPlaceholderData} error={saveError} />
+                    <OrderSavePanel status={statusDraft} savedStatus={order.status ?? null} onStatusChange={setStatusDraft} holdDetails={holdDetailsDraft} onHoldDetailsChange={setHoldDetailsDraft} cancellationRequired={cancellationRequired} cancellationReasonCode={cancellationReasonCode} cancellationReasonNote={cancellationReasonNote} onCancellationReasonChange={setCancellationReasonCode} onCancellationReasonNoteChange={setCancellationReasonNote} saving={saving} saveDisabled={!canEdit} error={saveError} />
                     <CollectOnDeliveryBar total={totals.finalTotal} advance={clampedAdvance} />
-                    <OrderSaveActions saving={saving} saveDisabled={detailQuery.isPlaceholderData} onSave={() => { void save(); }} onCancel={goBack} />
+                    <OrderSaveActions saving={saving} saveDisabled={!canEdit} onSave={() => { void save(); }} onCancel={goBack} />
                   </div>
                 </section>
               </div>
@@ -650,6 +673,7 @@ export default function OrderDetail() {
           />
         </motion.div>
       )}
+      </OrderHandlingWorkspace>
 
     </div>
   );

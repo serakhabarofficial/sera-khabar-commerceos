@@ -36,12 +36,12 @@ vi.mock("@/components/order-editor/OrderSavePanel", () => ({
 const orderOne = {
   id: "order-1", order_number: "ML-1001", customer_name: "Ayesha Rahman", phone: "01711111111",
   address: "Dhanmondi, Dhaka", status: "confirmed", delivery_rate: 80, price: 580,
-  discount: 0, sent_to_courier: false, created_at: "2026-09-03T09:00:00Z",
+  discount: 0, sent_to_courier: false, created_at: "2026-09-03T09:00:00Z", updated_at: "2026-09-03T10:00:00Z",
 };
 const orderTwo = {
   id: "order-2", order_number: "ML-1002", customer_name: "Karim Hossain", phone: "01722222222",
   address: "Gulshan, Dhaka", status: "confirmed", delivery_rate: 80, price: 400,
-  discount: 0, sent_to_courier: false, created_at: "2026-09-02T09:00:00Z",
+  discount: 0, sent_to_courier: false, created_at: "2026-09-02T09:00:00Z", updated_at: "2026-09-02T10:00:00Z",
 };
 
 function response(body: unknown) {
@@ -98,6 +98,7 @@ function renderNewTabOrderDetail(entry: string) {
 describe("pending order prev/next navigation", () => {
   it("shows the queue position and disables Previous on the first pending order", async () => {
     apiFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
       if (url === "/api/orders/order-1") return Promise.resolve(response({ order: orderOne, items: [], canEditItems: true }));
       if (url === "/api/products") return Promise.resolve(response({ products: [] }));
       if (url === "/api/orders") return Promise.resolve(response({ orders: [orderOne, orderTwo] }));
@@ -117,6 +118,7 @@ describe("pending order prev/next navigation", () => {
   it("navigates to the next pending order and disables Next at the end of the queue", async () => {
     const user = userEvent.setup();
     apiFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
       if (url === "/api/orders/order-1") return Promise.resolve(response({ order: orderOne, items: [], canEditItems: true }));
       if (url === "/api/orders/order-2") return Promise.resolve(response({ order: orderTwo, items: [], canEditItems: true }));
       if (url === "/api/products") return Promise.resolve(response({ products: [] }));
@@ -143,6 +145,7 @@ describe("pending order prev/next navigation", () => {
     const successSpy = vi.spyOn(toast, "success");
     try {
       apiFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
         if (url === "/api/orders/order-1" && (!init || init.method === undefined)) {
           return Promise.resolve(response({ order: orderOne, items: [], canEditItems: true }));
         }
@@ -158,6 +161,7 @@ describe("pending order prev/next navigation", () => {
 
       await screen.findByTestId("order-editor-pending-nav");
       await screen.findByTestId("customer-name");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Change phone" })).toBeEnabled());
       await user.click(screen.getByRole("button", { name: "Change phone" }));
       await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -177,6 +181,7 @@ describe("pending order prev/next navigation", () => {
       JSON.stringify({ ids: ["order-1", "order-2"], savedAt: Date.now() }),
     );
     apiFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
       if (url === "/api/orders/order-1") return Promise.resolve(response({ order: orderOne, items: [], canEditItems: true }));
       if (url === "/api/products") return Promise.resolve(response({ products: [] }));
       if (url === "/api/orders") return Promise.resolve(response({ orders: [orderOne, orderTwo] }));
@@ -198,6 +203,7 @@ describe("pending order prev/next navigation", () => {
       JSON.stringify({ ids: ["order-1", "order-2"], savedAt: Date.now() }),
     );
     apiFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
       if (url === "/api/orders/order-1") return Promise.resolve(response({ order: orderOne, items: [], canEditItems: true }));
       if (url === "/api/orders/order-2") return Promise.resolve(response({ order: orderTwo, items: [], canEditItems: true }));
       if (url === "/api/products") return Promise.resolve(response({ products: [] }));
@@ -222,6 +228,7 @@ describe("pending order prev/next navigation", () => {
       JSON.stringify({ ids: ["order-1", "order-2"], savedAt: Date.now() }),
     );
     apiFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
       if (url === "/api/orders/order-1") return Promise.resolve(response({ order: orderOne, items: [], canEditItems: true }));
       if (url === "/api/products") return Promise.resolve(response({ products: [] }));
       if (url === "/api/orders") return Promise.resolve(response({ orders: [orderOne, orderTwo] }));
@@ -246,6 +253,7 @@ describe("order editor cancellation reason", () => {
   });
   function mockOrder(order: Record<string, unknown>) {
     apiFetch.mockImplementation((url: string) => {
+      if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
       if (url === "/api/orders/order-1") return Promise.resolve(response({ order, items: [], canEditItems: true }));
       if (url === "/api/products") return Promise.resolve(response({ products: [] }));
       return Promise.resolve(response({}));

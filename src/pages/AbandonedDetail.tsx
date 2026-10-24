@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Warning } from "@phosphor-icons/react";
+import { useOrderHandling } from "@/hooks/useOrderHandling";
+import { OrderHandlingNotice, OrderHandlingWorkspace } from "@/components/orders/OrderHandlingNotice";
 import { apiFetch } from "@/lib/api";
 import { Button as BuiButton } from "@/components/base/buttons/button";
 import { Spinner } from "@/components/ui/ios-spinner";
@@ -119,6 +121,8 @@ export default function AbandonedDetail() {
   const [dismissOpen, setDismissOpen] = useState(false);
   const customerPanelRef = useRef<HTMLDivElement>(null);
   const busyRef = useRef(false);
+  const [editingCheckout, setEditingCheckout] = useState<AbandonedCheckout | null>(null);
+  const [touched, setTouched] = useState(false);
   const initializedDraftKey = useRef<string | null>(null);
   const viewedDraftId = useRef<string | null>(null);
 
@@ -138,7 +142,8 @@ export default function AbandonedDetail() {
     },
   });
 
-  const checkout = cachedDraft ?? listQuery.data?.checkouts.find((item) => item.id === draftId);
+  const fetchedCheckout = cachedDraft ?? listQuery.data?.checkouts.find((item) => item.id === draftId);
+  const checkout = editingCheckout?.id === draftId ? editingCheckout : fetchedCheckout;
 
   const productsQuery = useQuery<ProductsResponse>({
     queryKey: ["/api/products"],
@@ -162,11 +167,10 @@ export default function AbandonedDetail() {
   const pendingOrdersByPhone = useMemo(() => buildPendingOrdersByPhone(ordersQuery.data ?? []), [ordersQuery.data]);
   const pendingMatches = checkout ? pendingOrdersForPhone(pendingOrdersByPhone, customer.phone) : [];
 
-  useEffect(() => {
-    if (!checkout) return;
-    const key = `${checkout.id}:${checkout.updated_at}`;
-    if (initializedDraftKey.current === key) return;
-    initializedDraftKey.current = key;
+  const initializeCheckout = useCallback((checkout: AbandonedCheckout) => {
+    initializedDraftKey.current = checkout.id;
+    setEditingCheckout(checkout);
+    setTouched(false);
     setCustomer(customerFromDraft(checkout));
     setDraft(checkout.cart.map((line, index) => draftLineToItem(line, index, checkout.id)));
     const savedRate = Number(checkout.delivery_rate) || 0;
@@ -174,7 +178,12 @@ export default function AbandonedDetail() {
     setDeliveryOn(savedRate > 0);
     setSaveError("");
     setAdditionReasons({});
-  }, [checkout]);
+  }, []);
+
+  useEffect(() => {
+    if (!fetchedCheckout || initializedDraftKey.current === fetchedCheckout.id) return;
+    initializeCheckout(fetchedCheckout);
+  }, [fetchedCheckout, initializeCheckout]);
 
   useEffect(() => {
     if (!checkout || viewedDraftId.current === checkout.id) return;
@@ -242,6 +251,20 @@ export default function AbandonedDetail() {
     });
   }, [checkout, customer, draft, deliveryOn, deliveryRate]);
 
+  const dirty = touched || isDirty || target !== "keep" || advanceDraft > 0 || Boolean(advanceMethod || advanceReference);
+  const handling = useOrderHandling("abandoned", draftId, { beforeStart: async () => {
+    const response = await apiFetch("/api/abandoned-checkouts");
+    if (!response.ok) throw new Error("Could not refresh checkout");
+    const latest = await response.json() as AbandonedCheckoutResponse;
+    const fresh = latest.checkouts.find(item => item.id === draftId);
+    if (!fresh) throw new Error("Checkout is no longer active");
+    // A retained draft must keep the version it was based on. Cache updates may
+    // inform other screens, but only a clean editor adopts the refreshed record.
+    if (!dirty) initializeCheckout(fresh);
+    queryClient.setQueryData(["/api/abandoned-checkouts"], latest);
+  } });
+  const canEdit = handling.canEdit && Boolean(checkout) && !listQuery.isError;
+
   function addCatalogItem(product: CatalogProduct, variant?: CatalogVariant) {
     setDraft((items) => upsertCartItem(items, product, variant));
   }
@@ -267,6 +290,7 @@ export default function AbandonedDetail() {
 
   // Validates and PATCHes the staff edits. Returns true only when the edits were saved.
   async function persistEdits(): Promise<boolean> {
+    if (!canEdit) return false;
     if (!checkout || !draftId) return false;
     const phone = customer.phone.replace(/\D/g, "");
     if (!/^01\d{9}$/.test(phone)) {
@@ -299,6 +323,7 @@ export default function AbandonedDetail() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          expected_updated_at: checkout.updated_at,
           customerName: customer.customerName.trim(),
           phone,
           address: customer.address.trim(),
@@ -315,6 +340,8 @@ export default function AbandonedDetail() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (data.code === "ORDER_HANDLING_CONFLICT") throw new Error("Someone else is handling this order. Your draft is retained.");
+        if (data.code === "stale_write") throw new Error("This checkout changed before it could be saved. Your draft is retained; copy your changes and reopen the checkout to compare.");
         if (res.status === 404 || res.status === 409) {
           toast.error("Checkout is no longer active");
           goBack();
@@ -326,7 +353,9 @@ export default function AbandonedDetail() {
       queryClient.setQueryData<AbandonedCheckoutResponse>(["/api/abandoned-checkouts"], (current) => current
         ? { ...current, checkouts: current.checkouts.map((item) => item.id === draftId ? updated : item) }
         : current);
-      initializedDraftKey.current = `${updated.id}:${updated.updated_at}`;
+      initializedDraftKey.current = updated.id;
+      setEditingCheckout(updated);
+      setTouched(false);
       setCustomer(customerFromDraft(updated));
       setDraft(updated.cart.map((line, index) => draftLineToItem(line, index, updated.id)));
       setAdditionReasons({});
@@ -339,7 +368,7 @@ export default function AbandonedDetail() {
   }
 
   async function submit() {
-    if (!checkout || !draftId || saving || busyRef.current) return;
+    if (!canEdit || !checkout || !draftId || saving || busyRef.current) return;
     if (target === "keep") {
       busyRef.current = true;
       setSaving(true);
@@ -416,17 +445,19 @@ export default function AbandonedDetail() {
   }
 
   async function dismiss() {
-    if (!draftId || saving || busyRef.current) return;
+    if (!canEdit || !draftId || saving || busyRef.current) return;
     busyRef.current = true;
     setSaving(true);
     try {
       const res = await apiFetch(`/api/abandoned-checkouts/${draftId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismissed", activity_group_id: createActivityGroupId() }),
+        body: JSON.stringify({ action: "dismissed", expected_updated_at: checkout?.updated_at, activity_group_id: createActivityGroupId() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.checkout) {
+        if (data.code === "ORDER_HANDLING_CONFLICT") throw new Error("Someone else is handling this order. Your draft is retained.");
+        if (data.code === "stale_write") throw new Error("This checkout changed before it could be saved. Your draft is retained; copy your changes and reopen the checkout to compare.");
         if (res.status === 404 || res.status === 409) {
           toast.error("Checkout is no longer active");
           goBack();
@@ -438,8 +469,8 @@ export default function AbandonedDetail() {
       removeFromAbandonedCache();
       toast.success("Checkout dismissed");
       goBack();
-    } catch {
-      toast.error("Could not dismiss checkout");
+    } catch (error: unknown) {
+      setSaveError(error instanceof Error ? error.message : "Could not dismiss checkout");
     } finally {
       busyRef.current = false;
       setSaving(false);
@@ -472,7 +503,7 @@ export default function AbandonedDetail() {
             key={option.value}
             type="button"
             aria-pressed={target === option.value}
-            disabled={saving}
+            disabled={saving || !canEdit}
             onClick={() => { setTarget(option.value); setSaveError(""); }}
             className={`h-8 truncate rounded-[6px] text-[12px] disabled:cursor-not-allowed disabled:opacity-35 ${target === option.value ? "bg-white font-medium text-black ring-1 ring-inset ring-black/[0.08]" : "text-black/60 hover:text-black"}`}
           >
@@ -482,14 +513,14 @@ export default function AbandonedDetail() {
       </div>
       {target === "on_hold" && (
         <div>
-          <OrderHoldFields value={holdDetails} onChange={setHoldDetails} disabled={saving} />
+          <OrderHoldFields value={holdDetails} onChange={setHoldDetails} disabled={saving || !canEdit} />
         </div>
       )}
       {saveError && <p role="alert" className="text-[12px] text-red-600">{saveError}</p>}
       <div className="flex items-center gap-1.5">
-        <BuiButton variant="danger" size="medium" onClick={() => setDismissOpen(true)} disabled={saving} className="rounded-[6px]">Dismiss</BuiButton>
+        <BuiButton variant="danger" size="medium" onClick={() => setDismissOpen(true)} disabled={saving || !canEdit} className="rounded-[6px]">Dismiss</BuiButton>
         <BuiButton variant="ghost" size="medium" onClick={goBack} disabled={saving} className="ml-auto rounded-[6px]">Cancel</BuiButton>
-        <button type="button" onClick={() => { void submit(); }} disabled={saving} className="inline-flex h-9 items-center justify-center gap-2 rounded-[6px] bg-black px-4 text-[12px] text-white disabled:cursor-not-allowed disabled:opacity-35">{saving && <Spinner size="sm" />}{saving ? "Saving…" : primaryLabel}</button>
+        <button type="button" onClick={() => { void submit(); }} disabled={saving || !canEdit} className="inline-flex h-9 items-center justify-center gap-2 rounded-[6px] bg-black px-4 text-[12px] text-white disabled:cursor-not-allowed disabled:opacity-35">{saving && <Spinner size="sm" />}{saving ? "Saving…" : primaryLabel}</button>
       </div>
     </div>
   );
@@ -536,6 +567,8 @@ export default function AbandonedDetail() {
         </div>
       )}
 
+      <OrderHandlingNotice handling={handling} dirty={dirty} onBack={goBack} />
+      <OrderHandlingWorkspace canEdit={canEdit} onDraftChange={() => setTouched(true)}>
       {!checkout ? (
         listQuery.isLoading ? (
           <div data-testid="abandoned-detail-loading" className="grid place-items-center py-24"><Spinner size="md" /></div>
@@ -558,11 +591,11 @@ export default function AbandonedDetail() {
           details={
             <div className="flex min-h-0 flex-col gap-px overflow-hidden rounded-xl bg-black/[0.07] ring-1 ring-black/[0.07]">
               <div ref={customerPanelRef}>
-                <CustomerPanel order={{}} customer={customer} disabled={saving} onApply={setCustomer} />
+                <CustomerPanel order={{}} customer={customer} disabled={saving || !canEdit} onApply={setCustomer} />
               </div>
               <div data-testid="abandoned-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 items-start gap-px bg-black/[0.07] xl:h-[100vh] xl:min-h-[560px] xl:grid-cols-2">
-                <CatalogPanel products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit locked={false} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} />
-                <CartPanel items={draft} totals={totals} canEdit locked={false} saving={saving} error={undefined} overallDiscountType={null} overallDiscountValue={0} deliveryOn={deliveryOn} advance={advance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethod} advanceReference={advanceReference} onAdvanceMethodChange={setAdvanceMethod} onAdvanceReferenceChange={setAdvanceReference} status={null} onStatusChange={() => {}} onToggleDelivery={setDeliveryOn} onOverallDiscount={() => {}} onRemoveOverallDiscount={() => {}} onQuantity={updateQuantity} onRemove={(itemId) => setDraft((items) => items.filter((item) => item.id !== itemId))} onDiscount={() => {}} onSave={() => {}} onCancel={goBack} hideOrderSections actions={actionBlock} requiredAdditionReasonKeys={requiredAdditionReasonKeys} additionReasons={additionReasons} onAdditionReasonChange={(key, reason) => setAdditionReasons((current) => ({ ...current, [key]: reason }))} />
+                <CatalogPanel products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEdit} locked={false} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} />
+                <CartPanel items={draft} totals={totals} canEdit={canEdit} locked={false} saving={saving} error={undefined} overallDiscountType={null} overallDiscountValue={0} deliveryOn={deliveryOn} advance={advance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethod} advanceReference={advanceReference} onAdvanceMethodChange={setAdvanceMethod} onAdvanceReferenceChange={setAdvanceReference} status={null} onStatusChange={() => {}} onToggleDelivery={setDeliveryOn} onOverallDiscount={() => {}} onRemoveOverallDiscount={() => {}} onQuantity={updateQuantity} onRemove={(itemId) => setDraft((items) => items.filter((item) => item.id !== itemId))} onDiscount={() => {}} onSave={() => {}} onCancel={goBack} hideOrderSections actions={actionBlock} requiredAdditionReasonKeys={requiredAdditionReasonKeys} additionReasons={additionReasons} onAdditionReasonChange={(key, reason) => setAdditionReasons((current) => ({ ...current, [key]: reason }))} />
               </div>
             </div>
           }
@@ -579,6 +612,7 @@ export default function AbandonedDetail() {
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-[6px]">Keep checkout</AlertDialogCancel>
             <AlertDialogAction
+              disabled={!canEdit}
               onClick={() => { void dismiss(); }}
               className="rounded-[6px] bg-red-600 text-white hover:bg-red-700"
             >
@@ -587,6 +621,7 @@ export default function AbandonedDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </OrderHandlingWorkspace>
     </div>
   );
 }

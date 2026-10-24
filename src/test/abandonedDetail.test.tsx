@@ -42,6 +42,7 @@ describe("AbandonedDetail", () => {
   beforeEach(() => {
     apiFetch.mockReset();
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/abandoned-checkouts") {
         return jsonResponse({ checkouts: [draft], activeCount: 1 });
       }
@@ -72,6 +73,7 @@ describe("AbandonedDetail", () => {
 
   it("slides to live logs and keeps unapplied customer edits when returning", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/abandoned-checkouts") return jsonResponse({ checkouts: [draft], activeCount: 1 });
       if (url === "/api/products") return jsonResponse({ products: [] });
       if (url === "/api/abandoned-checkouts/draft-1/activity") {
@@ -99,6 +101,7 @@ describe("AbandonedDetail", () => {
 
   it("prefetches activity so Logs opens without a loading state", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/abandoned-checkouts") return jsonResponse({ checkouts: [draft], activeCount: 1 });
       if (url === "/api/products") return jsonResponse({ products: [] });
       if (url === "/api/abandoned-checkouts/draft-1/activity") {
@@ -120,6 +123,7 @@ describe("AbandonedDetail", () => {
   it("refreshes activity after saving even while Logs is closed", async () => {
     const activityCalls = () => apiFetch.mock.calls.filter(([url, init]) => url === "/api/abandoned-checkouts/draft-1/activity" && !init?.method).length;
     apiFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/abandoned-checkouts") return jsonResponse({ checkouts: [draft], activeCount: 1 });
       if (url === "/api/products") return jsonResponse({ products: [] });
       if (url === "/api/abandoned-checkouts/draft-1" && init?.method === "PATCH") {
@@ -171,6 +175,7 @@ describe("AbandonedDetail", () => {
     const user = userEvent.setup();
     const updated = { ...draft, customer_name: "Edited Name" };
     apiFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/abandoned-checkouts") {
         return jsonResponse({ checkouts: [draft], activeCount: 1 });
       }
@@ -200,12 +205,14 @@ describe("AbandonedDetail", () => {
     ) as unknown as [string, { body: string }];
     const body = JSON.parse(patchCall[1].body);
     expect(body.customerName).toBe("Edited Name");
+    expect(body.expected_updated_at).toBe(draft.updated_at);
     expect(body).not.toHaveProperty("action");
   });
 
   it("shows a not-found block with a back link when the draft is absent", async () => {
     const user = userEvent.setup();
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/abandoned-checkouts") {
         return jsonResponse({ checkouts: [], activeCount: 0 });
       }
@@ -228,6 +235,7 @@ describe("AbandonedDetail", () => {
 
     function mockMutations(convert: () => ReturnType<typeof jsonResponse> = () => jsonResponse({ order: { order_number: "1042" } })) {
       apiFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+        if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
         if (url === "/api/abandoned-checkouts") return jsonResponse({ checkouts: [draft], activeCount: 1 });
         if (url === "/api/products") return jsonResponse({ products: [] });
         if (url === "/api/abandoned-checkouts/draft-1" && init?.method === "PATCH") {
@@ -407,7 +415,8 @@ describe("AbandonedDetail", () => {
       expect(calls.length).toBe(1);
       const body = JSON.parse(calls[0][1]?.body ?? "{}");
       expect(body.action).toBe("dismissed");
-      expect(Object.keys(body).every((key) => key === "action" || key === "activity_group_id")).toBe(true);
+      expect(body.expected_updated_at).toBe(draft.updated_at);
+      expect(Object.keys(body).sort()).toEqual(["action", "activity_group_id", "expected_updated_at"]);
     });
   });
 
@@ -427,6 +436,7 @@ describe("AbandonedDetail pending-order banner", () => {
   const mockOrders = (orders: unknown[]) => {
     apiFetch.mockReset();
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/abandoned-checkouts") return jsonResponse({ checkouts: [draft], activeCount: 1 });
       if (url === "/api/products") return jsonResponse({ products: [] });
       if (url.startsWith("/api/orders")) return jsonResponse({ orders, totalCount: orders.length, syncedAt: null });

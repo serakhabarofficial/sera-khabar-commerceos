@@ -118,6 +118,7 @@ function renderPage(id = "order-1", cachedOrders?: unknown[], initialEntry = `/o
 beforeEach(() => {
   apiFetch.mockClear();
   apiFetch.mockImplementation(async (url: string) => {
+    if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
     if (url === "/api/orders/order-1") return response(detail);
     if (url === "/api/products") return response(products);
     throw new Error(`Unexpected API request: ${url}`);
@@ -130,7 +131,12 @@ describe("OrderDetail", () => {
   });
 
   it("shows a loading state while order detail is pending", () => {
-    apiFetch.mockReturnValue(new Promise(() => {}));
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "available", holder: null, expires_at: null });
+      if (url === "/api/orders/order-1") return new Promise(() => {});
+      if (url === "/api/products") return response(products);
+      throw new Error(`Unexpected API request: ${url}`);
+    });
     renderPage();
     expect(screen.getByTestId("order-detail-loading")).toBeInTheDocument();
   });
@@ -144,6 +150,7 @@ describe("OrderDetail", () => {
 
   it("switches between Order details and live Logs while preserving other query parameters", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response(products);
       if (url === "/api/orders/order-1/activity") {
@@ -175,6 +182,7 @@ describe("OrderDetail", () => {
 
   it("prefetches order activity so Logs opens without a loading state", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response(products);
       if (url === "/api/orders/order-1/activity") {
@@ -213,6 +221,7 @@ describe("OrderDetail", () => {
 
   it("links the landing page to the live storefront", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response(products);
       if (url === "/api/storefront/provision") return response({ provisioned: true, url: "https://serakhabar.com/" });
@@ -250,6 +259,7 @@ describe("OrderDetail", () => {
   ])("hides landing page attribution when the path is %s", async (_case, landingPagePath) => {
     const detailWithoutLandingPage = { ...detail, order: { ...order, landing_page_path: landingPagePath } };
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(detailWithoutLandingPage);
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -275,6 +285,7 @@ describe("OrderDetail", () => {
 
   it("keeps the saved order source read-only and excludes it from order updates", async () => {
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") {
         const body = JSON.parse(String(init.body));
         return response({ success: true, order: { ...order, status: body.status } });
@@ -289,6 +300,7 @@ describe("OrderDetail", () => {
     const sourceControl = await screen.findByTestId("order-source-control");
     expect(sourceControl).toHaveTextContent("Website");
     expect(within(sourceControl).queryByRole("button")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Pending" })).toBeEnabled());
     await user.click(within(screen.getByRole("radiogroup", { name: "Order status" })).getByRole("radio", { name: "Pending" }));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
@@ -303,6 +315,7 @@ describe("OrderDetail", () => {
   it("keeps the order source read-only after courier dispatch", async () => {
     const dispatchedDetail = { ...detail, canEditItems: false, order: { ...order, sent_to_courier: true, source: "website" } };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(dispatchedDetail);
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -327,12 +340,14 @@ describe("OrderDetail", () => {
 
     const catalog = screen.getByRole("region", { name: "Product catalog" });
     expect(within(catalog).queryByTestId("catalog-scroll-region")).not.toBeInTheDocument();
+    await waitFor(() => expect(within(catalog).getByRole("searchbox", { name: "Search products" })).toBeEnabled());
     await user.click(within(catalog).getByRole("searchbox", { name: "Search products" }));
     expect(within(catalog).getByTestId("catalog-scroll-region")).toHaveClass("overflow-y-auto");
   });
 
   it("offers only Pending, Confirmed, On Hold and Cancel order for a pending order", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ ...detail, order: { ...order, status: "pending" } });
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -346,6 +361,7 @@ describe("OrderDetail", () => {
 
   it("keeps a Print order's current step visible", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ ...detail, order: { ...order, status: "print" } });
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -369,6 +385,7 @@ describe("OrderDetail", () => {
     const honey = screen.getByRole("button", { name: "Add Honey Jar, 500g to cart" });
     expect(honey).not.toHaveAttribute("data-picked");
 
+    await waitFor(() => expect(honey).toBeEnabled());
     fireEvent.click(honey);
     expect(screen.getByRole("button", { name: "Add Honey Jar, 500g to cart" })).toHaveAttribute("data-picked");
   });
@@ -449,6 +466,7 @@ describe("OrderDetail", () => {
     };
     const honeyLine = { ...detail.items[0], id: "item-honey", product_id: "product-2", variant_id: "variant-2", product_name: "Honey Jar", variant_name: "500g", unit_price: 275, quantity: 2, available_stock: 3 };
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ ...detail, items: [honeyLine] });
       if (url === "/api/products") return response({ products: [products.products[0], honeyProduct] });
       throw new Error(`Unexpected API request: ${url}`);
@@ -468,6 +486,7 @@ describe("OrderDetail", () => {
 
   it("stages the order status in the cart and saves before returning to the order table", async () => {
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") {
         const body = JSON.parse(String(init.body));
         return response({ success: true, order: { ...order, status: body.status } });
@@ -506,6 +525,7 @@ describe("OrderDetail", () => {
       hold_until_date: null,
     };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") {
         const body = JSON.parse(String(init.body));
         return response({ success: true, order: { ...orderWithNote, ...body } });
@@ -610,6 +630,7 @@ describe("OrderDetail", () => {
   it("sends discount intent without calculated monetary fields", async () => {
     const savedDetail = { ...detail, items: [{ ...detail.items[0], discount_type: "percentage", discount_value: 10, unit_discount: 50 }] };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1/items" && init?.method === "PATCH") return response(savedDetail);
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response(products);
@@ -632,6 +653,7 @@ describe("OrderDetail", () => {
 
   it("shows catalog error, empty cart, and retry controls", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response({ error: "Catalog unavailable" }, false, 500);
       throw new Error(`Unexpected API request: ${url}`);
@@ -639,13 +661,14 @@ describe("OrderDetail", () => {
     renderPage();
     expect(await screen.findByText("Could not load the product catalog.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
-    fireEvent.click(within(screen.getByTestId("order-item-item-1")).getByRole("button", { name: "Remove Premium Mango" }));
+    fireEvent.click(within(await screen.findByTestId("order-item-item-1")).getByRole("button", { name: "Remove Premium Mango" }));
     expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
   });
 
   it("blocks changed carts that still contain detached legacy items", async () => {
     const detached = { ...detail.items[0], id: "legacy-item", product_id: null, product_slug: null };
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ ...detail, items: [detached] });
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -660,6 +683,7 @@ describe("OrderDetail", () => {
 
   it("renders the cached dashboard order while detail data is pending", () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "available", holder: null, expires_at: null });
       if (url === "/api/orders/order-1") return new Promise(() => {});
       throw new Error(`Unexpected API request: ${url}`);
     });
@@ -678,6 +702,7 @@ describe("OrderDetail", () => {
 
   it("shows exactly one hash before an order number that already has a hash", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ ...detail, order: { ...order, order_number: "#1007" } });
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -708,6 +733,7 @@ describe("OrderDetail", () => {
       discount: 50,
     };
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") {
         return response({
           ...detail,
@@ -727,7 +753,7 @@ describe("OrderDetail", () => {
 
     renderPage();
     const cart = await screen.findByRole("region", { name: "Order cart" });
-    expect(within(cart).getByText("Premium Mango")).toBeInTheDocument();
+    expect(await within(cart).findByText("Premium Mango")).toBeInTheDocument();
     expect(within(cart).getByText("Honey Jar")).toBeInTheDocument();
   });
 
@@ -747,6 +773,7 @@ describe("OrderDetail", () => {
     let resolveSave: (value: Response) => void = () => undefined;
     const savedDetail = { ...detail, order: { ...order, updated_at: "2026-09-03T11:00:00Z" }, items: [{ ...detail.items[0], product_name: "Updated Mango" }] };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1/items" && init?.method === "PATCH") {
         return new Promise<Response>((resolve) => { resolveSave = resolve; });
       }
@@ -770,6 +797,7 @@ describe("OrderDetail", () => {
   it("saves an overall cart discount without touching items", async () => {
     const discountedOrder = { ...order, discount: 50, price: 450 };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") return response({ success: true, order: discountedOrder });
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response(products);
@@ -796,6 +824,7 @@ describe("OrderDetail", () => {
       { ...order, id: "other", order_number: "ML-999", phone: "01999999999", customer_name: "Someone Else", contact_name: "Someone Else" },
     ];
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/orders") return response({ orders: historyOrders });
       if (url === "/api/products") return response(products);
@@ -814,6 +843,7 @@ describe("OrderDetail", () => {
 
   it("keeps the delivery toggle synchronized while switching on and off", async () => {
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") return response({ success: true, order });
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response(products);
@@ -834,6 +864,7 @@ describe("OrderDetail", () => {
   it("initializes the delivery toggle from a saved free-delivery order", async () => {
     const freeDeliveryDetail = { ...detail, order: { ...order, delivery_rate: 0 } };
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response(freeDeliveryDetail);
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -846,6 +877,7 @@ describe("OrderDetail", () => {
   it("restores the flat delivery fee when free delivery is switched back on", async () => {
     const freeDeliveryDetail = { ...detail, order: { ...order, delivery_rate: 0 } };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") {
         const body = JSON.parse(String(init.body));
         return response({ success: true, order: { ...freeDeliveryDetail.order, ...body } });
@@ -877,6 +909,7 @@ describe("OrderDetail", () => {
 
   it("preserves the draft and displays a save error", async () => {
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1/items" && init?.method === "PATCH") return response({ error: "Insufficient stock" }, false);
       if (url === "/api/orders/order-1") return response(detail);
       if (url === "/api/products") return response(products);
@@ -894,6 +927,7 @@ describe("OrderDetail", () => {
   it("retains a successful customer save when the following cart save fails", async () => {
     const updatedOrder = { ...order, customer_name: "Nusrat Jahan" };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") {
         return response({ success: true, order: updatedOrder });
       }
@@ -920,6 +954,7 @@ describe("OrderDetail", () => {
 
   it("shows non-404 detail request errors", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ error: "Service unavailable" }, false, 500);
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -938,6 +973,7 @@ describe("OrderDetail", () => {
 
   it("locks item editing when the order has been dispatched", async () => {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ ...detail, canEditItems: false, order: { ...order, sent_to_courier: true, courier_status: "in_transit" } });
       if (url === "/api/products") return response(products);
       throw new Error(`Unexpected API request: ${url}`);
@@ -954,6 +990,7 @@ describe("OrderDetail", () => {
   it("edits customer name, phone, and address through the order update API", async () => {
     const updatedOrder = { ...order, customer_name: "Nusrat Jahan", phone: "01822222222", address: "Gulshan, Dhaka" };
     apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1" && init?.method === "PATCH") return response({ success: true, order: updatedOrder });
       if (url === "/api/orders/order-1") return response({ ...detail, order });
       if (url === "/api/products") return response(products);
@@ -1054,6 +1091,7 @@ describe("OrderDetail", () => {
 describe("OrderDetail SMS amount", () => {
   function mockOrder(advancedPayment: number) {
     apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") {
         return response({
           ...detail,
