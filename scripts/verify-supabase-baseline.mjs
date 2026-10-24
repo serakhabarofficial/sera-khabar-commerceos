@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import {
   existsSync,
   mkdtempSync,
+  mkdirSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -75,6 +76,7 @@ const runtimeTables = Object.freeze([
   "team_messages",
   "team_message_reactions",
   "team_presence",
+  "order_handling_leases",
 ]);
 
 const runtimeTablesSql = runtimeTables.map((table) => `'${table}'`).join(", ");
@@ -228,6 +230,24 @@ begin
      or not has_function_privilege('service_role', 'public.count_live_visitors(uuid, integer)', 'execute')
      or not has_function_privilege('service_role', 'public.live_visitor_locations(uuid, integer)', 'execute') then
     raise exception 'Live visitor presence server privileges are missing';
+  end if;
+  if has_table_privilege('anon', 'public.order_handling_leases', 'select,insert,update,delete')
+     or has_table_privilege('authenticated', 'public.order_handling_leases', 'select,insert,update,delete')
+     or has_table_privilege('service_role', 'public.order_handling_leases', 'delete,truncate')
+     or has_function_privilege('anon', 'public.order_handling(uuid,uuid,uuid,jsonb,text,boolean,uuid)', 'execute')
+     or has_function_privilege('authenticated', 'public.order_handling(uuid,uuid,uuid,jsonb,text,boolean,uuid)', 'execute') then
+    raise exception 'Order handling exposes excess privileges';
+  end if;
+  if not has_table_privilege('service_role', 'public.order_handling_leases', 'select,insert,update')
+     or not has_function_privilege('service_role', 'public.order_handling(uuid,uuid,uuid,jsonb,text,boolean,uuid)', 'execute') then
+    raise exception 'Order handling server privileges are missing';
+  end if;
+  if exists (select 1 from pg_proc where oid in (
+      'public.order_handling(uuid,uuid,uuid,jsonb,text,boolean,uuid)'::regprocedure,
+      'public.order_handling_resource_keys(uuid,text,uuid)'::regprocedure,
+      'public.order_handling_link_aliases()'::regprocedure
+    ) and (prosecdef or not ('search_path=""' = any(proconfig)))) then
+    raise exception 'Order handling functions must be invoker with empty search_path';
   end if;
   select count(*) into runtime_table_count
   from pg_class
@@ -610,6 +630,7 @@ async function verifyCustomerContextConcurrency(connection) {
     try {
       run(psql, [...connection, "-c", `do $$ begin
         for attempt in 1..500 loop
+          perform pg_stat_clear_snapshot();
           if exists (select 1 from pg_stat_activity where application_name = 'customer-profile-concurrency-test' and wait_event_type = 'Lock') then return; end if;
           perform pg_sleep(0.01);
         end loop;
@@ -649,7 +670,7 @@ async function verifyFreshDatabase(runNumber) {
     run(initdb, ["-D", dataDirectory, "--no-locale", "--encoding=UTF8"], {
       stdio: "pipe",
     });
-    run(commandPath("mkdir"), ["-p", socketDirectory], { stdio: "pipe" });
+    mkdirSync(socketDirectory, { recursive: true });
     run(pgCtl, [
       "-D",
       dataDirectory,

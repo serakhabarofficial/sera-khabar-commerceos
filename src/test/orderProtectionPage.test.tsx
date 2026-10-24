@@ -1,11 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-const { fetchProtectionReviews, updateProtectionReview } = vi.hoisted(() => ({
+const { apiFetch, fetchProtectionReviews, updateProtectionReview } = vi.hoisted(() => ({
+  apiFetch: vi.fn(),
   fetchProtectionReviews: vi.fn(),
   updateProtectionReview: vi.fn(),
 }));
+
+vi.mock("@/lib/api", () => ({ apiFetch }));
 
 vi.mock("@/lib/orderProtection", () => ({
   fetchProtectionReviews,
@@ -22,6 +25,13 @@ function renderPage() {
 
 describe("order protection dashboard", () => {
   beforeEach(() => {
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/review/")) return {
+        ok: true, status: 200,
+        json: async () => ({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }),
+      };
+      throw new Error(`Unexpected API request: ${url}`);
+    });
     fetchProtectionReviews.mockResolvedValue({ reviews: [{
       id: "review-1",
       status: "on_hold",
@@ -65,7 +75,10 @@ describe("order protection dashboard", () => {
   });
 
   test("shows the abandoned-style held order row with protection details", async () => {
+    const user = userEvent.setup();
     renderPage();
+    await user.click(await screen.findByRole("button", { name: /open review/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /approve order for rahim uddin/i })).toBeEnabled());
 
     expect(await screen.findByText("Rahim Uddin")).toBeInTheDocument();
     expect(screen.getByText("On hold")).toBeInTheDocument();
@@ -108,6 +121,8 @@ describe("order protection dashboard", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await user.click(await screen.findByRole("button", { name: /open review/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Contact status: Awaiting contact" })).toBeEnabled());
     await user.click(await screen.findByRole("button", { name: "Contact status: Awaiting contact" }));
     await user.click(await screen.findByRole("menuitemradio", { name: "Contacted" }));
 
@@ -139,6 +154,8 @@ describe("order protection dashboard", () => {
   test("staff can explicitly reject a confirmed fake without marking ordinary rejections fake", async () => {
     const user = userEvent.setup();
     renderPage();
+    await user.click(await screen.findByRole("button", { name: /open review/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /reject as fake/i })).toBeEnabled());
     await user.click(await screen.findByRole("button", { name: /reject as fake/i }));
     expect(updateProtectionReview).toHaveBeenCalledWith("review-1", "reject", "fake");
   });

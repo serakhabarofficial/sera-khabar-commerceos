@@ -700,3 +700,4 @@ function normalizeBdPhoneLocal(phone) {
   if (p.length === 11 && p.startsWith("01")) return p;
   return null;
 }
+import { orderHandlingFetch as fetch } from "./orderHandlingOperation.js";

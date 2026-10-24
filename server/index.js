@@ -1,4 +1,5 @@
 import { attachHoldStartedAt } from "./orderHoldStart.js";
+import { orderHandlingFetch as fetch } from "./orderHandlingOperation.js";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -69,6 +70,7 @@ import { buildProductCacheUrls, purgeProductCacheUrls } from "./productCache.js"
 import { createSidebarInsightsCache } from "./sidebarAlertInsightsCache.js";
 import { createTtlCache } from "./ttlCache.js";
 import { createAuthCache } from "./authCache.js";
+import { createOrderHandling } from "./orderHandling.js";
 import {
   STOREFRONT_SEO_REFRESH_SETTING,
   isAuthorizedCronRequest,
@@ -594,13 +596,24 @@ app.use("/api", (req, res, next) => {
 const PORT = process.env.PORT || 5000;
 const isDev = process.env.NODE_ENV !== "production";
 
+const orderHandling = createOrderHandling({
+  authenticate: async (req) => {
+    const { user } = await getUser(getToken(req));
+    if (!user) return null;
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    return { user, supabase, orgId };
+  },
+});
+app.use(orderHandling.guard);
+
 function getServiceSupabase() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars");
   }
-  return createClient(supabaseUrl, supabaseServiceKey);
+  return createClient(supabaseUrl, supabaseServiceKey, { global: { fetch } });
 }
 
 // ─── Auth Helper ────────────────────────────────────────────────────────────
@@ -5341,6 +5354,7 @@ async function recordMeaningfulOrderView(req, res, config) {
   } catch (error) { return sendError(res, error); }
 }
 
+app.post("/api/order-handling/:kind/:id", orderHandling.endpoint);
 app.post("/api/orders/:id/activity/view", (req, res) => recordMeaningfulOrderView(req, res, { table: "orders", notFound: "Order not found" }));
 app.post("/api/social/inbox-orders/:id/activity/view", (req, res) => recordMeaningfulOrderView(req, res, { table: "social_inbox_orders", notFound: "Inbox order not found" }));
 app.post("/api/abandoned-checkouts/:id/activity/view", (req, res) => recordMeaningfulOrderView(req, res, { table: "abandoned_checkouts", notFound: "Checkout not found" }));
@@ -7071,12 +7085,18 @@ app.post("/api/fetch-shopify-orders", async (req, res) => {
     const shopifyData = await shopifyRes.json();
     const orders = shopifyData.orders || [];
 
-    // Fetch existing orders to preserve fraud data and manual edits
-    const { data: existingOrders } = await supabase
-      .from("orders")
-      .select("shopify_order_id, fraud_checked, fraud_data, delivery_rate, price")
-      .eq("org_id", orgId);
-    const existingMap = new Map((existingOrders || []).map((o) => [o.shopify_order_id, o]));
+    // Only the middleware's reserved snapshot may be updated. Orders created
+    // after reservation are insert-only conflicts below, never new targets.
+    if (!Array.isArray(req.orderHandlingIds)) throw new Error("Missing reserved order snapshot");
+    const existingOrders = [];
+    for (const page of chunkIds(req.orderHandlingIds)) {
+      const { data, error } = await supabase.from("orders")
+        .select("id, shopify_order_id, fraud_checked, fraud_data, delivery_rate, price")
+        .eq("org_id", orgId).in("id", page);
+      if (error) throw error;
+      existingOrders.push(...(data || []));
+    }
+    const existingMap = new Map(existingOrders.map((o) => [String(o.shopify_order_id), o]));
 
     const processedOrders = orders.map((order) => {
       // Phone extraction
@@ -7137,7 +7157,7 @@ app.post("/api/fetch-shopify-orders", async (req, res) => {
       const shippingPrice = parseFloat(order.total_shipping_price_set?.shop_money?.amount || "0");
 
       // Preserve existing fraud data
-      const existing = existingMap.get(order.id);
+      const existing = existingMap.get(String(order.id));
 
       // Preserve manually-edited price: if existing price differs from Shopify's subtotal, keep it
       const preservedPrice = existing?.price != null && existing.price !== subtotalPrice
@@ -7163,12 +7183,21 @@ app.post("/api/fetch-shopify-orders", async (req, res) => {
     });
 
     if (processedOrders.length > 0) {
-      const { error: upsertErr } = await supabase
-        .from("orders")
-        .upsert(processedOrders, { onConflict: "org_id,shopify_order_id", ignoreDuplicates: false });
-      if (upsertErr) {
-        console.error("[Shopify Sync] upsert error:", upsertErr.message);
-        return res.status(500).json({ error: "Failed to save orders", details: upsertErr.message });
+      for (const order of processedOrders) {
+        const existing = existingMap.get(String(order.shopify_order_id));
+        if (!existing) continue;
+        // Updating by reserved primary key cannot insert a replacement order.
+        const { error } = await supabase.from("orders").update(order)
+          .eq("org_id", orgId).eq("id", existing.id);
+        if (error) throw error;
+      }
+      const imports = processedOrders
+        .filter(order => !existingMap.has(String(order.shopify_order_id)))
+        .map(order => ({ ...order, id: crypto.randomUUID() }));
+      if (imports.length) {
+        const { error } = await supabase.from("orders")
+          .upsert(imports, { onConflict: "org_id,shopify_order_id", ignoreDuplicates: true });
+        if (error) throw error;
       }
     }
 
@@ -7889,10 +7918,14 @@ app.patch("/api/abandoned-checkouts/:id", async (req, res) => {
     if (!isAbandonedCheckoutDraftKey(req.params.id)) {
       return res.status(400).json({ error: "Invalid checkout ID" });
     }
+    const expectedVersion = req.body?.expected_updated_at;
+    if (expectedVersion !== undefined && (typeof expectedVersion !== "string" || !expectedVersion.trim())) {
+      return res.status(400).json({ error: "Invalid checkout version" });
+    }
     const hasAction = req.body?.action !== undefined;
     if (hasAction) {
       if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)
-        || Object.keys(req.body).some((key) => !["action", "activity_group_id"].includes(key))) {
+        || Object.keys(req.body).some((key) => !["action", "activity_group_id", "expected_updated_at"].includes(key))) {
         return res.status(400).json({ error: "Invalid checkout action" });
       }
       const action = req.body.action;
@@ -7915,6 +7948,10 @@ app.patch("/api/abandoned-checkouts/:id", async (req, res) => {
       .maybeSingle();
     if (currentError) throw currentError;
     if (!current) return res.status(404).json({ error: "Checkout is no longer active" });
+
+    if (expectedVersion !== undefined && expectedVersion !== current.updated_at) {
+      return res.status(409).json({ error: "Checkout changed before it could be saved. Your draft is retained.", code: "stale_write", updated_at: current.updated_at });
+    }
 
     let patch;
     if (hasAction) {
@@ -7941,11 +7978,12 @@ app.patch("/api/abandoned-checkouts/:id", async (req, res) => {
       .eq("id", current.id)
       .eq("org_id", orgId)
       .eq("status", current.status)
+      .eq("updated_at", expectedVersion ?? current.updated_at)
       .gt("expires_at", now.toISOString())
       .select(ABANDONED_CHECKOUT_DASHBOARD_FIELDS)
       .maybeSingle();
     if (updateError) throw updateError;
-    if (!updated) return res.status(409).json({ error: "Checkout changed before it could be updated" });
+    if (!updated) return res.status(409).json({ error: "Checkout changed before it could be saved. Your draft is retained.", code: "stale_write" });
 
     if (hasAction && patch.status !== current.status) {
       await recordStatusEvent(supabase, buildStatusEvent({
@@ -12063,6 +12101,7 @@ app.post("/api/pathao/refresh-status", async (req, res) => {
       .from("orders")
       .select("id, consignment_id, tracking_code, courier_status, status, courier_name, courier_message, risk_attempt_id")
       .eq("org_id", orgId)
+      .in("id", req.orderHandlingIds || [])
       .eq("sent_to_courier", true);
 
     if (!pathaoOrders?.length) return res.json({ updated: 0 });
@@ -12419,7 +12458,7 @@ app.get("/api/returns/sync", async (req, res) => {
           const requests = Array.isArray(sfData) ? sfData : (sfData?.data || []);
           for (const rr of requests) {
             if (!rr.consignment_id || !rr.status) continue;
-            const { data: updated } = await supabase.from("orders").update({ return_status: rr.status }).eq("consignment_id", String(rr.consignment_id)).eq("org_id", orgId).select("id");
+            const { data: updated } = await supabase.from("orders").update({ return_status: rr.status }).eq("consignment_id", String(rr.consignment_id)).eq("org_id", orgId).in("id", req.orderHandlingIds || []).select("id");
             if (updated?.length) { synced++; continue; }
             await supabase.from("social_inbox_orders").update({ return_status: rr.status }).eq("consignment_id", String(rr.consignment_id)).eq("org_id", orgId);
             synced++;
@@ -12448,6 +12487,7 @@ app.post("/api/returns/backfill-fees", async (req, res) => {
       .from("orders")
       .select("id, consignment_id, courier_name, courier_message")
       .eq("org_id", orgId)
+      .in("id", req.orderHandlingIds || [])
       .eq("sent_to_courier", true)
       .is("courier_fee", null);
 
@@ -12714,6 +12754,7 @@ app.post("/api/check-fraud", async (req, res) => {
       .from("orders")
       .select("id, shopify_order_id, phone, fraud_checked, fraud_data")
       .eq("org_id", orgId)
+      .in("id", req.orderHandlingIds || [])
       .order("shopify_order_id", { ascending: false })
       .limit(15);
 
@@ -15264,7 +15305,10 @@ async function resolveOrderRouting(supabase, orgId, items) {
 // the dashboard warehouse column reflects the current assignment. Manual
 // overrides (warehouse_auto = false), dispatched orders, and final statuses
 // are never touched. Returns the number of orders updated.
-async function resyncAutoOrderWarehouses(supabase, orgId, productIds) {
+async function resyncAutoOrderWarehouses(supabase, orgId, productIds, reservedOrderIds) {
+  if (!Array.isArray(reservedOrderIds)) throw new Error("Missing reserved order snapshot");
+  const reserved = new Set(reservedOrderIds);
+  if (reserved.size === 0) return 0;
   const ids = [...new Set((Array.isArray(productIds) ? productIds : []).filter(Boolean))];
   if (ids.length === 0) return 0;
 
@@ -15274,7 +15318,7 @@ async function resyncAutoOrderWarehouses(supabase, orgId, productIds) {
     .eq("org_id", orgId)
     .in("product_id", ids);
   if (linksError) throw linksError;
-  const orderIds = [...new Set((links || []).map((row) => row.order_id).filter(Boolean))];
+  const orderIds = [...new Set((links || []).map((row) => row.order_id).filter(id => reserved.has(id)))];
   if (orderIds.length === 0) return 0;
 
   let updated = 0;
@@ -15479,7 +15523,7 @@ app.delete("/api/warehouses/:id", async (req, res) => {
     let resyncedOrders = 0;
     if (affectedIds.length > 0) {
       try {
-        resyncedOrders = await resyncAutoOrderWarehouses(supabase, orgId, affectedIds);
+        resyncedOrders = await resyncAutoOrderWarehouses(supabase, orgId, affectedIds, req.orderHandlingIds);
       } catch (resyncError) {
         console.warn("[Warehouses] auto order resync deferred:", errorMessage(resyncError));
       }
@@ -15595,7 +15639,7 @@ app.post("/api/products/bulk-assign-warehouse", async (req, res) => {
     // assignment so the dashboard warehouse column reflects the move.
     let resyncedOrders = 0;
     try {
-      resyncedOrders = await resyncAutoOrderWarehouses(supabase, orgId, productIds);
+      resyncedOrders = await resyncAutoOrderWarehouses(supabase, orgId, productIds, req.orderHandlingIds);
     } catch (resyncError) {
       console.warn("[Warehouses] auto order resync deferred:", errorMessage(resyncError));
     }
@@ -17488,7 +17532,7 @@ app.patch("/api/products/:id", async (req, res) => {
     let resyncedOrders = 0;
     if (update.warehouse_id !== undefined) {
       try {
-        resyncedOrders = await resyncAutoOrderWarehouses(supabase, orgId, [data.id]);
+        resyncedOrders = await resyncAutoOrderWarehouses(supabase, orgId, [data.id], req.orderHandlingIds);
       } catch (resyncError) {
         console.warn("[Warehouses] auto order resync deferred:", errorMessage(resyncError));
       }
