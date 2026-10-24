@@ -34,6 +34,15 @@ describe("team chat files", () => {
     expect(stableAttachmentUrl(cache, attachment("https://s/3", "2026-10-24T22:00:00Z"), Date.parse("2026-10-24T15:45:00Z"))).toBe("https://s/3");
   });
 
+  it("shows a photo again after leaving the inbox when the next payload has no link yet", () => {
+    const now = Date.parse("2026-10-24T10:00:00Z");
+    const photo = attachment("https://s/kept", "2026-10-24T16:00:00Z");
+    photo.id = "photo-kept";
+    stableAttachmentUrl(new Map(), photo, now);
+    const again = { ...photo, url: "" };
+    expect(stableAttachmentUrl(new Map(), again, now + 1000)).toBe("https://s/kept");
+  });
+
   it("uploads straight to storage with the link the server issued, under the stored type", async () => {
     apiFetch.mockResolvedValue(new Response(JSON.stringify({ path: "org/ch/me/f.csv", upload_url: "https://storage.test/upload?token=t", content_type: "text/csv" }), { status: 201 }));
     const put = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));

@@ -1804,7 +1804,10 @@ async function teamChatAttachments(supabase, orgId, messageIds) {
         ...documents.map((row) => bucket.createSignedUrl(row.storage_path, TEAM_CHAT_LINK_SECONDS, { download: row.file_name })),
       ]);
       if (mediaLinks.error) throw mediaLinks.error;
-      for (const link of mediaLinks.data || []) if (link.signedUrl && !link.error) teamChatLinks.set(link.path, { url: link.signedUrl, expiresAt });
+      media.forEach((row, index) => {
+        const link = (mediaLinks.data || [])[index];
+        if (link?.signedUrl && !link.error) teamChatLinks.set(row.storage_path, { url: link.signedUrl, expiresAt });
+      });
       documentLinks.forEach((link, index) => {
         if (link.data?.signedUrl) teamChatLinks.set(documents[index].storage_path, { url: link.data.signedUrl, expiresAt });
       });

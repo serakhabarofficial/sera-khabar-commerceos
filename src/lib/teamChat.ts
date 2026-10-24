@@ -200,15 +200,26 @@ export async function uploadTeamChatFile(channelId: string, file: File, extra: {
   return { path: link.path, name: file.name, ...size, duration_ms: extra.durationMs ?? null };
 }
 
+// Survives leaving Team Inbox, so a photo or PDF opened again does not wait on
+// a new link and does not disappear when a poll arrives without one.
+const rememberedAttachmentUrls = new Map<string, { url: string; expiresAt: number }>();
+
 /**
  * The link to show for an attachment. The first link seen is kept until half
  * an hour before it expires, so a poll that brings a freshly signed link does
  * not make the image or recording load again.
  */
 export function stableAttachmentUrl(cache: Map<string, { url: string; expiresAt: number }>, attachment: TeamChatAttachment, now = Date.now()) {
-  const kept = cache.get(attachment.id);
-  if (kept && kept.expiresAt - now > 30 * 60_000) return kept.url;
+  const remembered = rememberedAttachmentUrls.get(attachment.id);
+  const kept = cache.get(attachment.id) ?? remembered;
+  if (kept && kept.expiresAt - now > 30 * 60_000) {
+    cache.set(attachment.id, kept);
+    return kept.url;
+  }
   if (!attachment.url) return kept?.url;
-  cache.set(attachment.id, { url: attachment.url, expiresAt: attachment.url_expires_at ? Date.parse(attachment.url_expires_at) : now + 60 * 60_000 });
+  const parsed = attachment.url_expires_at ? Date.parse(attachment.url_expires_at) : NaN;
+  const next = { url: attachment.url, expiresAt: Number.isFinite(parsed) ? parsed : now + 60 * 60_000 };
+  cache.set(attachment.id, next);
+  if (!attachment.url.startsWith("blob:")) rememberedAttachmentUrls.set(attachment.id, next);
   return attachment.url;
 }

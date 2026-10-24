@@ -578,7 +578,6 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
      the scroll jumps to the end before paint and the content springs up from where it was, so nothing snaps. */
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const y = useMotionValue(0);
   const stick = useRef(true);
   // Opening a conversation stays on the newest message until the reader scrolls away.
   const followLatest = useRef(true);
@@ -592,10 +591,11 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
   const [seen, setSeen] = useState(() => messages.length);
   const tail = messages.length ? `${messages.length}:${messages[messages.length - 1]!.id}:${messages[messages.length - 1]!.attachments?.length ?? 0}` : "0";
 
-  const pinToEnd = useCallback((spring = false) => {
+  const pinToEnd = useCallback(() => {
     const scroller = scrollRef.current;
     if (!scroller || (!followLatest.current && !stick.current)) return;
-    const before = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    // Stay on the newest message by scrolling only. Shifting the list with a
+    // transform clips the latest photo or PDF out of view after it appears.
     holding.current = true;
     scroller.scrollTop = scroller.scrollHeight;
     holding.current = false;
@@ -603,23 +603,14 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
     setAtBottom(true);
     setFar(false);
     setSeen(messages.length);
-    if (spring && before < STICK_DISTANCE) {
-      const content = contentRef.current;
-      if (!content || reducedRef.current) return;
-      const delta = content.offsetHeight - lastHeight.current;
-      if (delta > 0 && delta < scroller.clientHeight) {
-        y.jump(y.get() + delta);
-        animate(y, 0, SETTLE);
-      }
-    }
-  }, [messages.length, y]);
+  }, [messages.length]);
 
   useLayoutEffect(() => {
     const scroller = scrollRef.current, content = contentRef.current;
     if (!scroller || !content) return;
     lastHeight.current = content.offsetHeight;
     pinToEnd();
-    const pinSoon = () => { if (followLatest.current) pinToEnd(); };
+    const pinSoon = () => { if (followLatest.current || stick.current) pinToEnd(); };
     let frame = requestAnimationFrame(() => { pinSoon(); frame = requestAnimationFrame(pinSoon); });
     const onLoad = (event: Event) => { if (event.target instanceof HTMLImageElement) pinSoon(); };
     const onPointerDown = () => { dragging.current = true; };
@@ -644,13 +635,13 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
       const height = content.offsetHeight;
       const grew = height - lastHeight.current;
       if (!followLatest.current && !stick.current) { lastHeight.current = height; return; }
-      pinToEnd(grew > 0 && grew < scroller.clientHeight);
+      if (grew !== 0) pinToEnd();
       lastHeight.current = content.offsetHeight;
     });
     observer.observe(content);
     observer.observe(scroller);
     return () => { observer.disconnect(); stop(); };
-  }, [pinToEnd, tail, y]);
+  }, [pinToEnd, tail]);
 
   // Your own message always brings the thread back to the bottom.
   const known = useRef(new Set(messages.map(message => message.id)));
@@ -744,7 +735,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
     <div className={styles.viewport}>
       <div ref={scrollRef} className={styles.scroller} onScroll={onScroll} data-chat-scroller="">
         <div className={styles.track}>
-          <motion.div ref={contentRef} className={styles.content} style={{ y }}>
+          <div ref={contentRef} className={styles.content}>
             <ol className={styles.list} role="log" aria-label={label} aria-live="polite" aria-relevant="additions">
               <AnimatePresence initial={false}>
                 {rows.map(row => {
@@ -773,7 +764,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
                           {images.length > 0 && <div className={styles.gallery} data-count={Math.min(images.length, 4)}>
                             {images.slice(0, 4).map((image, at) => <button key={image.id} type="button" className={styles.image} onClick={() => setPreview(image)}
                               style={images.length === 1 && image.width && image.height ? { aspectRatio: `${image.width} / ${image.height}` } : undefined}>
-                              <img src={image.url} alt={image.alt ?? image.name} loading="lazy" />
+                              <img src={image.url} alt={image.alt ?? image.name} loading="eager" decoding="async" />
                               {at === 3 && images.length > 4 && <span className={styles.more}>+{images.length - 4}</span>}
                             </button>)}
                           </div>}
@@ -830,7 +821,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
                 </motion.li>}
               </AnimatePresence>
             </ol>
-          </motion.div>
+          </div>
         </div>
       </div>
       <span className={styles.srOnly} role="status">{typingLabel}</span>
