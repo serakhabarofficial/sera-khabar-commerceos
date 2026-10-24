@@ -661,7 +661,7 @@ describe("OrderDetail", () => {
     renderPage();
     expect(await screen.findByText("Could not load the product catalog.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
-    fireEvent.click(within(screen.getByTestId("order-item-item-1")).getByRole("button", { name: "Remove Premium Mango" }));
+    fireEvent.click(within(await screen.findByTestId("order-item-item-1")).getByRole("button", { name: "Remove Premium Mango" }));
     expect(screen.getByText("Your cart is empty.")).toBeInTheDocument();
   });
 

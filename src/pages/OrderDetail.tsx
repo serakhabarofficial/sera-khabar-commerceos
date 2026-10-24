@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { customerProfileHref } from "@/lib/customerProfile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -277,7 +277,7 @@ export default function OrderDetail() {
     queryFn: () => syncOrders<Order>(queryClient),
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!detailQuery.data || !id) return;
     const shouldInitialize = initializedOrderId.current !== id || (initializedWithPlaceholder.current && !detailQuery.isPlaceholderData);
     if (!shouldInitialize) return;
