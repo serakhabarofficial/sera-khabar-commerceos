@@ -157,7 +157,7 @@ describe("live visitor tracking", () => {
     expect(pingRoute).not.toContain("void capturePostHogEvent");
   });
 
-  it("labels tracker pings so 20-second heartbeats are not sent to PostHog", () => {
+  it("labels tracker pings so 30-second heartbeats are not sent to PostHog", () => {
     const trackerStart = serverSource.indexOf('app.get("/api/tracker.js", publicTrackerCors');
     const trackerEnd = serverSource.indexOf('app.post("/api/live-visitor/ping"', trackerStart);
     const trackerRoute = serverSource.slice(trackerStart, trackerEnd);
@@ -166,8 +166,10 @@ describe("live visitor tracking", () => {
 
     expect(trackerRoute).toContain('ping(null, false, "pageview")');
     expect(trackerRoute).toContain('ping(null, false, "heartbeat")');
-    expect(trackerRoute).toContain("setInterval(heartbeat, 20000)");
-    expect(trackerRoute).not.toContain("setInterval(ping, 20000)");
+    // Every 30s (not 20s) to cut disk writes; the live window is 75s so one late ping keeps a visitor counted.
+    expect(trackerRoute).toContain("setInterval(heartbeat, 30000)");
+    expect(trackerRoute).not.toContain("setInterval(heartbeat, 20000)");
+    expect(serverSource).toContain("const VISITOR_TTL_MS = 75_000;");
     expect(trackerRoute).toContain('window.addEventListener("focus", heartbeat)');
     // Redis presence still updates for every ping, before the forwarding decision.
     expect(pingRoute.indexOf("addLiveVisitorPresence(allKey")).toBeLessThan(pingRoute.indexOf("shouldForwardTrackerHit"));
@@ -185,7 +187,9 @@ describe("live visitor tracking", () => {
     try {
       new Function(script)();
       expect(sent.map(hit => hit.kind)).toEqual(["pageview"]);
-      vi.advanceTimersByTime(40_000);
+      vi.advanceTimersByTime(59_000);
+      expect(sent.slice(1).map(hit => hit.kind)).toEqual(["heartbeat"]);
+      vi.advanceTimersByTime(1_000);
       expect(sent.slice(1).map(hit => hit.kind)).toEqual(["heartbeat", "heartbeat"]);
       (window as unknown as { MerchantSuiteTracker: { track: (bucket: string) => void } }).MerchantSuiteTracker.track("cart");
       expect(sent.at(-1)).toMatchObject({ kind: "step", explicit: true, bucket: "cart" });

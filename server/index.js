@@ -9923,7 +9923,8 @@ app.post("/api/custom-orders/webhook", async (req, res) => {
 });
 
 // ─── Live Visitor Tracking ──────────────────────────────────────────────────
-const VISITOR_TTL_MS = 60_000;
+// Heartbeats come every 30s; a 75s window keeps a visitor counted through one late ping.
+const VISITOR_TTL_MS = 75_000;
 const POSTHOG_CAPTURE_TIMEOUT_MS = 900;
 
 function isValidOrgId(value) {
@@ -10108,7 +10109,7 @@ app.get("/api/tracker.js", publicTrackerCors, (req, res) => {
   window.addEventListener("popstate", function(){ window.dispatchEvent(new Event("locationchange")); });
   window.addEventListener("locationchange", function(){ setTimeout(pingCurrentLocation, 0); });
   pingCurrentLocation();
-  setInterval(heartbeat, 20000);
+  setInterval(heartbeat, 30000);
   document.addEventListener("visibilitychange", function(){
     if (document.hidden) { flushEngagement(); visibleSince = 0; }
     else {
@@ -10197,7 +10198,7 @@ app.post("/api/live-visitor/ping", publicTrackerCors, async (req, res) => {
     if (!isBot && countsAsLivePresence(hitKind) && await isAnalyticsWorkspace(org_id)) {
       await touchLiveVisitor(org_id, session_id, behaviorBucket);
     }
-    // Heartbeats update live presence only; forwarding every 20-second ping to
+    // Heartbeats update live presence only; forwarding every heartbeat ping to
     // PostHog made up most of its event volume. Legacy pings without `kind`
     // (tabs still running the old script) keep being forwarded.
     if (shouldForwardTrackerHit(hitKind)) {

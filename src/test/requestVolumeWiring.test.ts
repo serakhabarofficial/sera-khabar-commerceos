@@ -26,20 +26,17 @@ describe("background request volume guards", () => {
     expect(fn).toContain("AbortSignal.timeout(LIVE_PRESENCE_TIMEOUT_MS)");
   });
 
-  it("marks the courier refresh throttle only after the Pathao refresh succeeds", () => {
+  it("runs no courier or Shopify sync on dashboard load (Steadfast-only, no Shopify)", () => {
     const dashboard = readFileSync(resolve(process.cwd(), "src/pages/Dashboard.tsx"), "utf8");
-    const start = dashboard.indexOf("courierRefreshRanRecently(courierRefreshKey)");
-    const block = dashboard.slice(start, dashboard.indexOf("// Sync Shopify", start));
-    expect(start).toBeGreaterThan(-1);
-    expect(block).toContain("res.ok");
-    expect(block).toContain("if (ok) markCourierRefreshRan(courierRefreshKey)");
-    expect(block).not.toContain("steadfast/refresh-status");
+    expect(dashboard).not.toContain("/api/pathao/refresh-status");
+    expect(dashboard).not.toContain("/api/steadfast/refresh-status");
+    expect(dashboard).not.toContain("/api/fetch-shopify-orders");
   });
 
-  it("pings every 20 s so one lost ping does not drop a visitor from the 60 s window", () => {
-    expect(serverSource).toContain("const VISITOR_TTL_MS = 60_000;");
+  it("pings every 30 s so one lost ping does not drop a visitor from the 75 s window", () => {
+    expect(serverSource).toContain("const VISITOR_TTL_MS = 75_000;");
     const start = serverSource.indexOf('app.get("/api/tracker.js", publicTrackerCors');
     const route = serverSource.slice(start, serverSource.indexOf('app.post("/api/live-visitor/ping"', start));
-    expect(route).toContain("setInterval(heartbeat, 20000)");
+    expect(route).toContain("setInterval(heartbeat, 30000)");
   });
 });

@@ -271,28 +271,6 @@ async function prefetchTodayAnalytics(userId: string): Promise<void> {
   analyticsSnapshot = { userId, rangeKey: rangeKeyOf(range), range, analytics, prev: prevAnalytics };
 }
 
-const COURIER_REFRESH_MIN_INTERVAL_MS = 10 * 60 * 1000;
-
-// Courier status refreshes are expensive upstream calls; run them at most
-// once per 10 minutes per tab session. Storage failures fall back to running.
-function courierRefreshRanRecently(storageKey: string): boolean {
-  try {
-    const lastRun = Number(sessionStorage.getItem(storageKey));
-    return Boolean(lastRun) && Date.now() - lastRun < COURIER_REFRESH_MIN_INTERVAL_MS;
-  } catch {
-    // sessionStorage unavailable (private mode / blocked) — refresh anyway.
-    return false;
-  }
-}
-
-function markCourierRefreshRan(storageKey: string): void {
-  try {
-    sessionStorage.setItem(storageKey, String(Date.now()));
-  } catch {
-    // sessionStorage unavailable — next mount simply refreshes again.
-  }
-}
-
 
 
 const dashboardTextEffectVariants = {
@@ -524,7 +502,6 @@ export default function Dashboard() {
   const [abandonedLoading, setAbandonedLoading] = useState(() => !cachedAbandonedResponse);
   const [abandonedError, setAbandonedError] = useState<string | null>(null);
   const [abandonedActionInFlightId, setAbandonedActionInFlightId] = useState<string | null>(null);
-  const [autoSyncing, setAutoSyncing] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [selectedAbandonedIds, setSelectedAbandonedIds] = useState<Set<string>>(new Set());
   const [bulkAbandonedRunning, setBulkAbandonedRunning] = useState(false);
@@ -754,52 +731,14 @@ export default function Dashboard() {
     void fetchAnalytics(dateRange, Boolean(cached));
   }, [dateRange, fetchAnalytics, roleLoading, user?.id]);
 
-  // Auto-sync on mount, then poll orders every 60 s (paused while hidden).
-  // The Shopify sync is throttled to once per session per user via sessionStorage
-  // so HMR hot-reloads and navigation back to the dashboard don't re-trigger it.
+  // Load orders on mount, then poll every 60 s (paused while hidden).
+  // Sera Khabar uses neither Shopify nor Pathao: there is no Shopify import or
+  // courier refresh on load (Steadfast statuses arrive through its webhook). Both
+  // used to claim every order through the order-handling lock on each visit.
   useEffect(() => {
     if (!user?.id || roleLoading) return;
-
-    const syncKey = `autosync_done_${user.id}`;
-    const alreadySynced = sessionStorage.getItem(syncKey);
-
-    const runAutoSync = async () => {
-      // Load orders from DB immediately — don't wait for Shopify sync
-      fetchOrders();
-
-      // Refresh Pathao courier statuses in background, at most once per 10
-      // minutes per browser tab session. The timestamp is only recorded when
-      // the refresh succeeds, so a failure retries on next mount. Steadfast
-      // statuses arrive only through its webhook.
-      const courierRefreshKey = `courier_refresh_at_${user.id}`;
-      if (!courierRefreshRanRecently(courierRefreshKey)) {
-        void apiFetch("/api/pathao/refresh-status", { method: "POST" })
-          .then((res) => res.ok)
-          .catch(() => false)
-          .then((ok) => {
-            // One delta afterwards picks up every status it changed.
-            fetchOrders({ fresh: true });
-            if (ok) markCourierRefreshRan(courierRefreshKey);
-          });
-      }
-
-      // Sync Shopify in the background without blocking the UI
-      if (!alreadySynced) {
-        setAutoSyncing(true);
-        try {
-          await apiFetch("/api/fetch-shopify-orders", { method: "POST", headers: { "Content-Type": "application/json" } });
-          sessionStorage.setItem(syncKey, "1");
-          // Pick up the synced orders without reloading the whole list
-          fetchOrders({ fresh: true });
-          fetchAnalytics(todayRange, true, true);
-        } catch { /* ignore */ }
-        finally {
-          setAutoSyncing(false);
-        }
-      }
-    };
-    runAutoSync();
-  }, [user?.id, roleLoading, fetchOrders, fetchAnalytics, todayRange]);
+    fetchOrders();
+  }, [user?.id, roleLoading, fetchOrders]);
 
   useVisibleInterval(() => fetchOrders(), 60000, Boolean(user?.id) && !roleLoading);
 
@@ -1434,13 +1373,6 @@ export default function Dashboard() {
 
   return (
     <div className="relative space-y-6 p-1 lg:p-2 overflow-x-clip">
-      {autoSyncing && (
-        <div className="pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-2 rounded-full border border-black/10 bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur">
-          <Spinner size="sm" className="text-foreground" />
-          <span className="text-[11px] font-medium tracking-wide text-foreground">Loading…</span>
-        </div>
-      )}
-
       {/* ── P&L Panel ───────────────────────────────────────────────────── */}
       <div
         className="relative rounded-2xl bg-[#F3F3F3]"
@@ -1779,7 +1711,7 @@ export default function Dashboard() {
               color="brand"
               size="sm"
               onClick={() => navigate("/orders/new", { state: { from: location.pathname } })}
-              disabled={bulkUpdating || autoSyncing}
+              disabled={bulkUpdating}
               className="gap-1.5 rounded-lg px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
               data-testid="button-create-order"
             >
