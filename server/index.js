@@ -2232,6 +2232,8 @@ async function getStorefrontHandle(orgId, { cached = true } = {}) {
 // config change, not a code change. Failures log + drop — the outbox
 // replay job is a separate plan.
 async function purgeProductCache(orgId, product, { listChanged = false, warm = true, inventoryIds = [] } = {}) {
+  orderItemVariantCache.clear();
+  orderItemProductCache.clear();
   if (!CLOUDFLARE_ZONE_ID || !CLOUDFLARE_API_TOKEN || !PUBLIC_DOMAIN) {
     if (process.env.NODE_ENV !== "test") {
       console.warn("[Purge] Cloudflare not configured — skipping purge");
@@ -7480,7 +7482,7 @@ app.get("/api/orders", async (req, res) => {
         }
       }
       const itemsMaxUpdatedAt = maxUpdatedAt(itemUpdatedAts);
-      const enrichedItems = await enrichOrderItems(supabase, orgId, itemRows);
+      const enrichedItems = await enrichOrderItems(supabase, orgId, itemRows, { cached: true });
       const itemsByOrder = new Map();
       for (const item of enrichedItems) {
         const list = itemsByOrder.get(item.order_id) || [];
@@ -9196,69 +9198,101 @@ function formatCourierItems(items) {
   }).join(", ") || "N/A";
 }
 
-async function enrichOrderItems(supabase, orgId, items) {
+async function enrichOrderItems(supabase, orgId, items, { cached = false } = {}) {
   if (!items.length) return items;
   const variantIds = [...new Set(items.map((item) => item.variant_id).filter(Boolean))];
-  const variantResult = variantIds.length
-    ? await supabase
-        .from("product_variants")
-        .select("id, product_id, attributes, weight_kg, stock_quantity")
-        .in("id", variantIds)
-        .eq("org_id", orgId)
-    : { data: [], error: null };
-  if (variantResult.error) throw variantResult.error;
-  const variantsById = new Map((variantResult.data || []).map((variant) => [variant.id, variant]));
+  const variantsById = cached
+    ? await cachedOrderItemRows(orderItemVariantCache, orgId, variantIds, (ids) => loadOrderItemVariants(supabase, orgId, ids))
+    : await loadOrderItemVariants(supabase, orgId, variantIds);
   const productIds = [...new Set([
     ...items.map((item) => item.product_id).filter(Boolean),
-    ...(variantResult.data || []).map((variant) => variant.product_id).filter(Boolean),
+    ...[...variantsById.values()].map((variant) => variant.product_id).filter(Boolean),
   ])];
-  const [productResult, imageResult] = await Promise.all([
-    productIds.length
-      ? supabase
-          .from("products")
-          .select("id, slug, image_url, weight_kg, stock_quantity")
-          .in("id", productIds)
-          .eq("org_id", orgId)
-      : Promise.resolve({ data: [], error: null }),
-    productIds.length
-      ? supabase
-          .from("product_images")
-          .select("id, product_id, image_url, is_primary, sort_order")
-          .in("product_id", productIds)
-          .eq("org_id", orgId)
-          .order("is_primary", { ascending: false })
-          .order("sort_order", { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (productResult.error) throw productResult.error;
-  if (imageResult.error) throw imageResult.error;
-
-  const productsById = new Map((productResult.data || []).map((product) => [product.id, product]));
-  const primaryImagesByProduct = new Map();
-  for (const image of imageResult.data || []) {
-    if (!primaryImagesByProduct.has(image.product_id)) {
-      primaryImagesByProduct.set(image.product_id, image.image_url);
-    }
-  }
+  const productsById = cached
+    ? await cachedOrderItemRows(orderItemProductCache, orgId, productIds, (ids) => loadOrderItemProducts(supabase, orgId, ids))
+    : await loadOrderItemProducts(supabase, orgId, productIds);
 
   return items.map((item) => {
     const { inventory_reserved: inventoryReservedValue, ...publicItem } = item;
     const inventoryReserved = inventoryReservedValue !== false;
     const variant = variantsById.get(item.variant_id) || null;
     const productId = item.product_id || variant?.product_id || null;
-    const product = productsById.get(productId) || null;
+    const product = productsById.get(productId)?.product || null;
     const availableStock = variant?.stock_quantity ?? product?.stock_quantity ?? null;
     return {
       ...publicItem,
       variant_name: variantDisplay(variant?.attributes) || item.variant_name || null,
       product_slug: product?.slug || null,
-      image_url: primaryImagesByProduct.get(productId) || product?.image_url || null,
+      image_url: productsById.get(productId)?.primaryImage || product?.image_url || null,
       weight_kg: variant?.weight_kg ?? product?.weight_kg ?? null,
       available_stock: availableStock === null
         ? null
         : availableStock + (inventoryReserved ? (Number(item.quantity) || 0) : 0),
     };
   });
+}
+
+// Catalog details for the polled orders list, per warm instance. Product
+// saves clear them (purgeProductCache); stock shown there can be up to 60s
+// old. The order editor and item saves always read live.
+const orderItemVariantCache = createIdCache({ ttlMs: 60_000, maxEntries: 2000 });
+const orderItemProductCache = createIdCache({ ttlMs: 60_000, maxEntries: 2000 });
+
+async function cachedOrderItemRows(cache, orgId, ids, load) {
+  const prefix = `${orgId}:`;
+  const found = await cache.getMany(ids.map((id) => prefix + id), async (keys) => {
+    const rows = await load(keys.map((key) => key.slice(prefix.length)));
+    return new Map([...rows].map(([id, row]) => [prefix + id, row]));
+  });
+  const rows = new Map();
+  for (const id of ids) {
+    const row = found.get(prefix + id);
+    if (row) rows.set(id, row);
+  }
+  return rows;
+}
+
+async function loadOrderItemVariants(supabase, orgId, variantIds) {
+  if (!variantIds.length) return new Map();
+  const { data, error } = await supabase
+    .from("product_variants")
+    .select("id, product_id, attributes, weight_kg, stock_quantity")
+    .in("id", variantIds)
+    .eq("org_id", orgId);
+  if (error) throw error;
+  return new Map((data || []).map((variant) => [variant.id, variant]));
+}
+
+// product id -> { product, primaryImage }
+async function loadOrderItemProducts(supabase, orgId, productIds) {
+  if (!productIds.length) return new Map();
+  const [productResult, imageResult] = await Promise.all([
+    supabase
+      .from("products")
+      .select("id, slug, image_url, weight_kg, stock_quantity")
+      .in("id", productIds)
+      .eq("org_id", orgId),
+    supabase
+      .from("product_images")
+      .select("id, product_id, image_url, is_primary, sort_order")
+      .in("product_id", productIds)
+      .eq("org_id", orgId)
+      .order("is_primary", { ascending: false })
+      .order("sort_order", { ascending: true }),
+  ]);
+  if (productResult.error) throw productResult.error;
+  if (imageResult.error) throw imageResult.error;
+
+  const primaryImagesByProduct = new Map();
+  for (const image of imageResult.data || []) {
+    if (!primaryImagesByProduct.has(image.product_id)) {
+      primaryImagesByProduct.set(image.product_id, image.image_url);
+    }
+  }
+  return new Map((productResult.data || []).map((product) => [
+    product.id,
+    { product, primaryImage: primaryImagesByProduct.get(product.id) || null },
+  ]));
 }
 
 const ORDER_ITEM_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
