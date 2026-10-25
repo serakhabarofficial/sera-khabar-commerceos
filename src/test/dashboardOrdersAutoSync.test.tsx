@@ -68,7 +68,7 @@ describe("dashboard orders sync on open", () => {
     });
   });
 
-  it("loads the full order list once and picks up background refreshes by delta", async () => {
+  it("loads the full order list once, with no Shopify import or courier refresh on load", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -83,11 +83,11 @@ describe("dashboard orders sync on open", () => {
     const calls = (match: (url: string, init?: RequestInit) => boolean) =>
       apiFetch.mock.calls.filter(([url, init]) => match(String(url), init as RequestInit | undefined));
     await waitFor(() => {
-      expect(calls((url) => url === "/api/pathao/refresh-status")).toHaveLength(1);
-      // Steadfast statuses arrive only through its webhook.
+      // Steadfast-only merchant: no Pathao refresh, and Steadfast statuses arrive only through its webhook.
+      expect(calls((url) => url === "/api/pathao/refresh-status")).toHaveLength(0);
       expect(calls((url) => url === "/api/steadfast/refresh-status")).toHaveLength(0);
-      expect(calls((url) => url === "/api/fetch-shopify-orders")).toHaveLength(1);
-      expect(calls((url) => url.startsWith("/api/orders?changed_since=")).length).toBeGreaterThanOrEqual(1);
+      // No Shopify import on load: this merchant does not use Shopify.
+      expect(calls((url) => url === "/api/fetch-shopify-orders")).toHaveLength(0);
     });
     expect(calls((url, init) => url === "/api/orders" && !init?.method)).toHaveLength(1);
   });

@@ -23,7 +23,11 @@ function targets(kind, ids) {
 function policy(req) {
   const path = req.path.replace(/\/$/, "");
   const method = req.method;
-  if (method === "GET" && path === "/api/returns/sync") return { implicit: "all" };
+  // Background courier/returns jobs run often (every dashboard and Returns page
+  // load). Claiming every order through the workspace lock queued staff behind
+  // them and caused most lease writes. Like courier webhooks, they now work on a
+  // snapshot without claiming; editors' saves still reject stale writes.
+  if (method === "GET" && path === "/api/returns/sync") return { implicit: "all", claim: false };
   if (!["POST", "PATCH", "PUT", "DELETE"].includes(method)) return null;
   if (/\/activity\/view$/.test(path)) return null;
   // These staff actions can rewrite existing orders indirectly. Reserve the
@@ -56,8 +60,8 @@ function policy(req) {
     case "/api/send-to-courier/bulk/check": return null;
     case "/api/check-fraud": return req.body?.orderId ? { kind: "order", id: req.body.orderId } : { implicit: "fraud" };
     case "/api/returns/request": return req.body?.source === "inbox" ? null : { kind: "order", id: req.body?.orderId };
-    case "/api/pathao/refresh-status": return { implicit: "courier" };
-    case "/api/returns/backfill-fees": return { implicit: "fees" };
+    case "/api/pathao/refresh-status": return { implicit: "courier", claim: false };
+    case "/api/returns/backfill-fees": return { implicit: "fees", claim: false };
     case "/api/order-board/cards": return { kind: "order", id: req.body?.order_id };
     case "/api/order-protection/lists": return req.body?.attemptId ? { attempt: req.body.attemptId } : null;
     case "/api/order-chat/apply": return ["update_order", "dispatch_to_courier"].includes(req.body?.tool) ? { ai: req.body } : null;
@@ -106,6 +110,7 @@ export async function resolveHandlingTargets(req, supabase, orgId, selected = po
   // Handlers with implicit selections use this same snapshot, so a newly
   // matching order cannot enter the batch after its reservation was checked.
   req.orderHandlingIds = ids;
+  if (selected.claim === false) return [];
   return ids.length ? targets("order", ids) : [];
 }
 

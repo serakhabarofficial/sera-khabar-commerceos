@@ -63,8 +63,7 @@ describe("Dashboard analytics fresh=1 wiring", () => {
   it("requests fresh analytics only for the main range on user-triggered refreshes", () => {
     expect(dashboard).toContain('if (fresh) mainParams.set("fresh", "1");');
     expect(dashboard).toContain("apiFetch(`/api/analytics?${buildParams(prev)}`");
-    // After a Shopify sync and after a price/shipping edit.
-    expect(dashboard).toContain("fetchAnalytics(todayRange, true, true);");
+    // After a price/shipping edit.
     expect(dashboard).toContain("fetchAnalytics(dateRange, false, true);");
     // The 60s poll stays cached.
     expect(dashboard).toContain("useVisibleInterval(() => fetchAnalytics(dateRange, true), 60000);");

@@ -23,18 +23,19 @@ async function fixture(options: { denied?: boolean; error?: string; conflict?: b
   const app = express(); app.use(express.json()); app.use(handling.guard);
   app.post("/api/order-handling/:kind/:id", handling.endpoint);
   const changed: string[] = [];
+  const snapshots: unknown[] = [];
   app.patch("/api/orders/:id", (req, res) => { changed.push(req.params.id); res.json({ saved: true }); });
   app.post("/api/orders/bulk-status", (_req, res) => { changed.push("bulk"); res.json({ saved: true }); });
   app.post("/api/orders/:id/activity/view", (_req, res) => res.json({ viewed: true }));
-  app.use((req, res) => { changed.push(req.path); res.json({ saved: true }); });
+  app.use((req, res) => { changed.push(req.path); snapshots.push((req as { orderHandlingIds?: unknown }).orderHandlingIds); res.json({ saved: true }); });
   const server = createServer(app); await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); if (!address || typeof address === "string") throw new Error("No server");
   const request = async (path: string, body: unknown = {}, method = "POST", headers: Record<string, string> = {}) => {
-    const response = await fetch(`http://127.0.0.1:${address.port}${path}`, { method, headers: { "Content-Type": "application/json", "X-Order-Handling-Session": session, ...headers }, body: JSON.stringify(body) });
+    const response = await fetch(`http://127.0.0.1:${address.port}${path}`, { method, headers: { "Content-Type": "application/json", "X-Order-Handling-Session": session, ...headers }, body: method === "GET" ? undefined : JSON.stringify(body) });
     return { status: response.status, body: await response.json() };
   };
   const close = () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); });
-  return { rpc, authenticate, changed, request, close };
+  return { rpc, authenticate, changed, snapshots, request, close };
 }
 
 describe("order handling HTTP enforcement", () => {
@@ -140,6 +141,20 @@ describe("order handling HTTP enforcement", () => {
       expect((await f.request(path, { orderIds: [id] })).status).toBe(200);
       expect(f.rpc).not.toHaveBeenCalled();
       expect(f.changed).toEqual([path]);
+    } finally { await f.close(); }
+  });
+  // Background courier/returns jobs used to claim every order through the
+  // workspace lock; they now read the same order snapshot without claiming.
+  it.each([
+    ["POST", "/api/pathao/refresh-status"],
+    ["POST", "/api/returns/backfill-fees"],
+    ["GET", "/api/returns/sync"],
+  ])("runs %s %s on an order snapshot without claiming orders", async (method, path) => {
+    const f = await fixture({ conflict: true, tables: { orders: [{ id, org_id: orgId, sent_to_courier: true, courier_fee: null }] } }); try {
+      expect((await f.request(path, method === "GET" ? undefined : {}, method)).status).toBe(200);
+      expect(f.rpc).not.toHaveBeenCalled();
+      expect(f.changed).toEqual([path]);
+      expect(f.snapshots).toEqual([[id]]);
     } finally { await f.close(); }
   });
   it("resolves a call to its actual order and hides foreign call ownership", async () => {
