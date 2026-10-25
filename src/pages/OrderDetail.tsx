@@ -38,7 +38,9 @@ import {
 import { canChangeOrderSource, normalizeOrderSource, type OrderSource } from "@/lib/orderSource";
 import { CANCELLATION_REASON_OPTIONS, createActivityGroupId, orderItemActivityKey, orderViewSurface, type AdditionReason, type CancellationReason } from "@/lib/orderActivity";
 import { prefetchOrderActivity, refreshOrderActivity } from "@/lib/orderActivityQuery";
-import { isOnHoldStatus, normalizeBusinessStatus, statusOptionsFor } from "@/lib/orderTransitions";
+import { isApprovedStatus, isOnHoldStatus, normalizeBusinessStatus, statusOptionsFor } from "@/lib/orderTransitions";
+import { classifyOrderStatus } from "@/lib/orderStatusFilters";
+import { confirmedPill } from "@/lib/confirmedPill";
 import { holdUntilForSendIn, type CallNextStep } from "@/lib/orderCalls";
 import { validateOrderHoldDetails } from "../../shared/orderHold.js";
 
@@ -457,8 +459,11 @@ export default function OrderDetail() {
       if (holdError) { setSaveError(holdError.error); return; }
     }
 
+    // Confirming a pending order gets the floating pill instead of the plain toast.
+    const confirmingPending = statusChanged && isApprovedStatus(statusDraft) && classifyOrderStatus(order) === "pending";
     setSaving(true);
     setSaveError("");
+    if (confirmingPending) confirmedPill.saving();
     const activityGroupId = createActivityGroupId();
     const completedSegments: string[] = [];
     const pendingSegments: string[] = [
@@ -573,12 +578,14 @@ export default function OrderDetail() {
       setAdvanceReferenceDraft(currentOrder.advance_payment_reference ?? "");
       setAdditionReasons({}); setCancellationReasonCode(""); setCancellationReasonNote("");
       void refreshOrderActivity(queryClient, `/api/orders/${id}/activity`);
+      if (confirmingPending) confirmedPill.confirmed(orderNumberLabel(currentOrder.order_number ?? order.order_number));
       if (hasQueueNav) {
-        toast.success("Order saved");
+        if (!confirmingPending) toast.success("Order saved");
       } else {
         goBack();
       }
     } catch (error: unknown) {
+      if (confirmingPending) confirmedPill.dismiss();
       setSaveError(error instanceof Error ? error.message : "Failed to save order changes");
     } finally {
       setSaving(false);

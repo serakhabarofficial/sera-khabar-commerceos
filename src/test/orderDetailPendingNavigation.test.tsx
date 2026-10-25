@@ -33,7 +33,8 @@ vi.mock("@/components/order-editor/CustomerDossier", () => ({
     ),
 }));
 vi.mock("@/components/order-editor/OrderSavePanel", () => ({
-  OrderSavePanel: () => null,
+  OrderSavePanel: (props: { onStatusChange: (status: string) => void }) =>
+    createElement("button", { onClick: () => props.onStatusChange("confirmed") }, "Mark confirmed"),
   OrderSaveActions: (props: { onSave: () => void }) => createElement("button", { onClick: props.onSave }, "Save"),
 }));
 
@@ -201,6 +202,40 @@ describe("pending order prev/next navigation", () => {
       expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ notes: "Call after 5pm" });
     });
     await waitFor(() => expect(screen.getByTestId("order-note")).toHaveTextContent("Call after 5pm"));
+  });
+
+  it("shows the confirmed pill instead of the saved toast when a pending order is confirmed", async () => {
+    const user = userEvent.setup();
+    const { toast } = await import("@/components/ui/sonner");
+    const { confirmedPill } = await import("@/lib/confirmedPill");
+    const successSpy = vi.spyOn(toast, "success");
+    const savingSpy = vi.spyOn(confirmedPill, "saving");
+    const confirmedSpy = vi.spyOn(confirmedPill, "confirmed");
+    const pendingOrder = { ...orderOne, status: "pending" };
+    try {
+      apiFetch.mockImplementation((url: string, init?: RequestInit) => {
+        if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
+        if (url === "/api/orders/order-1" && init?.method === "PATCH") return Promise.resolve(response({ order: { ...pendingOrder, status: "confirmed" } }));
+        if (url === "/api/orders/order-1") return Promise.resolve(response({ order: pendingOrder, items: [], canEditItems: true }));
+        if (url === "/api/products") return Promise.resolve(response({ products: [] }));
+        if (url === "/api/orders") return Promise.resolve(response({ orders: [pendingOrder, orderTwo] }));
+        return Promise.resolve(response({}));
+      });
+
+      renderOrderDetail(["order-1", "order-2"]);
+
+      await screen.findByTestId("order-editor-pending-nav");
+      await waitFor(() => expect(screen.getByRole("button", { name: "Mark confirmed" })).toBeEnabled());
+      await user.click(screen.getByRole("button", { name: "Mark confirmed" }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(confirmedSpy).toHaveBeenCalledWith("#ML-1001"));
+      expect(savingSpy).toHaveBeenCalled();
+      expect(successSpy).not.toHaveBeenCalledWith("Order saved");
+    } finally {
+      successSpy.mockRestore(); savingSpy.mockRestore(); confirmedSpy.mockRestore();
+      confirmedPill.dismiss();
+    }
   });
 
   it("shows pending nav in a new tab from the stored snapshot", async () => {
