@@ -48,8 +48,12 @@ function policy(req) {
     case "/api/orders/follow-up": return { kind: "order", ids: req.body?.order_ids };
     case "/api/send-to-courier":
     case "/api/send-to-pathao": return { kind: "order", id: req.body?.orderId };
+    // The Print tab's bulk Steadfast send skips handling: one lock check for a
+    // whole batch queued behind every open editor and stopped the send. It keeps
+    // its own double-send guards (Print-only, already-dispatched skip, and the
+    // "Checking with Steadfast" write-ahead looked up before any resend).
     case "/api/send-to-courier/bulk":
-    case "/api/send-to-courier/bulk/check": return { kind: "order", ids: req.body?.orderIds };
+    case "/api/send-to-courier/bulk/check": return null;
     case "/api/check-fraud": return req.body?.orderId ? { kind: "order", id: req.body.orderId } : { implicit: "fraud" };
     case "/api/returns/request": return req.body?.source === "inbox" ? null : { kind: "order", id: req.body?.orderId };
     case "/api/pathao/refresh-status": return { implicit: "courier" };

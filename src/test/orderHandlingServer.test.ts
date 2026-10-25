@@ -119,8 +119,6 @@ describe("order handling HTTP enforcement", () => {
     ["POST", `/api/abandoned-checkouts/${id}/convert`, {}],
     ["POST", "/api/send-to-courier", { orderId: id }],
     ["POST", "/api/send-to-pathao", { orderId: id }],
-    ["POST", "/api/send-to-courier/bulk", { orderIds: [id] }],
-    ["POST", "/api/send-to-courier/bulk/check", { orderIds: [id] }],
     ["POST", "/api/orders/follow-up", { order_ids: [id] }],
     ["POST", "/api/check-fraud", { orderId: id }],
     ["POST", "/api/returns/request", { orderId: id }],
@@ -130,6 +128,18 @@ describe("order handling HTTP enforcement", () => {
     const f = await fixture({ conflict: true }); try {
       expect((await f.request(String(path), body, String(method))).status).toBe(409);
       expect(f.changed).toEqual([]);
+    } finally { await f.close(); }
+  });
+  // The Print tab's Steadfast send has its own double-send guards (Print-only,
+  // already-dispatched skip, "Checking with Steadfast" write-ahead), so it skips handling.
+  it.each([
+    ["/api/send-to-courier/bulk"],
+    ["/api/send-to-courier/bulk/check"],
+  ])("lets the Print tab send %s without order handling", async (path) => {
+    const f = await fixture({ conflict: true }); try {
+      expect((await f.request(path, { orderIds: [id] })).status).toBe(200);
+      expect(f.rpc).not.toHaveBeenCalled();
+      expect(f.changed).toEqual([path]);
     } finally { await f.close(); }
   });
   it("resolves a call to its actual order and hides foreign call ownership", async () => {
