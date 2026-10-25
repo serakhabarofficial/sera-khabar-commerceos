@@ -58,6 +58,25 @@ describe("NewOrder", () => {
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/products"));
   });
 
+  it("turns Bangla digits into English and offers call and WhatsApp links", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/orders/new"]}>
+          <NewOrder />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Call customer" })).toBeNull();
+    await user.type(screen.getByRole("textbox", { name: "Phone" }), "০১৭১২৩৪৫৬৭৮");
+
+    expect(screen.getByRole("textbox", { name: "Phone" })).toHaveValue("01712345678");
+    expect(screen.getByRole("link", { name: "Call customer" })).toHaveAttribute("href", "tel:01712345678");
+    expect(screen.getByRole("link", { name: "Open WhatsApp chat" })).toHaveAttribute("href", "https://wa.me/8801712345678");
+  });
+
   it("checks fraud in the background once a valid phone is entered", async () => {
     const user = userEvent.setup();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

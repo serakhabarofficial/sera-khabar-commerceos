@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowCounterClockwise, ArrowLeft, CheckCircle, PencilSimple, Plus, UserPlus } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowLeft, CheckCircle, PencilSimple, Phone, Plus, UserPlus } from "@phosphor-icons/react";
 import { apiFetch } from "@/lib/api";
 import { syncOrders } from "@/lib/ordersSync";
 import { Button as BuiButton } from "@/components/base/buttons/button";
@@ -28,7 +28,8 @@ import type { HistoryEntry } from "@/components/order-editor/CustomerPanel";
 import { OrderSourceSelect } from "@/components/order-editor/OrderSourceSelect";
 import { FraudPanel } from "@/components/order-editor/FraudPanel";
 import { useFraudCheckMutation } from "@/hooks/useFraudCheck";
-import { normalizeBdMobileInput, normalizeBdPhone } from "@/lib/bdPhone";
+import { bdWhatsAppHref, normalizeBdMobileInput, normalizeBdPhone, toEnglishDigits } from "@/lib/bdPhone";
+import WhatsappLogo from "@/components/WhatsappLogo";
 import { StaffSelect } from "@/components/order-editor/StaffSelect";
 import { useAuth } from "@/hooks/useAuth";
 import type { OrderSource } from "@/lib/orderSource";
@@ -106,7 +107,7 @@ export default function NewOrder() {
   const customerPrefill = customerPrefillFromState(location.state);
   const [creating, setCreating] = useState(false);
   const [customerName, setCustomerName] = useState(customerPrefill.customerName);
-  const [phone, setPhone] = useState(customerPrefill.phone);
+  const [phone, setPhone] = useState(toEnglishDigits(customerPrefill.phone));
   const [address, setAddress] = useState(customerPrefill.address);
   const [matchedCustomerPhone, setMatchedCustomerPhone] = useState<string | null>(null);
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -349,6 +350,7 @@ export default function NewOrder() {
 
   const fieldClass = "h-10 w-full rounded-lg bg-white px-3 text-[13px] normal-case tracking-normal text-black outline-none ring-1 ring-inset ring-black/[0.08] transition placeholder:text-black/35 focus:ring-black/25 disabled:opacity-50";
   const labelClass = "grid gap-1.5 text-[8px] font-medium uppercase tracking-[0.3em] text-black";
+  const contactClass = "grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-black/70 ring-1 ring-inset ring-black/[0.08] transition hover:bg-black/[0.03] hover:text-black active:scale-[0.97]";
   const isReturning = Boolean(normalizedPhone && matchedCustomerPhone === normalizedPhone);
   const initial = Array.from(customerName.trim())[0];
 
@@ -376,7 +378,15 @@ export default function NewOrder() {
 
           <label className={labelClass}>
             Phone
-            <input aria-label="Phone" type="tel" required value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="01712345678" className={`${fieldClass} font-mono`} />
+            <div className="flex items-center gap-1.5">
+              <input aria-label="Phone" type="tel" required value={phone} onChange={(event) => setPhone(toEnglishDigits(event.target.value))} placeholder="01712345678" className={`${fieldClass} font-mono`} />
+              {normalizedPhone && (
+                <>
+                  <a href={`tel:${normalizedPhone}`} aria-label="Call customer" className={contactClass}><Phone weight="light" size={16} /></a>
+                  <a href={bdWhatsAppHref(normalizedPhone) ?? undefined} target="_blank" rel="noreferrer" aria-label="Open WhatsApp chat" className={`${contactClass} text-[#128C4A]`}><WhatsappLogo size={16} /></a>
+                </>
+              )}
+            </div>
             {isReturning && <span className="text-[11px] font-normal normal-case tracking-normal text-[#2e9e5b]">Previous customer found</span>}
           </label>
           <label className={labelClass}>

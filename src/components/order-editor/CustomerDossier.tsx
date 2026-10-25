@@ -52,6 +52,9 @@ type CustomerDossierProps = {
   smsAdvancePaid?: number | null;
   /** The call log; shown for saved orders. Steps that change the status set the editor's draft. */
   calls?: { canSetStatus: (status: string) => boolean; onNextStep: (step: CallNextStep) => void };
+  /** The order note draft; saved with the editor and shown in the orders table. */
+  note?: string;
+  onNoteChange?: (note: string) => void;
   className?: string;
 };
 
@@ -127,7 +130,7 @@ export function LastOrdersCard({ history, loading = false, onOpenOrder }: { hist
 }
 
 /** The customer file: who this is, whether they can be trusted, and what they ordered before. */
-export function CustomerDossier({ order, customer, disabled = false, history = [], historyLoading = false, onOpenOrder, onApply, source, originSource, onSourceChange, smsAmount, smsAdvancePaid, calls, className = "" }: CustomerDossierProps) {
+export function CustomerDossier({ order, customer, disabled = false, history = [], historyLoading = false, onOpenOrder, onApply, source, originSource, onSourceChange, smsAmount, smsAdvancePaid, calls, note = "", onNoteChange, className = "" }: CustomerDossierProps) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(customer);
   const [copied, setCopied] = useState(false);
@@ -246,6 +249,13 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
       <div className="rounded-[14px] bg-white p-3.5 ring-1 ring-inset ring-black/[0.06]">
         <FraudPanel phone={customer.phone} defaultExpanded compact alignHeader="left" showReviews={false} />
       </div>
+
+      {onNoteChange && (
+        <label className={`grid gap-1.5 ${labelClass}`}>
+          Note
+          <textarea aria-label="Order note" value={note} onChange={(event) => onNoteChange(event.target.value)} disabled={disabled} rows={3} placeholder="Add a follow-up, customer preference, delivery detail..." className={`${inputClass} h-auto resize-none py-2 normal-case leading-relaxed tracking-normal placeholder:text-black/35`} />
+        </label>
+      )}
 
       <LastOrdersCard history={history} loading={historyLoading} onOpenOrder={onOpenOrder} />
 

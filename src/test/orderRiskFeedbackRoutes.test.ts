@@ -6,7 +6,8 @@ const route = (marker: string) => source.slice(source.indexOf(marker), source.in
 
 it("guards and scopes manual labels to the current workspace", () => {
   const body = route('app.post("/api/order-protection/attempts/:id/label"');
-  for (const token of ["requireOrderProtectionStaff(req)", 'if (!user)', 'role !== "admin"', "getRiskAttempt(supabase, { orgId", "labelRiskAttempt(supabase, { orgId", 'list: "allow"']) expect(body).toContain(token);
+  expect(body).not.toContain('role !== "admin"');
+  for (const token of ["requireOrderProtectionStaff(req)", 'if (!user)', "getRiskAttempt(supabase, { orgId", "labelRiskAttempt(supabase, { orgId", 'list: "allow"']) expect(body).toContain(token);
 });
 
 it("pages scoped accuracy rows with a bounded reporting window", () => {

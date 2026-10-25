@@ -21,3 +21,8 @@ export function bdWhatsAppHref(phone: string | null | undefined): string | null 
   const normalized = normalizeBdPhone(phone);
   return normalized ? `https://wa.me/88${normalized}` : null;
 }
+
+// Bangla keyboards type ০-৯; turn them into 0-9 so the number validates.
+export function toEnglishDigits(value: string): string {
+  return value.replace(/[০-৯]/g, (digit) => String(digit.charCodeAt(0) - 0x09e6));
+}
