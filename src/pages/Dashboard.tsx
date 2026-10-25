@@ -501,6 +501,11 @@ function rangeOrdersDataOf(results: UseQueryResult<Order[]>[]) {
   return results.map((result) => result.data);
 }
 
+// Filters inside the orders toolbar capsule: a thin divider between segments,
+// and borderless full-height triggers so they read as one control.
+const CAPSULE_SEGMENT = "flex items-stretch border-l border-black/[0.07] max-md:border-l-0 max-md:border-t";
+const CAPSULE_SEGMENT_TRIGGER = "h-full rounded-none border-0 bg-transparent px-3 text-[12px] font-medium text-black/70 shadow-none hover:border-0 hover:bg-black/[0.035] hover:text-black focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:bg-black/[0.05] max-md:w-full";
+
 export default function Dashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1683,7 +1688,8 @@ export default function Dashboard() {
         className="relative z-10 overflow-hidden rounded-xl border border-black/10 bg-white"
       >
         {/* Toolbar */}
-        <div data-testid="dashboard-order-toolbar" className="flex flex-col gap-3 border-b border-black/10 px-6 py-3 max-md:px-3 lg:flex-row lg:items-center lg:justify-between">
+        <div data-testid="dashboard-order-toolbar" className="flex flex-col gap-3 border-b border-black/10 px-3 py-3 max-md:px-3">
+          <div className="flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
            <div className="flex shrink-0 flex-wrap items-center gap-2.5 whitespace-nowrap max-md:w-full max-md:justify-between">
             <TextEffect
               as="span"
@@ -1755,110 +1761,40 @@ export default function Dashboard() {
              )}
            </div>
 
-          <div data-testid="dashboard-order-actions" className={cn("flex flex-wrap items-center justify-end gap-2 max-md:flex-col max-md:items-stretch", isBoardQueue && "hidden")}>
-            <div className="relative max-md:w-full">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder={isAbandonedQueue ? "Search name, phone, address or cart…" : "Search name, phone, order or courier ID…"}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 w-56 rounded-xl border-0 bg-black/[0.06] pl-8 text-sm shadow-none placeholder:text-black/35 focus-visible:ring-1 focus-visible:ring-black/20 max-md:w-full"
-                data-testid="input-search-orders"
-              />
-            </div>
-
-            {!isAbandonedQueue && (
-              <>
-              {!isMobile && (
-                <OrderRowsPerPageSelect
-                 pageSize={orderPageSize}
-                 onPageSizeChange={(nextPageSize) => {
-                   setOrderPageSize(nextPageSize);
-                   setOrderPage(0);
-                 }}
-                 ariaLabel="Rows per page for dashboard orders"
-                />
-              )}
-
-            <Select
-              aria-label="Filter orders by warehouse"
-              data-testid="select-warehouse-filter"
-              selectedKey={warehouseFilter}
-              onSelectionChange={(key) => { setWarehouseFilter(String(key)); setOrderPage(0); }}
-              triggerClassName="h-9"
-            >
-              <SelectItem id="all">All warehouses</SelectItem>
-              {warehouses.map((warehouse) => <SelectItem key={warehouse.id} id={warehouse.id}>{warehouse.name}</SelectItem>)}
-            </Select>
-
-            {!isAbandonedQueue && showOrdersDateFilter && (
-              <div data-testid="orders-date-filter" className="flex items-center">
-                <DateRangePicker
-                  value={ordersDateRange}
-                  onChange={(range) => {
-                    setOrdersDateRanges((prev) => ({ ...prev, [activeOrderStatusFilter]: range }));
-                    setOrderPage(0);
-                  }}
-                  placement="bottom start"
-                  variant="toolbar"
-                />
-              </div>
-            )}
-
-            {!isAbandonedQueue && activeOrderStatusFilter === "approved" && (
-              <Select
-                aria-label="Filter approved orders by district"
-                data-testid="select-district-filter"
-                selectedKey={districtFilter}
-                onSelectionChange={(key) => { setDistrictFilter(String(key)); setOrderPage(0); }}
-                triggerClassName="h-9"
-              >
-                <SelectItem id="all">{`All districts (${filteredOrders.length})`}</SelectItem>
-                {districtCounts.ranked.map((entry) => (
-                  <SelectItem key={entry.name} id={entry.name}>{`${entry.name} (${entry.count})`}</SelectItem>
-                ))}
-                {districtCounts.unknown > 0 && (
-                  <SelectItem id={DISTRICT_UNKNOWN_SENTINEL}>{`Unknown (${districtCounts.unknown})`}</SelectItem>
-                )}
-              </Select>
-            )}
-
-            <div className="w-px h-4 bg-black/10 max-md:hidden" />
-
-            <div className="flex items-center gap-2 max-md:w-full max-md:flex-col max-md:items-stretch">
+            <div className={cn("flex items-center gap-2 max-md:w-full max-md:flex-col max-md:items-stretch", isBoardQueue && "hidden")}>
             {!isAbandonedQueue && activeOrderStatusFilter === "print" && (
               <PopButton
                 color="default"
                 size="sm"
                 onClick={() => void handlePackingSummary()}
                 disabled={filteredOrders.length === 0}
-                className="gap-1.5 px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
+                className="gap-1.5 rounded-lg px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
                 data-testid="button-packing-summary"
               >
                 <Printer weight="light" className="h-3.5 w-3.5" />
                 Packing Summary
               </PopButton>
             )}
-
             <PopButton
               color="brand"
               size="sm"
               onClick={() => navigate("/orders/new", { state: { from: location.pathname } })}
               disabled={bulkUpdating || autoSyncing}
-              className="gap-1.5 px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
+              className="gap-1.5 rounded-lg px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
               data-testid="button-create-order"
             >
               <Plus className="h-3.5 w-3.5" />
               Create Order
             </PopButton>
 
+            {!isAbandonedQueue && (
               <Popover open={bulkMenuOpen} onOpenChange={setBulkMenuOpen}>
               <PopoverTrigger asChild>
                 <PopButton
                   color="default"
                   size="sm"
                   disabled={bulkUpdating || selectedOrderIds.size === 0}
-                  className="gap-1.5 px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
+                  className="gap-1.5 rounded-lg px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
                   data-testid="button-bulk-status"
                 >
                   {bulkUpdating ? <Spinner size="sm" /> : <UpdateStatusIcon className="h-3.5 w-3.5" />}
@@ -1887,8 +1823,6 @@ export default function Dashboard() {
                 </div>
               </PopoverContent>
               </Popover>
-            </div>
-              </>
             )}
             {isAbandonedQueue && (
               <div className="max-md:w-full">
@@ -1898,7 +1832,7 @@ export default function Dashboard() {
                     color="default"
                     size="sm"
                     disabled={bulkAbandonedRunning || selectedAbandonedIds.size === 0}
-                    className="gap-1.5 px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
+                    className="gap-1.5 rounded-lg px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
                     data-testid="button-bulk-abandoned-status"
                   >
                     {bulkAbandonedRunning ? <Spinner size="sm" /> : <UpdateStatusIcon className="h-3.5 w-3.5" />}
@@ -1928,6 +1862,90 @@ export default function Dashboard() {
                 </PopoverContent>
               </Popover>
               </div>
+            )}
+            </div>
+          </div>
+
+          {/* One filter capsule: search, then each filter as a segment. Picking a
+              date only tints its segment, so the row never reflows. */}
+          <div data-testid="dashboard-order-actions" className={cn("flex h-10 items-stretch overflow-hidden rounded-lg bg-[#F4F4F2] ring-1 ring-inset ring-black/[0.06] transition-shadow focus-within:ring-black/15 max-md:h-auto max-md:flex-col", isBoardQueue && "hidden")}>
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={isAbandonedQueue ? "Search name, phone, address or cart…" : "Search name, phone, order or courier ID…"}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 w-full rounded-none border-0 bg-transparent pl-9 text-sm shadow-none placeholder:text-black/35 focus-visible:ring-0 focus-visible:ring-offset-0"
+                data-testid="input-search-orders"
+              />
+            </div>
+
+            {!isAbandonedQueue && (
+              <>
+              <div className={CAPSULE_SEGMENT}>
+              <Select
+                aria-label="Filter orders by warehouse"
+                data-testid="select-warehouse-filter"
+                selectedKey={warehouseFilter}
+                onSelectionChange={(key) => { setWarehouseFilter(String(key)); setOrderPage(0); }}
+                className="h-full max-md:w-full"
+                triggerClassName={CAPSULE_SEGMENT_TRIGGER}
+              >
+                <SelectItem id="all">All warehouses</SelectItem>
+                {warehouses.map((warehouse) => <SelectItem key={warehouse.id} id={warehouse.id}>{warehouse.name}</SelectItem>)}
+              </Select>
+              </div>
+
+            {!isAbandonedQueue && showOrdersDateFilter && (
+              <div data-testid="orders-date-filter" className={CAPSULE_SEGMENT}>
+                <DateRangePicker
+                  value={ordersDateRange}
+                  onChange={(range) => {
+                    setOrdersDateRanges((prev) => ({ ...prev, [activeOrderStatusFilter]: range }));
+                    setOrderPage(0);
+                  }}
+                  placement="bottom start"
+                  variant="segment"
+                />
+              </div>
+            )}
+
+            {!isAbandonedQueue && activeOrderStatusFilter === "approved" && (
+              <div className={CAPSULE_SEGMENT}>
+                <Select
+                  aria-label="Filter approved orders by district"
+                  data-testid="select-district-filter"
+                  selectedKey={districtFilter}
+                  onSelectionChange={(key) => { setDistrictFilter(String(key)); setOrderPage(0); }}
+                  className="h-full max-md:w-full"
+                  triggerClassName={CAPSULE_SEGMENT_TRIGGER}
+                >
+                  <SelectItem id="all">{`All districts (${filteredOrders.length})`}</SelectItem>
+                  {districtCounts.ranked.map((entry) => (
+                    <SelectItem key={entry.name} id={entry.name}>{`${entry.name} (${entry.count})`}</SelectItem>
+                  ))}
+                  {districtCounts.unknown > 0 && (
+                    <SelectItem id={DISTRICT_UNKNOWN_SENTINEL}>{`Unknown (${districtCounts.unknown})`}</SelectItem>
+                  )}
+                </Select>
+              </div>
+            )}
+
+              {/* On phones rows-per-page sits beside the order count instead. */}
+              {!isMobile && (
+                <div className={CAPSULE_SEGMENT}>
+                  <OrderRowsPerPageSelect
+                    pageSize={orderPageSize}
+                    onPageSizeChange={(nextPageSize) => {
+                      setOrderPageSize(nextPageSize);
+                      setOrderPage(0);
+                    }}
+                    ariaLabel="Rows per page for dashboard orders"
+                    segment
+                  />
+                </div>
+              )}
+              </>
             )}
           </div>
         </div>

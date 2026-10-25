@@ -540,6 +540,25 @@ describe("AbandonedDetail pending-order banner", () => {
     expect(screen.queryByText("Already ordered")).not.toBeInTheDocument();
   });
 
+  it("explains a checkout closed because the customer already ordered and links to the order", async () => {
+    let listCalls = 0;
+    apiFetch.mockReset();
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
+      // First read shows the checkout; the start-up reload finds it already closed.
+      if (url === "/api/abandoned-checkouts") return jsonResponse(listCalls++ === 0 ? { checkouts: [draft], activeCount: 1 } : { checkouts: [], activeCount: 0 });
+      if (url === "/api/products") return jsonResponse({ products: [] });
+      if (url.startsWith("/api/orders")) return jsonResponse({ orders: [order("pending")], totalCount: 1, syncedAt: null });
+      return jsonResponse({});
+    });
+    renderDetail();
+
+    expect(await screen.findByText("Customer already ordered")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Open order #1009" })).toHaveAttribute("href", "/orders/order-9");
+    expect(screen.getByRole("button", { name: "Back to incomplete orders" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry status" })).not.toBeInTheDocument();
+  });
+
   it("follows the live phone draft and hides the banner when the phone is cleared", async () => {
     mockOrders([order("pending")]);
     const user = userEvent.setup();

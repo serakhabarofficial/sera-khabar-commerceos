@@ -6,26 +6,36 @@ import {
   SelectValue,
 } from "@/components/ui/interfaces-select";
 import { ORDER_PAGE_SIZE_OPTIONS } from "@/hooks/useOrderPageSize";
+import { ChevronDownSmall } from "@/components/foundations/icons/chevrons";
 
 type OrderRowsPerPageSelectProps = {
   pageSize: number;
   onPageSizeChange: (pageSize: number) => void;
   ariaLabel: string;
+  /** A segment of the orders filter capsule: full height, borderless, and the
+   *  same chevron as the capsule's other dropdowns. */
+  segment?: boolean;
 };
 
 export function OrderRowsPerPageSelect({
   pageSize,
   onPageSizeChange,
   ariaLabel,
+  segment = false,
 }: OrderRowsPerPageSelectProps) {
   return (
     <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
       <SelectTrigger
         size="sm"
         aria-label={ariaLabel}
-        className="w-[72px] rounded-lg border-black/10 bg-[#E9E9E7] text-[12px] font-medium text-black shadow-none hover:bg-[#E3E3E0] focus-visible:ring-black/15"
+        className={segment
+          // data-[size=sm]:h-full beats the trigger's own data-[size=sm]:h-8; the
+          // built-in caret is hidden for the capsule's shared chevron.
+          ? "h-full w-[88px] rounded-none border-0 bg-transparent px-3 py-0 text-[12px] font-medium text-black/70 shadow-none transition-colors hover:bg-black/[0.035] hover:text-black focus-visible:bg-black/[0.05] focus-visible:ring-0 data-[size=sm]:h-full [&>svg:last-child]:hidden max-md:w-full"
+          : "w-[72px] rounded-lg border-black/10 bg-[#E9E9E7] text-[12px] font-medium text-black shadow-none hover:bg-[#E3E3E0] focus-visible:ring-black/15"}
       >
         <SelectValue />
+        {segment && <ChevronDownSmall className="size-4 text-text-secondary" />}
       </SelectTrigger>
       <SelectContent align="start" className="min-w-[88px] rounded-lg border-black/10 bg-white">
         {ORDER_PAGE_SIZE_OPTIONS.map((option) => (
