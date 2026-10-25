@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bdWhatsAppHref, normalizeBdPhone } from "@/lib/bdPhone";
+import { bdWhatsAppHref, normalizeBdPhone, toEnglishDigits } from "@/lib/bdPhone";
 
 describe("Bangladesh phone helpers", () => {
   it("normalizes local and international input", () => {
@@ -17,5 +17,11 @@ describe("Bangladesh phone helpers", () => {
   it("builds a blank WhatsApp chat URL", () => {
     expect(bdWhatsAppHref("01712345678")).toBe("https://wa.me/8801712345678");
     expect(bdWhatsAppHref("bad phone")).toBeNull();
+  });
+
+  it("converts Bangla digits to English and keeps everything else", () => {
+    expect(toEnglishDigits("০১৭১২৩৪৫৬৭৮")).toBe("01712345678");
+    expect(toEnglishDigits("+৮৮০ ১৭১২-৩৪৫৬৭৮")).toBe("+880 1712-345678");
+    expect(toEnglishDigits("01712345678")).toBe("01712345678");
   });
 });
