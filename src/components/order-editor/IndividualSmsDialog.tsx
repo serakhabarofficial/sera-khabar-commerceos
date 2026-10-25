@@ -14,7 +14,9 @@ import {
 type IndividualSmsDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  orderId: string;
+  orderId?: string;
+  /** Where to send; defaults to the order's SMS endpoint. */
+  sendUrl?: string;
   orderNumber?: string | number | null;
   customerName: string;
   phone: string;
@@ -116,6 +118,7 @@ export function IndividualSmsDialog({
   open,
   onOpenChange,
   orderId,
+  sendUrl,
   orderNumber,
   customerName,
   phone,
@@ -196,7 +199,7 @@ export function IndividualSmsDialog({
     setSending(true);
     setError("");
     try {
-      const response = await apiFetch(`/api/orders/${orderId}/send-sms`, {
+      const response = await apiFetch(sendUrl ?? `/api/orders/${orderId}/send-sms`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message }),

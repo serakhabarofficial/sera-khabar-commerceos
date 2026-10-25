@@ -343,7 +343,7 @@ export function buildProtectionRejectedPatch(now = new Date()) {
   };
 }
 
-const STAFF_EDIT_KEYS = new Set(["customerName", "phone", "address", "items", "deliveryRate"]);
+const STAFF_EDIT_KEYS = new Set(["customerName", "phone", "address", "items", "deliveryRate", "notes"]);
 
 export function parseAbandonedCheckoutStaffEdit(body) {
   if (!isRecord(body) || !hasOnlyKeys(body, STAFF_EDIT_KEYS)) invalidCapture();
@@ -364,6 +364,8 @@ export function parseAbandonedCheckoutStaffEdit(body) {
     subtotal,
     delivery_rate: deliveryRate,
     total: Math.round((subtotal + deliveryRate) * 100) / 100,
+    // Older clients don't send a note; leave the saved one alone for them.
+    ...(body.notes !== undefined ? { notes: optionalString(body.notes, 2000) } : {}),
   };
 }
 

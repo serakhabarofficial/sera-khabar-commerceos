@@ -23,6 +23,8 @@ export type AbandonedCheckout = {
   contacted_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Staff note; copied onto the order when the checkout is moved. */
+  notes?: string | null;
   /** Set while this shopper's order is waiting in Order Protection. */
   protection_review_id?: string | null;
 };

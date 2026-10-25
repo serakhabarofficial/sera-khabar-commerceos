@@ -7976,6 +7976,7 @@ app.post("/api/public/v1/:handle/campaign-click-events", handleCampaignClickEven
 
 const ABANDONED_CHECKOUT_DASHBOARD_FIELDS = [
   "id",
+  "notes",
   "status",
   "customer_name",
   "phone",
@@ -8128,7 +8129,7 @@ app.patch("/api/abandoned-checkouts/:id", async (req, res) => {
       if (!patch) return res.status(409).json({ error: "Checkout action is not allowed" });
     } else {
       try {
-        patch = parseAbandonedCheckoutStaffEdit({ customerName: req.body?.customerName, phone: req.body?.phone, address: req.body?.address, items: req.body?.items, deliveryRate: req.body?.deliveryRate });
+        patch = parseAbandonedCheckoutStaffEdit({ customerName: req.body?.customerName, phone: req.body?.phone, address: req.body?.address, items: req.body?.items, deliveryRate: req.body?.deliveryRate, ...(req.body?.notes !== undefined ? { notes: req.body.notes } : {}) });
       } catch {
         return res.status(400).json({ error: "Invalid checkout edits" });
       }
@@ -8214,6 +8215,47 @@ async function resolveAbandonedCatalogIds(supabase, orgId, cart) {
     return { productId, variantId };
   }));
 }
+
+app.post("/api/abandoned-checkouts/:id/send-sms", async (req, res) => {
+  try {
+    const { user } = await getUser(getToken(req));
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isAbandonedCheckoutDraftKey(req.params.id)) return res.status(400).json({ error: "Invalid checkout ID" });
+
+    const rawMessage = req.body?.message;
+    if (typeof rawMessage !== "string" || !rawMessage.trim()) {
+      return res.status(422).json({ error: "Message cannot be empty" });
+    }
+    if ([...rawMessage].length > MAX_MANUAL_SMS_LENGTH) {
+      return res.status(422).json({ error: `Message cannot exceed ${MAX_MANUAL_SMS_LENGTH} characters` });
+    }
+
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const { data: checkout, error: checkoutError } = await supabase
+      .from("abandoned_checkouts")
+      .select("id, phone")
+      .eq("id", req.params.id)
+      .eq("org_id", orgId)
+      .in("status", ACTIVE_ABANDONED_CHECKOUT_STATUSES)
+      .maybeSingle();
+    if (checkoutError) throw checkoutError;
+    if (!checkout) return res.status(404).json({ error: "Checkout is no longer active" });
+    const phone = normalizeBdPhone(checkout.phone);
+    if (!phone) return res.status(422).json({ error: "This checkout has no valid phone number" });
+
+    try {
+      await sendManualBulkSms(orgId, { id: checkout.id, phone }, rawMessage);
+    } catch (error) {
+      await recordOrderActivity(supabase, buildDetailedActivityEvent({ orgId, orderId: checkout.id, orderTable: "abandoned_checkouts", eventType: "message.failed", category: "communication", actorId: user.id, actorKind: "user", sourceSurface: "abandoned_queue", summary: "SMS failed", metadata: { message_type: "manual_sms", provider: "bulksmsbd", failure_reason: normalizeOperationalFailureCode(errorMessage(error)) } }));
+      throw error;
+    }
+    await recordOrderActivity(supabase, buildDetailedActivityEvent({ orgId, orderId: checkout.id, orderTable: "abandoned_checkouts", eventType: "message.sent", category: "communication", actorId: user.id, actorKind: "user", sourceSurface: "abandoned_queue", summary: "Sent SMS", metadata: { message_type: "manual_sms", provider: "bulksmsbd" } }));
+    return res.json({ success: true });
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
 
 app.post("/api/abandoned-checkouts/:id/convert", async (req, res) => {
   try {
@@ -8349,6 +8391,7 @@ app.post("/api/abandoned-checkouts/:id/convert", async (req, res) => {
         warehouse_auto: true,
         weight_kg: routing.weightKg,
         abandoned_checkout_id: draft.id,
+        notes: draft.notes ?? null,
         ...(draft.draft_key ? { abandoned_draft_key_hash: hashAbandonedCheckoutDraftKey(draft.draft_key) } : {}),
         ...campaignAttribution,
         source: "website",
