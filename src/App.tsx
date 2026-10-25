@@ -134,7 +134,7 @@ const AppRoutes = () => (
       <Route path="/reports/activity" element={<ActivityLog />} />
       <Route path="/campaign-links" element={<CampaignLinks />} />
       <Route path="/campaign-links/:id" element={<CampaignLinkDetail />} />
-      <Route path="/order-protection" element={<AdminRoute><OrderProtection /></AdminRoute>} />
+      <Route path="/order-protection" element={<OrderProtection />} />
       <Route path="/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
       <Route path="/order-analysis" element={<LegacyAnalyticsRedirect />} />
       <Route path="/order-chat" element={<OrderChat />} />

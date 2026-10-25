@@ -16589,9 +16589,8 @@ app.get("/api/order-protection/lists", async (req, res) => {
 
 app.post("/api/order-protection/lists", async (req, res) => {
   try {
-    const { user, supabase, orgId, role } = await requireOrderProtectionStaff(req);
+    const { user, supabase, orgId } = await requireOrderProtectionStaff(req);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
-    if (role !== "admin") return res.status(403).json({ error: "Forbidden" });
     const { attemptId, list, kinds, reason } = req.body ?? {};
     const allowedKinds = new Set(["phone", "device", "fingerprint", "network"]);
     if (typeof attemptId !== "string" || !["block", "allow"].includes(list) || !Array.isArray(kinds) || !kinds.length || kinds.some(kind => !allowedKinds.has(kind)) || typeof reason !== "string" || !reason.trim() || reason.length > 200) return res.status(400).json({ error: "Invalid list entry" });
@@ -16610,9 +16609,8 @@ app.post("/api/order-protection/lists", async (req, res) => {
 
 app.delete("/api/order-protection/lists/:id", async (req, res) => {
   try {
-    const { user, supabase, orgId, role } = await requireOrderProtectionStaff(req);
+    const { user, supabase, orgId } = await requireOrderProtectionStaff(req);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
-    if (role !== "admin") return res.status(403).json({ error: "Forbidden" });
     const deleted = await deleteListEntry(supabase, { orgId, entryId: req.params.id });
     if (!deleted) return res.status(404).json({ error: "Entry not found" });
     return res.json({ success: true });
@@ -16630,9 +16628,8 @@ app.get("/api/order-protection/settings", async (req, res) => {
 
 app.put("/api/order-protection/settings", async (req, res) => {
   try {
-    const { user, orgId, role } = await requireOrderProtectionStaff(req);
+    const { user, orgId } = await requireOrderProtectionStaff(req);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
-    if (role !== "admin") return res.status(403).json({ error: "Forbidden" });
     const { mode, haterDistrictIds, extraAbuseTerms } = req.body ?? {};
     if (!["off", "shadow", "active"].includes(mode) || !Array.isArray(haterDistrictIds) || haterDistrictIds.some(id => !validRiskDistricts.has(id)) || !Array.isArray(extraAbuseTerms) || extraAbuseTerms.length > 200 || extraAbuseTerms.some(term => typeof term !== "string" || !term.trim() || term.trim().length > 40)) return res.status(400).json({ error: "Invalid protection settings" });
     const keys = riskSettingKeys(orgId);
@@ -16645,9 +16642,8 @@ app.put("/api/order-protection/settings", async (req, res) => {
 
 app.post("/api/order-protection/attempts/:id/label", async (req, res) => {
   try {
-    const { user, supabase, orgId, role } = await requireOrderProtectionStaff(req);
+    const { user, supabase, orgId } = await requireOrderProtectionStaff(req);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
-    if (role !== "admin") return res.status(403).json({ error: "Forbidden" });
     const label = req.body?.label;
     if (!["fake", "genuine"].includes(label)) return res.status(400).json({ error: "Invalid label" });
     const attempt = await getRiskAttempt(supabase, { orgId, attemptId: req.params.id });

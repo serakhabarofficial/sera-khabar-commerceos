@@ -10,7 +10,7 @@ const route = (method: string, path: string) => {
   return source.slice(start, next < 0 ? undefined : next);
 };
 
-it("guards attempt, order, list, and setting APIs with staff auth and admin mutations", () => {
+it("guards attempt, order, list, and setting APIs with staff auth open to every team member", () => {
   for (const [method, path] of [
     ["get", "/api/order-protection/attempts"], ["get", "/api/order-protection/attempts/:id"],
     ["get", "/api/order-protection/summary"],
@@ -21,7 +21,7 @@ it("guards attempt, order, list, and setting APIs with staff auth and admin muta
     const body = route(method, path);
     expect(body).toContain("requireOrderProtectionStaff(req)");
     expect(body).toContain('if (!user) return res.status(401)');
-    if (["post", "put", "delete"].includes(method)) expect(body).toContain('role !== "admin"');
+    expect(body).not.toContain('role !== "admin"');
   }
   expect(route("get", "/api/order-protection/attempts/:id")).toContain("getRiskAttempt(supabase, { orgId");
   expect(route("get", "/api/orders/:id/risk")).toContain('.eq("org_id", orgId)');
