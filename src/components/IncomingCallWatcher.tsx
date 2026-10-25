@@ -7,11 +7,12 @@ import { apiFetch } from "@/lib/api";
 import type { OrderCall } from "@/lib/orderCalls";
 
 type IncomingCall = OrderCall & { order: { id: string; order_number: string | null; customer_name: string | null; status: string | null } | null };
-const POLL_MS = 5000;
+const POLL_MS = 10_000;
 
 /**
  * Shows MicroSIP's incoming calls on every page, with the caller's latest
- * order. Polls only for staff who set up MicroSIP.
+ * order. Polls only for staff who set up MicroSIP, and only in the visible
+ * tab; a tab that comes back into focus checks straight away.
  */
 export function IncomingCallWatcher() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export function IncomingCallWatcher() {
       return res.json();
     },
     refetchInterval: (query) => (query.state.data?.enabled === false ? false : POLL_MS),
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     staleTime: 0,
   });
   const call = data?.call ?? null;

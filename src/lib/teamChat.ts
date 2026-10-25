@@ -87,13 +87,13 @@ export async function postTeamChat<T = unknown>(path: string, body: unknown): Pr
   return json as T;
 }
 
-// The inbox polls while the tab is visible: the open thread every few
-// seconds, the conversation list a little slower.
+// The inbox polls while the tab is visible: the open thread every 5s, the
+// conversation list every 30s.
 export function useTeamChatChannels() {
   return useQuery({
     queryKey: TEAM_CHAT_CHANNELS_KEY,
     queryFn: () => getJson<TeamChatChannels>("/api/team-chat/channels"),
-    refetchInterval: 8_000,
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
   });
 }
@@ -105,7 +105,7 @@ export function useTeamChatThread(channelId: string | null) {
     queryKey: teamChatThreadKey(channelId ?? ""),
     queryFn: () => getTeamChatThread(channelId!),
     enabled: !!channelId,
-    refetchInterval: 2_500,
+    refetchInterval: 5_000,
     refetchIntervalInBackground: false,
   });
 }
