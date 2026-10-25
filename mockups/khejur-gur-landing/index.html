@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>খেজুরের গুড় — শেপস মকআপ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Galada&family=Geist:wght@400..800&family=Noto+Serif+Bengali:wght@400..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="memo.css">
+<style>
+:root { --ease-out:cubic-bezier(0.23,1,0.32,1); --ease-io:cubic-bezier(0.77,0,0.175,1); --spring:cubic-bezier(.2,1.4,.4,1); }
+.sp {
+  --bg:#f4eee3; --ink:#1d2430; --sub:#5d5a55; --blue:#1f5fd6; --yellow:#fbd772; --coral:#f47b5c; --green:#3f8f6b; --lilac:#e3c4ec; --navy:#0f3b4f;
+  background:var(--bg); color:var(--ink); font-family:"Noto Serif Bengali","Geist",serif; overflow-x:clip; -webkit-font-smoothing:antialiased; min-height:100vh;
+}
+.sp *, .sp *::before, .sp *::after { box-sizing:border-box; }
+.sp img { display:block; max-width:100%; height:auto; }
+.sp button { font:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+.sp :focus-visible { outline:2px solid var(--blue); outline-offset:3px; }
+.sp .num { font-variant-numeric:tabular-nums; }
+.sp [data-only] { display:none; }
+.sp[data-v="a"] [data-only="a"], .sp[data-v="b"] [data-only="b"] { display:block; }
+.sp .wrap { max-width:1080px; margin:0 auto; padding:0 18px; }
+.sp h2.t { margin:0; font-size:clamp(30px,8.6vw,54px); font-weight:900; line-height:1.15; }
+.sp .kick { margin:0 0 6px; font-size:13px; font-weight:800; color:var(--coral); }
+
+/* buttons */
+.sp .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:52px; padding:0 26px; border:0; border-radius:999px; background:var(--navy); color:#fff; font-weight:800; font-size:16.5px; text-decoration:none; transition:transform 160ms var(--ease-out),background-color 150ms ease; }
+.sp .btn:active { transform:scale(.97); }
+.sp .btn.sm { min-height:40px; padding:0 16px; font-size:14px; }
+.sp .btn.y { background:var(--yellow); color:var(--ink); }
+@media (hover:hover) and (pointer:fine) { .sp .btn:hover { background:#173f55; } .sp .btn.y:hover { background:#f8cd52; } }
+
+/* decorative shapes */
+.sp .deco { position:absolute; z-index:0; pointer-events:none; will-change:transform; }
+.sp .deco svg, .sp .shp { display:block; width:100%; height:100%; overflow:visible; }
+.sp .spin { animation:sp-spin var(--t,30s) linear infinite; }
+.sp .spin.r { animation-direction:reverse; }
+.sp .wig { animation:sp-wig var(--t,3.6s) ease-in-out infinite; transform-origin:50% 50%; }
+.sp .bob { animation:sp-bob var(--t,5s) ease-in-out infinite; }
+.sp .twk { animation:sp-twk var(--t,2.6s) ease-in-out infinite; }
+@keyframes sp-spin { to { transform:rotate(360deg); } }
+@keyframes sp-wig { 0%,100% { transform:rotate(-8deg); } 50% { transform:rotate(8deg); } }
+@keyframes sp-bob { 50% { transform:translateY(-10px); } }
+@keyframes sp-twk { 0%,100% { transform:scale(1) rotate(0); } 50% { transform:scale(.72) rotate(20deg); } }
+.sp .pop { opacity:0; transform:scale(.4) rotate(-40deg); }
+.sp .in .pop, .sp .pop.in { animation:sp-pop 760ms var(--spring) forwards; animation-delay:var(--d,0ms); }
+@keyframes sp-pop { to { opacity:1; transform:none; } }
+.sp .rise { opacity:0; transform:translateY(14px); filter:blur(5px); }
+.sp .in .rise { animation:sp-rise 680ms var(--ease-out) forwards; animation-delay:var(--d,0ms); }
+@keyframes sp-rise { to { opacity:1; transform:none; filter:none; } }
+
+/* top bar */
+.sp .top { position:absolute; left:0; right:0; top:52px; z-index:5; display:flex; align-items:center; justify-content:space-between; max-width:1080px; margin:0 auto; padding:0 18px; }
+.sp .top img { height:26px; width:auto; }
+
+/* ═════════ A · খেলাঘর ═════════ */
+.sp .ha { position:relative; padding:104px 18px 20px; text-align:center; overflow:hidden; }
+.sp .ha h1 { position:relative; z-index:1; margin:6px 0 0; font-size:clamp(52px,15vw,112px); font-weight:900; line-height:1.02; letter-spacing:-.02em; }
+.sp .ha-word { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; gap:10px; margin:12px 0 0; font-size:clamp(18px,4.8vw,26px); font-weight:700; color:var(--sub); }
+.sp .roll { position:relative; display:inline-grid; height:1.6em; min-width:4.6em; }
+.sp .roll span { grid-area:1/1; display:grid; place-items:center; padding:0 14px; border-radius:999px; color:#fff; line-height:1.6; opacity:0; transform:translateY(60%) scale(.9); transition:opacity 420ms var(--ease-out),transform 520ms var(--spring); }
+.sp .roll span.cur { opacity:1; transform:none; }
+.sp .roll span.off { opacity:0; transform:translateY(-60%) scale(.9); }
+.sp .ha p.lede { position:relative; z-index:1; max-width:31ch; margin:12px auto 0; font-size:15px; line-height:1.6; color:var(--sub); }
+.sp .ha-art { position:relative; z-index:1; width:min(100%,500px); aspect-ratio:1; margin:6px auto 0; }
+.sp .ha-base { position:absolute; inset:8%; }
+.sp .ha-trio { position:absolute; left:-2%; right:-2%; top:22%; width:104%; max-width:none; filter:drop-shadow(0 18px 20px #1d243033); opacity:0; transform:translateY(30px) scale(.9); }
+.sp .in .ha-trio { animation:sp-trio 1000ms var(--spring) 420ms forwards; }
+@keyframes sp-trio { to { opacity:1; transform:none; } }
+.sp .sticker { position:absolute; display:grid; place-items:center; text-align:center; color:#fff; font-weight:900; line-height:1.1; }
+.sp .sticker > svg { position:absolute; inset:0; }
+.sp .sticker > span { position:relative; }
+.sp .sticker small { display:block; font-size:11px; font-weight:700; }
+.sp .ha-cta { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:8px; }
+.sp .ha-cta span { font-size:13px; color:var(--sub); } .sp .ha-cta b { color:var(--ink); }
+
+.sp .band { position:relative; overflow:hidden; padding:14px 0; background:var(--green); color:#fff; }
+.sp .band-in { display:flex; align-items:center; gap:22px; width:max-content; animation:sp-band 30s linear infinite; font-size:18px; font-weight:800; white-space:nowrap; }
+.sp .band-in i { display:block; width:24px; height:24px; }
+@keyframes sp-band { to { transform:translateX(-50%); } }
+
+.sp .pa { position:relative; padding:56px 0 30px; overflow:hidden; }
+.sp .pa h2 { text-align:center; }
+.sp .pa-list { display:grid; gap:26px; margin-top:28px; }
+.sp .pa-card { display:grid; grid-template-columns:44% 1fr; align-items:center; gap:14px; }
+.sp .pa-card:nth-child(even) { grid-template-columns:1fr 44%; } .sp .pa-card:nth-child(even) .pa-pic { order:2; }
+.sp .pa-pic { position:relative; aspect-ratio:1; }
+.sp .pa-pic .shp { position:absolute; inset:0; }
+.sp .pa-pic img { position:absolute; left:12%; top:12%; width:76%; height:76%; object-fit:contain; filter:drop-shadow(0 12px 12px #1d243033); transition:transform 500ms var(--spring); }
+.sp .pa-card:active .pa-pic img { transform:scale(.94) rotate(-4deg); }
+@media (hover:hover) and (pointer:fine) { .sp .pa-card:hover .pa-pic img { transform:scale(1.05) rotate(-4deg); } }
+.sp .pa-card small { font-size:12px; font-weight:800; color:var(--c); }
+.sp .pa-card h3 { margin:2px 0 0; font-size:28px; font-weight:900; line-height:1.15; }
+.sp .pa-card p { margin:4px 0 0; font-size:14px; line-height:1.55; color:var(--sub); }
+.sp .buy { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin-top:10px; }
+.sp .buy b { font-size:21px; font-weight:900; } .sp .buy span { font-size:13px; color:var(--sub); white-space:nowrap; }
+
+/* road (vertical, winding) */
+.sp .ra { position:relative; padding:56px 0 40px; overflow:hidden; }
+.sp .ra-head { text-align:center; }
+.sp .ra-head p { margin:6px 0 0; font-size:14px; color:var(--sub); }
+.sp .ra-body { position:relative; max-width:760px; margin:26px auto 0; padding:0 18px; }
+.sp .ra-svg { position:absolute; left:0; top:0; z-index:0; overflow:visible; pointer-events:none; }
+.sp .rd-edge { fill:none; stroke:var(--navy); stroke-width:38; stroke-linecap:round; stroke-linejoin:round; }
+.sp .rd-side { fill:none; stroke:#ffffff55; stroke-width:30; stroke-linecap:round; }
+.sp .rd-top { fill:none; stroke:var(--navy); stroke-width:27; stroke-linecap:round; }
+.sp .rd-dash { fill:none; stroke:var(--yellow); stroke-width:3; stroke-dasharray:14 12; stroke-linecap:round; }
+.sp .rd-done { fill:none; stroke:var(--coral); stroke-width:5; stroke-linecap:round; }
+.sp .van { position:absolute; left:0; top:0; z-index:3; width:48px; height:30px; margin:-15px 0 0 -24px; pointer-events:none; filter:drop-shadow(0 4px 4px #0006); }
+.sp .ra-stop { position:relative; z-index:1; width:64%; margin-bottom:96px; }
+.sp .ra-stop:last-child { margin-bottom:10px; }
+.sp .ra-stop[data-side="r"] { margin-left:auto; }
+.sp .ra-pic { position:relative; width:86%; aspect-ratio:1; margin:0 auto; }
+.sp .ra-pic .shp { position:absolute; inset:0; transform:translate(7%,6%) rotate(-20deg) scale(.6); opacity:0; transition:transform 900ms var(--spring),opacity 400ms ease; }
+.sp .ra-pic .frame { position:absolute; inset:0; background:#fff center/cover no-repeat; -webkit-mask-size:100% 100%; mask-size:100% 100%; transform:scale(.5) rotate(18deg); opacity:0; transition:transform 900ms var(--spring) 80ms,opacity 400ms ease 80ms; }
+.sp .ra-pic .frame.ct { background-size:contain; background-color:transparent; -webkit-mask-image:none!important; mask-image:none!important; }
+.sp .ra-stop.lit .ra-pic .shp { transform:translate(7%,6%); opacity:1; }
+.sp .ra-stop.lit .ra-pic .frame { transform:none; opacity:1; }
+.sp .ra-badge { position:absolute; z-index:2; left:-6px; top:-6px; width:52px; height:52px; display:grid; place-items:center; color:#fff; font-weight:900; font-size:20px; transform:scale(0); transition:transform 600ms var(--spring) 250ms; }
+.sp .ra-badge svg { position:absolute; inset:0; animation:sp-spin 14s linear infinite; }
+.sp .ra-badge b { position:relative; }
+.sp .ra-stop.lit .ra-badge { transform:none; }
+.sp .ra-txt { margin-top:10px; opacity:0; transform:translateY(12px); transition:opacity 500ms var(--ease-out) 300ms,transform 600ms var(--ease-out) 300ms; }
+.sp .ra-stop[data-side="r"] .ra-txt { text-align:right; }
+.sp .ra-stop.lit .ra-txt { opacity:1; transform:none; }
+.sp .ra-txt small { display:inline-block; padding:3px 10px 4px; border-radius:999px; background:var(--c); color:#fff; font-size:12px; font-weight:800; }
+.sp .ra-txt h3 { margin:6px 0 0; font-size:22px; font-weight:900; line-height:1.2; }
+.sp .ra-txt p { margin:4px 0 0; font-size:14px; line-height:1.55; color:var(--sub); }
+@media (min-width:860px) { .sp .ra-stop { width:48%; } .sp .ra-pic { width:70%; } }
+
+/* perks */
+.sp .perks { position:relative; padding:30px 0 50px; }
+.sp .perks ul { list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:22px 0 0; padding:0; }
+.sp .perks li { display:flex; align-items:center; gap:10px; padding:14px 12px; border-radius:20px; background:#fffaf2; box-shadow:0 0 0 1.5px #1d243014; font-size:14.5px; font-weight:800; line-height:1.3; }
+.sp .perks li i { flex:none; width:38px; height:38px; }
+.sp .perks li small { display:block; font-size:12px; font-weight:600; color:var(--sub); }
+
+/* ═════════ B · রোদের পথ ═════════ */
+.sp .hb { position:relative; padding:100px 18px 0; overflow:hidden; text-align:left; }
+.sp .hb h1 { position:relative; z-index:2; margin:8px 0 0; font-size:clamp(50px,14.6vw,112px); font-weight:900; line-height:1.02; }
+.sp .hb h1 em { display:block; font-style:normal; color:var(--coral); }
+.sp .hb p.lede { position:relative; z-index:2; max-width:28ch; margin:12px 0 0; font-size:15px; line-height:1.6; color:var(--sub); }
+.sp .hb .btns { position:relative; z-index:2; display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+.sp .hb-art { position:relative; margin:16px -18px 0; height:clamp(300px,82vw,520px); }
+.sp .hb-sun { display:block; position:absolute; left:50%; bottom:22%; width:58%; aspect-ratio:1; translate:-50% 0; transform:translateY(60%); opacity:0; }
+.sp .in .hb-sun { animation:sp-sunup 1400ms var(--ease-out) 300ms forwards; }
+@keyframes sp-sunup { to { transform:none; opacity:1; } }
+.sp .hb-rays { display:block; position:absolute; left:50%; bottom:-2%; width:118%; aspect-ratio:1; translate:-50% 0; transform-origin:50% 100%; transform:scale(.3); opacity:0; }
+.sp .in .hb-rays { animation:sp-rays 1600ms var(--spring) 500ms forwards; }
+@keyframes sp-rays { to { transform:none; opacity:1; } }
+.sp .hb-rays svg { animation:sp-sway 9s ease-in-out 2.2s infinite; transform-origin:50% 100%; }
+@keyframes sp-sway { 50% { transform:rotate(4deg); } }
+.sp .hb-ground { position:absolute; left:0; right:0; bottom:0; height:24%; background:var(--green); border-radius:50% 50% 0 0 / 30% 30% 0 0; }
+.sp .hb-trio { position:absolute; z-index:2; left:13%; right:13%; bottom:4%; width:74%; filter:drop-shadow(0 20px 18px #0005); opacity:0; transform:translateY(40px); }
+.sp .in .hb-trio { animation:sp-trio 1000ms var(--spring) 1000ms forwards; }
+
+.sp .pb { position:relative; padding:56px 0 30px; overflow:hidden; }
+.sp .pb-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:24px; }
+.sp .pb-tile { position:relative; padding:10px 8px 12px; border-radius:22px; background:#fffaf2; box-shadow:0 0 0 1.5px #1d243014; text-align:center; rotate:var(--r); transition:rotate 400ms var(--spring); }
+.sp .pb-tile:active { rotate:0deg; }
+.sp .pb-pic { position:relative; aspect-ratio:1; }
+.sp .pb-pic .shp { position:absolute; inset:0; }
+.sp .pb-pic img { position:absolute; inset:12%; width:76%; height:76%; object-fit:contain; filter:drop-shadow(0 8px 8px #1d243033); }
+.sp .pb-tile b { display:block; margin-top:6px; font-size:16px; font-weight:900; line-height:1.15; }
+.sp .pb-tile span { display:block; font-size:15px; font-weight:800; }
+.sp .pb-tile small { display:block; font-size:10.5px; color:var(--sub); }
+.sp .pb-tile .btn { margin-top:8px; min-height:34px; padding:0 10px; font-size:12.5px; }
+
+/* horizontal road (pinned) */
+.sp .hr { position:relative; height:520vh; }
+.sp .hr-pin { position:sticky; top:0; height:100vh; height:100svh; display:flex; flex-direction:column; justify-content:center; gap:14px; overflow:hidden; padding:64px 0 0; }
+.sp .hr-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; max-width:1080px; width:100%; margin:0 auto; padding:0 18px; }
+.sp .hr-head h2 { font-size:clamp(28px,8vw,52px); }
+.sp .hr-clock { flex:none; padding:8px 12px 9px; border-radius:18px; background:var(--blue); color:#fff; text-align:center; }
+.sp .hr-clock b { display:block; font-size:17px; font-weight:800; white-space:nowrap; }
+.sp .hr-clock small { display:block; font-size:11px; opacity:.85; }
+.sp .hr-prog { display:flex; justify-content:center; gap:14px; }
+.sp .hr-prog i { width:28px; height:28px; opacity:.25; filter:grayscale(1); transform:scale(.8); transition:opacity 300ms ease,filter 300ms ease,transform 500ms var(--spring); }
+.sp .hr-prog i.on { opacity:1; filter:none; transform:none; }
+.sp .hr-view { position:relative; }
+.sp .hr-track { display:flex; gap:20px; padding:0 11vw; will-change:transform; }
+.sp .hr-card { flex:0 0 78vw; max-width:420px; display:flex; flex-direction:column; align-items:center; text-align:center; opacity:.3; transform:scale(.88); transition:opacity 450ms ease,transform 600ms var(--spring); }
+.sp .hr-card.on { opacity:1; transform:none; }
+.sp .hr-card .ra-pic { width:min(58vw,250px); }
+.sp .hr-card .ra-pic .shp, .sp .hr-card .ra-pic .frame { transform:none; opacity:1; }
+.sp .hr-card .ra-badge { transform:none; }
+.sp .hr-card .ra-txt { opacity:1; transform:none; text-align:center!important; }
+.sp .hr-road { position:relative; height:96px; margin-top:4px; }
+.sp .hr-grass { position:absolute; left:0; right:0; top:0; height:26px; background:var(--green); background-image:radial-gradient(circle at 12px 26px,#56a97f 10px,transparent 11px); background-size:46px 26px; }
+.sp .hr-asph { position:absolute; left:0; right:0; top:26px; height:56px; background:var(--navy); }
+.sp .hr-lane { position:absolute; left:0; right:0; top:52px; height:4px; background:repeating-linear-gradient(90deg,var(--yellow) 0 26px,transparent 26px 50px); }
+.sp .hr-van { position:absolute; left:16%; top:6px; width:108px; height:66px; animation:sp-bounce 600ms ease-in-out infinite; }
+@keyframes sp-bounce { 50% { transform:translateY(-2px); } }
+.sp .hr-van .wh { transform-box:fill-box; transform-origin:center; }
+@media (min-width:860px) { .sp .hr-card { flex-basis:40vw; } .sp .hr-track { padding:0 max(18px,calc((100vw - 1080px)/2)); } }
+
+
+/* ── গুড়ের রাস্তা v2: stickers, road signs, smoothed van ── */
+.sp .ra-body { padding-bottom:20px; }
+.sp .rd-shade { fill:none; stroke:#0f3b4f22; stroke-width:54; stroke-linecap:round; stroke-linejoin:round; transform:translate(0,6px); }
+.sp .rd-edge { stroke-width:46; stroke:#fffaf2; }
+.sp .rd-top { stroke-width:38; stroke:#173f55; }
+.sp .ra-svg .rd-edge { filter:drop-shadow(0 0 0 #1d2430); }
+.sp .rd-line { fill:none; stroke:#0f3b4f; stroke-width:50; stroke-linecap:round; stroke-linejoin:round; opacity:0; }
+.sp .rd-line + .rd-dash { stroke-width:3.2; }
+.sp .rd-props { position:absolute; inset:0; pointer-events:none; z-index:1; }
+.sp .km { position:absolute; width:30px; height:36px; margin:-36px 0 0 -15px; transform-origin:50% 100%; transform:scale(0); transition:transform 600ms var(--spring); }
+.sp .km.on { transform:none; }
+.sp .km svg { display:block; width:100%; height:100%; }
+.sp .tree { position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; }
+.sp .finish { position:absolute; width:54px; height:14px; margin:-7px 0 0 -27px; background:conic-gradient(#1d2430 25%,#fff 0 50%,#1d2430 0 75%,#fff 0) 0 0/14px 14px; border-radius:3px; box-shadow:0 0 0 2px #1d2430; }
+.sp .van2 { position:absolute; left:0; top:0; z-index:4; width:58px; height:35px; margin:-17.5px 0 0 -29px; pointer-events:none; will-change:transform; }
+.sp .van2 svg { display:block; width:100%; height:100%; }
+.sp .van2 .beam { position:absolute; left:100%; top:50%; width:46px; height:30px; translate:-4px -50%; background:radial-gradient(ellipse at 0 50%,#fff6c988,transparent 70%); }
+.sp .puff { position:absolute; z-index:3; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:#fffaf2; box-shadow:0 0 0 1.5px #1d243022; pointer-events:none; animation:sp-puff 900ms var(--ease-out) forwards; }
+@keyframes sp-puff { from { opacity:.9; transform:scale(.5); } to { opacity:0; transform:scale(1.8) translateY(-10px); } }
+.sp .rs { position:relative; z-index:2; width:66%; margin-bottom:120px; }
+.sp .rs:last-child { margin-bottom:70px; }
+.sp .rs[data-side="r"] { margin-left:auto; }
+.sp .rs-st { position:relative; width:94%; margin:0 auto; }
+.sp .rs-st img { width:100%; filter:drop-shadow(0 30px 24px #1d243040); opacity:0; transform:translateY(-30px) scale(1.25) rotate(var(--r1,14deg)); transition:transform 700ms var(--spring),filter 700ms var(--ease-out),opacity 250ms ease; }
+.sp .rs.lit .rs-st img { opacity:1; transform:rotate(var(--r2,-3deg)); filter:drop-shadow(0 6px 5px #1d24302e); }
+.sp .rs-st .trio-st { padding:6%; border-radius:44%; }
+.sp .rs-st .trio-st { filter:drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(0 6px 5px #1d24302e); }
+.sp .rs.lit .rs-st .trio-st { filter:drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff) drop-shadow(0 8px 6px #1d243030); }
+.sp .rs-sign { position:relative; margin:14px auto 0; width:fit-content; max-width:100%; padding:10px 16px 12px; border-radius:14px; background:#2f7a55; color:#fff; text-align:left;
+  box-shadow:inset 0 0 0 3px #2f7a55,inset 0 0 0 5px #fff,0 10px 18px -12px #1d243080; opacity:0; transform:translateY(16px) rotate(-2deg); transition:opacity 450ms var(--ease-out) 280ms,transform 600ms var(--spring) 280ms; }
+.sp .rs[data-side="r"] .rs-sign { margin-right:0; }
+.sp .rs[data-side="l"] .rs-sign { margin-left:0; }
+.sp .rs.lit .rs-sign { opacity:1; transform:none; }
+.sp .rs-sign::after { content:""; position:absolute; left:50%; top:100%; width:8px; height:22px; margin-left:-4px; background:repeating-linear-gradient(#9aa3a8 0 6px,#c2c9cc 6px 12px); border-radius:0 0 2px 2px; z-index:-1; }
+.sp .rs-sign small { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:800; color:#fbd772; }
+.sp .rs-sign small i { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#fbd772; color:#2f7a55; font-style:normal; font-size:12px; }
+.sp .rs-sign h3 { margin:2px 0 0; font-size:21px; font-weight:900; line-height:1.25; }
+.sp .rs-p { margin:30px 0 0; font-size:14.5px; line-height:1.6; color:var(--sub); opacity:0; transform:translateY(10px); transition:opacity 500ms var(--ease-out) 420ms,transform 600ms var(--ease-out) 420ms; }
+.sp .rs[data-side="r"] .rs-p { text-align:right; }
+.sp .rs.lit .rs-p { opacity:1; transform:none; }
+.sp .rs .btn { margin-top:12px; }
+@media (min-width:860px) { .sp .rs { width:46%; } .sp .rs-st { width:76%; } }
+
+
+/* ── stickers: flat, no shadow ── */
+.sp .rs-st img, .sp .rs.lit .rs-st img { filter:none; }
+.sp .rs-st .trio-st, .sp .rs.lit .rs-st .trio-st { filter:drop-shadow(3px 0 0 #fff) drop-shadow(-3px 0 0 #fff) drop-shadow(0 3px 0 #fff) drop-shadow(0 -3px 0 #fff); }
+
+/* ── hero options (variant ক) ── */
+.sp .ha { background:linear-gradient(#fde3c8 0%,#fdf0e3 34%,#fff 64%); }
+.sp .hv { display:none; position:relative; z-index:1; width:min(100%,520px); aspect-ratio:1; margin:6px auto 0; }
+.sp .ha[data-hv="1"] .hv1, .sp .ha[data-hv="2"] .hv2, .sp .ha[data-hv="3"] .hv3, .sp .ha[data-hv="4"] .hv4 { display:block; }
+.sp .hv-trio { position:absolute; z-index:3; left:6%; width:88%; bottom:2%; height:auto; opacity:0; transform:translateY(36px) scale(.92); }
+.sp .ha.in .hv-trio { animation:sp-trio 1000ms var(--spring) 900ms forwards; }
+.sp .hv-price { z-index:4; right:0; top:4%; width:26%; aspect-ratio:1; }
+/* ১ */
+.sp .hv1 { overflow:hidden; clip-path:inset(-60% -20% 0 -20%); overflow:visible; width:min(100% - 8px,520px); }
+.sp .hv1::after { content:none; }
+.sp .arc { position:absolute; left:50%; bottom:22%; translate:-50% 0; aspect-ratio:2/1; border-radius:999px 999px 0 0; transform:translateY(105%); }
+.sp .arc.a1 { width:80%; background:#f47b5c; } .sp .arc.a2 { width:62%; background:#f79a4a; } .sp .arc.a3 { width:44%; background:#fbd772; } .sp .arc.a4 { width:27%; background:#fff1c2; }
+.sp .ha.in .arc { animation:hv-up 1100ms var(--spring) forwards; } .sp .ha.in .a1 { animation-delay:150ms; } .sp .ha.in .a2 { animation-delay:280ms; } .sp .ha.in .a3 { animation-delay:410ms; } .sp .ha.in .a4 { animation-delay:540ms; }
+@keyframes hv-up { to { transform:none; } }
+.sp .hv1-rays { position:absolute; left:50%; bottom:20%; width:100%; aspect-ratio:1; translate:-50% 0; opacity:0; }
+.sp .hv1-rays > span { display:block; width:100%; height:100%; transform-origin:50% 96%; animation:sp-sway 8s ease-in-out infinite; }
+.sp .ha.in .hv1-rays { animation:sp-fade 900ms ease 700ms forwards; }
+@keyframes sp-fade { to { opacity:1; } }
+.sp .hill { position:absolute; left:0; right:0; bottom:0; height:26%; border-radius:50% 50% 46% 46% / 40% 40% 22% 22%; background:var(--green); }
+/* ২ */
+.sp .tiles { position:absolute; inset:0 0 10%; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:6px; perspective:600px; }
+.sp .t { position:relative; overflow:hidden; border-radius:6px; transform:rotateX(90deg); opacity:0; }
+.sp .ha.in .t { animation:hv-flip 700ms var(--spring) forwards; }
+.sp .ha.in .t:nth-child(1) { animation-delay:100ms } .sp .ha.in .t:nth-child(2) { animation-delay:170ms } .sp .ha.in .t:nth-child(3) { animation-delay:240ms } .sp .ha.in .t:nth-child(4) { animation-delay:310ms } .sp .ha.in .t:nth-child(5) { animation-delay:380ms } .sp .ha.in .t:nth-child(6) { animation-delay:450ms } .sp .ha.in .t:nth-child(7) { animation-delay:520ms } .sp .ha.in .t:nth-child(8) { animation-delay:590ms } .sp .ha.in .t:nth-child(9) { animation-delay:660ms }
+@keyframes hv-flip { to { transform:none; opacity:1; } }
+.sp .t.q1 { background:#fbd772; } .sp .t.q1::after { content:""; position:absolute; inset:0; background:#f47b5c; border-radius:0 0 100% 0; }
+.sp .t.sunr { background:#fff1c2; } .sp .t.sunr span { position:absolute; inset:-10% -10% -40%; }
+.sp .t.q2 { background:#1f5fd6; } .sp .t.q2::after { content:""; position:absolute; inset:0; background:#e3c4ec; border-radius:0 0 0 100%; }
+.sp .t.half { background:#f79a4a; } .sp .t.half::after { content:""; position:absolute; left:10%; right:10%; bottom:0; height:40%; background:#fbd772; border-radius:999px 999px 0 0; }
+.sp .t.disc { background:#fde3c8; } .sp .t.disc::after { content:""; position:absolute; inset:16%; border-radius:50%; background:radial-gradient(circle,#fff1c2,#fbd772 60%,#f79a4a); animation:pg-breathe 4s ease-in-out infinite; }
+@keyframes pg-breathe { 50% { transform:scale(1.08); } }
+.sp .t.stripes { background:repeating-linear-gradient(0deg,#f47b5c 0 12%,#fbd772 12% 24%); }
+.sp .t.arch { background:#3f8f6b; } .sp .t.arch::after { content:""; position:absolute; left:14%; right:14%; top:22%; bottom:0; background:#fde3c8; border-radius:999px 999px 0 0; }
+.sp .t.q3 { background:#e3c4ec; } .sp .t.q3::after { content:""; position:absolute; inset:0; background:#0f3b4f; border-radius:100% 0 0 0; }
+.sp .t.burst { background:#fbd772; } .sp .t.burst > span { position:absolute; inset:12%; }
+.sp .hv2 .hv-trio { bottom:0; left:10%; width:80%; }
+/* ৩ */
+.sp .hv3-ring { position:absolute; inset:2%; }
+.sp .hv3-sun { position:absolute; left:50%; top:10%; width:72%; aspect-ratio:1; translate:-50% 0; border-radius:50%; background:linear-gradient(#ffe48a,#fbb04a 45%,#f47b5c 75%,#e0553a);
+  -webkit-mask-image:linear-gradient(#000 52%,transparent 52% 56%,#000 56% 64%,transparent 64% 69%,#000 69% 76%,transparent 76% 82%,#000 82% 88%,transparent 88%); mask-image:linear-gradient(#000 52%,transparent 52% 56%,#000 56% 64%,transparent 64% 69%,#000 69% 76%,transparent 76% 82%,#000 82% 88%,transparent 88%);
+  transform:translateY(40%) scale(.85); opacity:0; }
+.sp .ha.in .hv3-sun { animation:hv-sun 1300ms var(--ease-out) 200ms forwards; }
+@keyframes hv-sun { to { transform:none; opacity:1; } }
+.sp .hv3-sea { position:absolute; left:0; right:0; bottom:8%; height:24%; border-radius:12px; background:repeating-linear-gradient(0deg,#1f5fd6 0 10px,#3a77e0 10px 20px); background-size:100% 20px; animation:hv-sea 2.4s linear infinite; transform:scaleX(0); transform-origin:50% 50%; }
+.sp .ha.in .hv3-sea { animation:hv-line 800ms var(--ease-io) 500ms forwards,hv-sea 2.4s linear 1.3s infinite; }
+@keyframes hv-line { to { transform:none; } }
+@keyframes hv-sea { to { background-position:0 20px; } }
+.sp .hv3 .hv-trio { bottom:2%; }
+/* ৪ */
+.sp .hv4 { overflow:hidden; border-radius:24px 24px 50% 50% / 24px 24px 10% 10%; background:linear-gradient(#fbd9b8,#fde9d3 60%); }
+.sp .hv4-sun { position:absolute; left:50%; top:20%; width:44%; aspect-ratio:1; translate:-50% 0; border-radius:50%; background:radial-gradient(circle,#fff6d0,#fbd772 55%,#f79a4a); box-shadow:0 0 0 18px #fbd77233,0 0 0 40px #fbd7721c; transform:translateY(80%); }
+.sp .ha.in .hv4-sun { animation:hv-up 1600ms var(--ease-out) 200ms forwards; }
+.sp .cloud { position:absolute; display:block; width:24%; aspect-ratio:1.6; animation:hv-drift 14s linear infinite; }
+.sp .cloud.c1 { top:10%; left:-20%; } .sp .cloud.c2 { top:24%; left:-30%; width:18%; animation-duration:19s; animation-delay:-8s; }
+@keyframes hv-drift { to { translate:160vw 0; } }
+.sp .hv4-hills { position:absolute; left:0; right:0; bottom:0; width:100%; height:62%; }
+.sp .hv4-hills path { transform:translateY(40%); }
+.sp .ha.in .hv4-hills path { animation:hv-up 1200ms var(--spring) forwards; } .sp .ha.in .hv4-hills .h1 { animation-delay:100ms } .sp .ha.in .hv4-hills .h2 { animation-delay:250ms } .sp .ha.in .hv4-hills .h3 { animation-delay:400ms }
+.sp .hv4 .hv-trio { bottom:2%; }
+/* switcher */
+.sp .hvs, .hvs { position:fixed; left:12px; bottom:84px; z-index:69; display:flex; align-items:center; gap:2px; padding:3px; border-radius:999px; background:#fffd; box-shadow:0 0 0 1.5px #0f3b4f,0 8px 18px -10px #0006; font-family:"Noto Serif Bengali",serif; }
+.hvs span { padding:0 6px 0 9px; font-size:11.5px; font-weight:700; color:#5d5a55; }
+.hvs button { min-width:28px; min-height:28px; border:0; border-radius:999px; background:none; color:#0f3b4f; font:inherit; font-weight:800; font-size:13px; cursor:pointer; }
+.hvs button[aria-pressed="true"] { background:#0f3b4f; color:#fff; }
+body:has(.sp[data-v="b"]) .hvs { display:none; }
+
+
+/* wavy ribbon marquee */
+.sp .wave-band { position:relative; z-index:2; height:78px; margin:-6px 0 0; background:linear-gradient(#fff 50%,var(--bg) 50%); }
+.sp .wave-band svg { display:block; width:100%; height:100%; overflow:visible; }
+.sp .wb-fill { fill:#fbd772; filter:drop-shadow(0 2px 0 #e9b93c); }
+.sp .wb-line { fill:none; }
+.sp .wave-band text { font-family:"Noto Serif Bengali",serif; font-size:16px; font-weight:800; letter-spacing:.04em; fill:#2c3a2a; dominant-baseline:central; }
+
+
+/* ── hero ১ full-bleed: hill + rays run edge to edge, sun & photo centred ── */
+.sp .ha .hv1 { --s:min(100vw,560px); width:auto; max-width:none; aspect-ratio:auto; height:var(--s); margin:6px -18px 0; clip-path:inset(-60% 0 0 0); overflow:visible; }
+.sp .hv1 .arc.a1 { width:calc(var(--s)*.80); } .sp .hv1 .arc.a2 { width:calc(var(--s)*.62); } .sp .hv1 .arc.a3 { width:calc(var(--s)*.44); } .sp .hv1 .arc.a4 { width:calc(var(--s)*.27); }
+.sp .hv1 .hv1-rays { width:min(100%,calc(var(--s)*1.3)); }
+.sp .hv1 .hill { left:0; right:0; border-radius:50% 50% 0 0 / 34% 34% 0 0; height:24%; }
+.sp .hv1 .hv-trio { left:calc(50% - var(--s)*.44); width:calc(var(--s)*.88); }
+.sp .hv1 .hv-price { right:calc(50% - var(--s)*.5 + 8px); width:calc(var(--s)*.26); }
+.sp .hv1 > .deco:nth-of-type(1) { left:calc(50% - var(--s)*.44) !important; }
+.sp .hv1 > .deco:nth-of-type(2) { right:calc(50% - var(--s)*.42) !important; }
+.sp .ha-cta { margin-top:0; padding-top:14px; }
+
+
+.sp .ha h1 { line-height:1.08; }
+.sp .ha .hv1 { margin-top:-34px; }
+
+.sp .top { justify-content:center; }
+
+/* road title */
+.sp .ra-head .ra-kick { color:#fff; }
+.sp .ra-kick { display:inline-flex; align-items:center; gap:8px; margin:0; padding:6px 14px 7px; border-radius:999px; background:var(--navy); color:#fff; font-size:13px; font-weight:800; }
+.sp .ra-kick span { display:block; width:14px; height:14px; }
+.sp .ra-title { margin:10px 0 0; font-weight:900; line-height:.98; letter-spacing:-.02em; }
+.sp .ra-title .w1 { display:block; font-size:clamp(58px,17vw,120px); color:var(--navy); }
+.sp .ra-title .w2 { position:relative; display:inline-block; margin-top:-2px; padding:0 14px 6px; font-size:clamp(66px,19vw,136px); color:#fff; background:var(--coral); border-radius:18px; rotate:-3deg; box-shadow:6px 6px 0 var(--navy); }
+.sp .ra-title .w2 svg { position:absolute; left:8%; right:8%; bottom:-16px; width:84%; height:16px; overflow:visible; }
+.sp .ra-title .w2 path { fill:none; stroke:var(--yellow); stroke-width:7; stroke-linecap:round; stroke-dasharray:220; stroke-dashoffset:220; transition:stroke-dashoffset 900ms var(--ease-out) 300ms; }
+.sp .ra-title .w2 { transform:scale(.8); opacity:0; transition:transform 700ms var(--spring),opacity 300ms ease; }
+.sp .ra-head.on .w2 { transform:none; opacity:1; } .sp .ra-head.on .w2 path { stroke-dashoffset:0; }
+.sp .ra-head > p:last-child { margin-top:26px; }
+/* bigger 3rd sticker */
+.sp .rs:nth-child(3) .rs-st { width:118%; margin-left:-9%; }
+
+
+/* ═════════ footers ═════════ */
+.sp .am-k > footer { display:none; }
+.sp .ft { display:none; position:relative; }
+.sp .ftw[data-ft="1"] .ft1, .sp .ftw[data-ft="2"] .ft2, .sp .ftw[data-ft="3"] .ft3 { display:block; }
+.sp .ftd { position:absolute; pointer-events:none; }
+.sp .ft-logo { display:block; height:30px; width:auto; margin:0 auto; }
+.sp .ft-logo.light { filter:brightness(0) invert(1); }
+.sp .ft-tag { margin:10px auto 0; max-width:28ch; font-size:14px; line-height:1.55; color:#ffffffc0; text-align:center; }
+.sp .ft-tag.dark { color:var(--sub); }
+.sp .ft-trust { margin:16px 0 0; font-size:13px; text-align:center; color:#ffffffb0; } .sp .ft-trust b { color:#fff; }
+.sp .ft-pol { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 16px; margin-top:14px; font-size:12px; }
+.sp .ft-pol a { color:#ffffff99; text-decoration:none; } .sp .ft-pol.dark a { color:var(--sub); }
+@media (hover:hover) and (pointer:fine) { .sp .ft-pol a:hover { color:var(--yellow); } .sp .ft-pol.dark a:hover { color:var(--coral); } }
+.sp .ft-copy { margin:10px 0 0; font-size:11.5px; line-height:1.6; text-align:center; color:#ffffff88; } .sp .ft-copy.dark { color:var(--sub); }
+.sp .ft-credit { display:flex; align-items:center; justify-content:center; gap:10px; min-height:44px; margin-top:12px; color:inherit; text-decoration:none; }
+.sp .ft-credit small { font-family:"Geist",sans-serif; font-size:10px; letter-spacing:.015em; opacity:.7; color:currentColor; }
+.sp .ft-credit i { width:1px; height:22px; background:currentColor; opacity:.25; }
+.sp .ft-credit img { width:80px; height:auto; }
+.sp .ft1 .ft-credit, .sp .ft2 .ft-credit { color:#fff; } .sp .ft1 .ft-credit img, .sp .ft2 .ft-credit img { filter:brightness(0) invert(1); opacity:.85; }
+.sp .ft3 .ft-credit { color:var(--ink); }
+.sp .ft2 .ft-credit { color:var(--ink); } .sp .ft2 .ft-credit img { filter:none; opacity:1; }
+/* ১ */
+.sp .ft1-wave { height:40px; margin-bottom:-1px; } .sp .ft1-wave svg { display:block; width:100%; height:100%; }
+.sp .ft1-in { position:relative; overflow:hidden; padding:30px 18px calc(110px + env(safe-area-inset-bottom,0px)); background:var(--navy); color:#fff; text-align:center; }
+.sp .ft1-acts { display:flex; justify-content:center; gap:10px; margin-top:18px; }
+.sp .ft-pill { display:inline-flex; align-items:center; gap:8px; min-height:48px; padding:0 18px; border-radius:999px; font-weight:800; font-size:15px; text-decoration:none; transition:transform 160ms var(--ease-out); }
+.sp .ft-pill:active { transform:scale(.96); }
+.sp .ft-pill svg { width:18px; height:18px; }
+.sp .ft-pill.call { background:var(--yellow); color:var(--ink); } .sp .ft-pill.wa { background:#25a35a; color:#fff; }
+.sp .ft-pill.call .ring { transform-origin:12px 12px; animation:ft-ring 3s ease-in-out infinite; }
+@keyframes ft-ring { 0%,70%,100% { transform:none; } 74%,82%,90% { transform:rotate(14deg); } 78%,86% { transform:rotate(-14deg); } }
+/* ১ yellow */
+.sp .ft1-in { background:#fbd772; color:var(--ink); }
+.sp .ft1 .ft-tag { color:#5b4a2a; }
+.sp .ft1 .ft-trust { color:#5b4a2a; } .sp .ft1 .ft-trust b { color:var(--ink); }
+.sp .ft1 .ft-pol a { color:#5b4a2a; } .sp .ft1 .ft-copy { color:#6b5a3a; }
+.sp .ft1 .ft-credit { color:var(--ink); } .sp .ft1 .ft-credit img { filter:none; opacity:1; }
+.sp .ft-pill.call { background:var(--navy); color:#fff; }
+.sp .ft-trust.dark { color:var(--sub); } .sp .ft-trust.dark b { color:var(--ink); }
+/* ২ ঝোলা */
+.sp .ft2-drip { display:block; width:100%; height:90px; margin-bottom:-70px; position:relative; z-index:1; }
+.sp .ft2-drip .dr { fill:url(#ftSyr); transform-box:fill-box; transform-origin:50% 0; transform:scaleY(.15); }
+.sp .ft2.in .ft2-drip .dr { animation:ft-drip 1.6s cubic-bezier(.3,0,.2,1) forwards,ft-sway 3.6s ease-in-out infinite alternate; animation-delay:calc(var(--i)*110ms),calc(1.6s + var(--i)*200ms); }
+@keyframes ft-drip { to { transform:scaleY(1); } }
+@keyframes ft-sway { from { transform:scaleY(1); } to { transform:scaleY(1.14); } }
+.sp .ft2-in { padding:96px 18px calc(110px + env(safe-area-inset-bottom,0px)); background:#fffaf2; text-align:center; }
+.sp .ft2-big { margin:0 0 18px; font-size:clamp(34px,10vw,64px); font-weight:900; line-height:1.1; color:#5a1a08; }
+.sp .ft2-big em { font-family:"Galada",cursive; font-style:normal; font-weight:400; color:#c2451d; }
+.sp .ft2-row { display:grid; gap:10px; max-width:420px; margin:18px auto 0; }
+.sp .ft2-btn { display:flex; align-items:center; gap:12px; min-height:60px; padding:8px 16px 8px 8px; border-radius:999px; background:#fff; box-shadow:0 0 0 1.5px #5a1a0822; color:var(--ink); text-decoration:none; text-align:left; transition:transform 160ms var(--ease-out),box-shadow 200ms ease; }
+.sp .ft2-btn:active { transform:scale(.97); }
+@media (hover:hover) and (pointer:fine) { .sp .ft2-btn:hover { box-shadow:0 0 0 2px #c2451d; } }
+.sp .ft2-ico { flex:none; display:grid; place-items:center; width:44px; height:44px; border-radius:50%; background:var(--c); color:#fff; }
+.sp .ft2-ico svg { width:20px; height:20px; }
+.sp .ft2-btn span:last-child { font-size:17px; font-weight:800; line-height:1.15; } .sp .ft2-btn small { display:block; font-size:11.5px; font-weight:700; color:var(--sub); }
+/* ৩ চলন্ত সারি */
+.sp .ft3 { overflow:hidden; padding:0; background:var(--bg); }
+.sp .ft3-rows { padding:24px 0 6px; }
+.sp .mq { overflow:hidden; white-space:nowrap; }
+.sp .mq-in { display:flex; width:max-content; align-items:center; gap:18px; font-size:clamp(46px,13vw,96px); font-weight:900; line-height:1.15; animation:ft-mq 26s linear infinite; }
+.sp .mq.r2 .mq-in { animation-direction:reverse; animation-duration:32s; }
+.sp .mq.r1 .mq-in { color:var(--ink); } .sp .mq.r2 .mq-in { color:transparent; -webkit-text-stroke:2px var(--coral); }
+.sp .mq-in i { display:block; width:.6em; height:.6em; flex:none; }
+@keyframes ft-mq { to { transform:translateX(-50%); } }
+.sp .ft3-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 14px 0; max-width:620px; margin:0 auto; }
+.sp .tile { position:relative; display:flex; flex-direction:column; justify-content:flex-end; gap:4px; min-height:136px; padding:14px; border-radius:26px; overflow:hidden; text-decoration:none; opacity:0; transform:translateY(24px) scale(.96); transition:opacity 500ms var(--ease-out),transform 700ms var(--spring); }
+.sp .ft3.in .tile { opacity:1; transform:none; }
+.sp .ft3.in .tile:nth-child(2) { transition-delay:90ms } .sp .ft3.in .tile:nth-child(3) { transition-delay:180ms } .sp .ft3.in .tile:nth-child(4) { transition-delay:270ms }
+.sp .tile:active { transform:scale(.97); }
+.sp .tl-shape { position:absolute; right:-24px; top:-24px; width:110px; height:110px; }
+.sp .tile b { position:relative; display:flex; flex-direction:column; gap:6px; font-size:19px; font-weight:900; line-height:1.15; }
+.sp .tile b svg { width:24px; height:24px; }
+.sp .tile small { position:relative; font-size:12px; font-weight:700; opacity:.85; }
+.sp .tl-call { background:var(--coral); color:#fff; } .sp .tl-wa { background:var(--green); color:#fff; }
+.sp .tl-cod { background:var(--yellow); color:var(--ink); } .sp .tl-brand { background:#fffaf2; box-shadow:inset 0 0 0 1.5px #1d243018; color:var(--sub); justify-content:center; align-items:center; text-align:center; }
+.sp .tl-brand img { width:84%; height:auto; }
+.sp .ft3-base { padding:18px 14px calc(110px + env(safe-area-inset-bottom,0px)); text-align:center; }
+.sp .ft3 .ft-credit { color:var(--ink); }
+
+/* switcher */
+.fts { position:fixed; left:12px; bottom:84px; z-index:69; display:flex; align-items:center; gap:2px; padding:3px; border-radius:999px; background:#fffd; box-shadow:0 0 0 1.5px #0f3b4f,0 8px 18px -10px #0006; font-family:"Noto Serif Bengali",serif; }
+.fts span { padding:0 6px 0 9px; font-size:11.5px; font-weight:700; color:#5d5a55; }
+.fts button { min-width:28px; min-height:28px; border:0; border-radius:999px; background:none; color:#0f3b4f; font:inherit; font-weight:800; font-size:13px; cursor:pointer; }
+.fts button[aria-pressed="true"] { background:#0f3b4f; color:#fff; }
+
+
+/* footer ১ · swiss grid contacts */
+.sp .sg { display:grid; grid-template-columns:1fr 1fr; max-width:440px; margin:20px auto 0; border-top:3px solid var(--ink); border-bottom:1px solid #1d243055; text-align:left; }
+.sp .sg-cell { position:relative; display:grid; grid-template-columns:1fr auto; grid-template-areas:"idx ico" "lbl lbl" "sub arr"; align-items:end; row-gap:4px; min-height:132px; padding:12px 14px 14px; color:var(--ink); text-decoration:none; transition:background-color 200ms ease; }
+.sp .sg-cell + .sg-cell { border-left:1px solid #1d243055; }
+.sp .sg-cell:active { background:#1d24300d; }
+@media (hover:hover) and (pointer:fine) { .sp .sg-cell:hover { background:#ffffff59; } .sp .sg-cell:hover .sg-arrow { transform:translate(3px,-3px); } }
+.sp .sg-idx { grid-area:idx; align-self:start; font-family:"Geist",sans-serif; font-size:12px; font-weight:700; letter-spacing:.08em; color:#5b4a2a; }
+.sp .sg-ico { grid-area:ico; align-self:start; position:relative; display:grid; place-items:center; width:40px; height:40px; border-radius:50%; color:#fff; }
+.sp .sg-phone { background:var(--navy); } .sp .sg-wa { background:#25a35a; }
+.sp .sg-ico svg { position:relative; z-index:1; width:20px; height:20px; }
+.sp .sg-ico i { position:absolute; inset:0; border-radius:50%; box-shadow:0 0 0 2px currentColor; color:inherit; opacity:0; }
+.sp .sg-phone i { color:var(--navy); } .sp .sg-wa i { color:#25a35a; }
+.sp .ft1.in .sg-ico i { animation:sg-ripple 2.4s var(--ease-out) infinite; }
+.sp .ft1.in .sg-wa i { animation-delay:1.2s; }
+@keyframes sg-ripple { 0% { opacity:.7; transform:scale(1); } 70%,100% { opacity:0; transform:scale(1.7); } }
+.sp .sg-phone .ring { transform-origin:12px 12px; animation:ft-ring 2.4s ease-in-out infinite; }
+.sp .sg-wa svg { animation:sg-wa 2.4s var(--ease-out) 1.2s infinite; transform-origin:50% 100%; }
+@keyframes sg-wa { 0%,40%,100% { transform:none; } 10% { transform:translateY(-4px) rotate(-8deg); } 20% { transform:translateY(0) rotate(6deg); } 30% { transform:rotate(-3deg); } }
+.sp .sg-cell b { grid-area:lbl; margin-top:22px; font-size:20px; font-weight:900; line-height:1.2; }
+.sp .sg-cell:nth-child(2) b { color:#167a43; }
+.sp .sg-cell small { grid-area:sub; font-size:12px; font-weight:600; color:#5b4a2a; }
+.sp .sg-arrow { grid-area:arr; width:18px; height:18px; color:#5b4a2a; transition:transform 200ms var(--ease-out); }
+
+/* faq */
+.sp .faq { padding:40px 0 30px; }
+.sp .faq details { border-bottom:1.5px dashed #1d243026; }
+.sp .faq summary { display:flex; align-items:center; gap:12px; min-height:58px; list-style:none; font-size:17px; font-weight:800; cursor:pointer; }
+.sp .faq summary::-webkit-details-marker { display:none; }
+.sp .faq summary i { flex:none; width:28px; height:28px; transition:transform 500ms var(--spring); }
+.sp .faq details[open] summary i { transform:rotate(135deg) scale(1.1); }
+.sp .faq p { margin:0 0 14px 40px; font-size:15px; line-height:1.6; color:var(--sub); animation:sp-rise 400ms var(--ease-out) both; }
+
+/* memo/footer */
+.sp .amsotto.am-k { min-height:0; background:transparent; overflow:visible; }
+.sp .am-k .skx { background:transparent; min-height:0; }
+.sp .am-k .fv { background:transparent; }
+.sp .am-k .v1-memo-pack .lbl b { font-weight:900; }
+.sp .am-k .km-note { margin:-4px 0 10px; font-size:12px; color:var(--muted); }
+.sp .am-k .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.sp .memo-deco { position:relative; }
+
+/* bar, toast, switcher */
+.sp .bar { position:fixed; left:10px; right:10px; bottom:calc(10px + env(safe-area-inset-bottom,0px)); z-index:40; max-width:520px; margin:0 auto; display:flex; align-items:center; gap:10px; padding:8px 8px 8px 18px; border-radius:999px; background:var(--navy); color:#fff; box-shadow:0 16px 30px -14px #0f3b4f99; transform:translateY(170%); transition:transform 380ms var(--ease-out); }
+.sp .bar.show { transform:none; }
+.sp .bar p { flex:1; margin:0; font-size:12.5px; line-height:1.3; } .sp .bar p b { display:block; font-size:16px; }
+.sp .toast { position:fixed; left:50%; top:62px; z-index:60; translate:-50% 0; padding:10px 16px; border-radius:999px; background:var(--navy); color:#fff; font-weight:700; opacity:0; transform:translateY(-10px) scale(.96); transition:opacity 240ms var(--ease-out),transform 240ms var(--ease-out); pointer-events:none; white-space:nowrap; }
+.sp .toast.show { opacity:1; transform:none; }
+.vs { position:fixed; left:50%; top:10px; z-index:70; translate:-50% 0; display:flex; gap:4px; padding:4px; border-radius:999px; background:#111d; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); font-family:"Noto Serif Bengali",sans-serif; }
+.vs button { white-space:nowrap; min-height:32px; padding:0 14px; border:0; border-radius:999px; background:none; color:#fffc; font:inherit; font-size:14px; font-weight:700; cursor:pointer; transition:background-color 200ms ease,color 200ms ease; }
+.vs button[aria-pressed="true"] { background:#fff; color:#111; }
+@media (prefers-reduced-motion:reduce) {
+  .sp *, .sp *::before, .sp *::after { animation-duration:1ms!important; animation-iteration-count:1!important; transition-duration:1ms!important; transition-delay:0ms!important; }
+  .sp .hr { height:auto; } .sp .hr-pin { position:static; height:auto; } .sp .hr-track { flex-direction:column; padding:0 18px; } .sp .hr-card { opacity:1; transform:none; flex-basis:auto; } .sp .hr-road { display:none; }
+}
+</style>
+</head>
+<body style="margin:0">
+<div class="vs" role="group" aria-label="ভ্যারিয়েন্ট"><button data-set="a" aria-pressed="true">ক · খেলাঘর</button><button data-set="b" aria-pressed="false">খ · রোদের পথ</button></div>
+
+<div class="sp" id="sp" data-v="a">
+<header class="top"><img src="sera-khabar-logo.webp" alt="সেরা খাবার" width="700" height="128"></header>
+<main>
+
+<!-- ═════════ ক · খেলাঘর ═════════ -->
+<div data-only="a">
+  <section class="ha" id="haSec" data-hero data-io data-hv="1">
+    <div data-deco="ha"></div>
+    <p class="kick rise" style="--d:0ms">সেরা খাবার · শীতের প্রথম রস</p>
+    <h1 class="rise" style="--d:80ms">খেজুরের<br>গুড়</h1>
+    <p class="ha-word rise" style="--d:160ms">আজ সকালের <span class="roll" id="rollA"><span class="cur" style="background:#c2451d">ঝোলা</span><span style="background:#c78a12">বীজ</span><span style="background:#a33a1c">পাটালি</span></span></p>
+    <p class="lede rise" style="--d:240ms">এক রস, তিন রূপ — ঢেলে খাওয়ার ঝোলা, দানা দানা বীজ আর ভেঙে খাওয়ার পাটালি।</p>
+    <!-- হিরো ১ · সূর্যোদয়: nested arcs rise over a hill -->
+    <div class="ha-art hv hv1">
+      <span class="hv1-rays"><span data-shape="rays" data-c="#f9b25e"></span></span>
+      <span class="arc a1"></span><span class="arc a2"></span><span class="arc a3"></span><span class="arc a4"></span>
+      <span class="deco pop" style="--d:900ms;left:6%;top:6%;width:14%;height:14%"><span class="twk" style="display:block;width:100%;height:100%" data-shape="sparkle" data-c="blue"></span></span>
+      <span class="deco pop" style="--d:1000ms;right:8%;top:14%;width:9%;height:9%"><span class="twk" style="display:block;width:100%;height:100%;--t:3.2s" data-shape="sparkle" data-c="coral"></span></span>
+      <span class="hill"></span>
+      <img class="hv-trio" src="trio.png" alt="কাচের বাটিতে বীজ গুড়, মাঝে পাটালি আর মাটির বাটিতে ঝোলা গুড়" width="1536" height="1024"><div class="sticker pop hv-price" style="--d:1350ms"><span class="spin" style="--t:24s;position:absolute;inset:0" data-shape="flower" data-c="coral"></span><span><small>শুরু মাত্র</small><span style="font-size:22px">৳৩৫০</span></span></div>
+    </div>
+    <div class="ha-cta rise" style="--d:900ms"><a class="btn" href="#orderK" data-go>এখনই অর্ডার করুন</a><span><b>ক্যাশ অন ডেলিভারি</b> · সারা দেশে ৳১০০</span></div>
+  </section>
+
+  <div class="wave-band" id="waveA" aria-hidden="true"><svg><path class="wb-fill"/><path class="wb-line" id="waveLineA"/><text><textPath href="#waveLineA" id="waveTextA"></textPath></text></svg></div>
+
+  <section class="pa" data-io aria-labelledby="pa-h">
+    <div data-deco="pa"></div>
+    <div class="wrap"><p class="kick rise" style="text-align:center">তিন রকম গুড়</p><h2 class="t rise" id="pa-h" style="--d:80ms">কোনটা আপনার?</h2><div class="pa-list" id="paList"></div></div>
+  </section>
+
+  <section class="ra" id="ra" aria-labelledby="ra-h">
+    <div data-deco="ra"></div>
+    <div class="wrap ra-head"><p class="ra-kick"><span data-shape="sparkle" data-c="coral"></span>গাছ থেকে আপনার দরজা<span data-shape="sparkle" data-c="coral"></span></p><h2 class="ra-title" id="ra-h"><span class="w1">গুড়ের</span><span class="w2">রাস্তা<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M4 14 C 50 4, 110 4, 196 12"/></svg></span></h2><p>নিচে স্ক্রল করুন — ভ্যান রওনা দিয়েছে</p></div>
+    <div class="ra-body" id="raBody">
+      <svg class="ra-svg" id="raSvg" aria-hidden="true"><path class="rd-shade"/><path class="rd-edge"/><path class="rd-top"/><path class="rd-line"/><path class="rd-dash"/><path class="rd-done"/></svg>
+      <div class="rd-props" id="raProps" aria-hidden="true"></div>
+      <div class="van2" id="raVan" aria-hidden="true"><svg viewBox="0 0 60 36"><ellipse cx="30" cy="31" rx="26" ry="4" fill="#0006"/><rect x="2" y="4" width="38" height="26" rx="5" fill="#fffaf2" stroke="#1d2430" stroke-width="2"/><rect x="38" y="6" width="19" height="22" rx="6" fill="#f47b5c" stroke="#1d2430" stroke-width="2"/><rect x="48" y="9" width="6" height="16" rx="2.5" fill="#0f3b4f"/><circle cx="12" cy="17" r="5" fill="#fbd772"/><circle cx="25" cy="17" r="5" fill="#3f8f6b"/><circle cx="58" cy="9" r="2" fill="#fff6c9"/><circle cx="58" cy="25" r="2" fill="#fff6c9"/></svg><span class="beam"></span></div>
+      <div id="raStops"></div>
+    </div>
+  </section>
+
+  <section class="perks" data-io aria-labelledby="pk-h"><div class="wrap"><h2 class="t rise" id="pk-h" style="text-align:center">নিশ্চিন্তে অর্ডার</h2><ul id="perksA"></ul></div></section>
+</div>
+
+<!-- ═════════ খ · রোদের পথ ═════════ -->
+<div data-only="b">
+  <section class="hb" data-hero data-io>
+    <div data-deco="hb"></div>
+    <div class="wrap" style="padding:0">
+      <p class="kick rise">সেরা খাবার · শীতকালীন</p>
+      <h1 class="rise" style="--d:80ms">রোদ ওঠার আগে<em>খেজুরের গুড়</em></h1>
+      <p class="lede rise" style="--d:180ms">ভোরের রস, কাঠের জ্বাল — ঝোলা, বীজ আর পাটালি এখন এক অর্ডারে।</p>
+      <div class="btns rise" style="--d:260ms"><a class="btn" href="#orderK" data-go>অর্ডার করুন</a><a class="btn y" href="#hr" data-jump>গুড়ের পথ দেখুন</a></div>
+    </div>
+    <div class="hb-art">
+      <span class="hb-sun" data-shape="arch" data-c="yellow"></span>
+      <span class="hb-rays" data-shape="rays" data-c="coral"></span>
+      <span class="deco pop" style="--d:900ms;left:6%;top:6%;width:14%;height:14%"><span class="twk" style="display:block;width:100%;height:100%" data-shape="sparkle" data-c="blue"></span></span>
+      <span class="deco pop" style="--d:1000ms;right:8%;top:2%;width:12%;height:20%"><span class="wig" style="display:block;width:100%;height:100%" data-shape="wave" data-c="lilac"></span></span>
+      <div class="hb-ground"></div>
+      <img class="hb-trio" src="trio.png" alt="কাচের বাটিতে বীজ গুড়, মাঝে পাটালি আর মাটির বাটিতে ঝোলা গুড়" width="1536" height="1024">
+    </div>
+  </section>
+
+  <div class="band" aria-hidden="true" style="background:var(--blue)"><div class="band-in" id="bandB"></div></div>
+
+  <section class="pb" data-io aria-labelledby="pb-h"><div data-deco="pb"></div>
+    <div class="wrap"><p class="kick rise">স্টিকার শিট</p><h2 class="t rise" id="pb-h" style="--d:80ms">একটা বেছে নিন, বা তিনটেই</h2><div class="pb-grid" id="pbGrid"></div></div>
+  </section>
+
+  <section class="hr" id="hr" aria-labelledby="hr-h"><div class="hr-pin">
+    <div class="hr-head"><div><p class="kick">গাছ থেকে আপনার দরজা</p><h2 class="t" id="hr-h">রোদের পথে গুড়</h2></div><div class="hr-clock" aria-hidden="true"><b id="hrClock">ভোর ৪টা</b><small id="hrKm">যাত্রা শুরু</small></div></div>
+    <div class="hr-prog" id="hrProg" aria-hidden="true"></div>
+    <div class="hr-view"><div class="hr-track" id="hrTrack"></div></div>
+    <div class="hr-road" aria-hidden="true"><div class="hr-grass" id="hrGrass"></div><div class="hr-asph"></div><div class="hr-lane" id="hrLane"></div>
+      <svg class="hr-van" id="hrVan" viewBox="0 0 108 66"><rect x="4" y="8" width="64" height="40" rx="6" fill="#fffaf2" stroke="#1d2430" stroke-width="2"/><text x="36" y="34" text-anchor="middle" font-family="Noto Serif Bengali" font-size="13" font-weight="900" fill="#c2451d">গুড়</text>
+        <path d="M68 16 H86 Q94 16 98 26 L104 34 V48 H68 Z" fill="#f47b5c" stroke="#1d2430" stroke-width="2"/><path d="M74 20 H85 Q90 20 93 28 H74 Z" fill="#0f3b4f"/>
+        <g class="wh" id="whA"><circle cx="24" cy="52" r="10" fill="#1d2430"/><circle cx="24" cy="52" r="4" fill="#fbd772"/><path d="M24 43 V61 M15 52 H33" stroke="#fbd772" stroke-width="2"/></g>
+        <g class="wh" id="whB"><circle cx="86" cy="52" r="10" fill="#1d2430"/><circle cx="86" cy="52" r="4" fill="#fbd772"/><path d="M86 43 V61 M77 52 H95" stroke="#fbd772" stroke-width="2"/></g></svg>
+    </div>
+  </div></section>
+
+  <section class="faq" data-io aria-labelledby="fq-h"><div class="wrap"><h2 class="t rise" id="fq-h">যা জানতে চান</h2><div id="faqB" style="margin-top:14px"></div></div></section>
+</div>
+
+  <!-- ৬ · আমসত্ত্ব checkout memo + footer -->
+  <div class="amsotto am-k">
+  <section class="v1-order" id="orderK" aria-labelledby="km-heading">
+  <div class="skx v1-memo"><div class="skx-main">
+    <div class="skx-intro"><span class="skx-script">শীতের স্বাদ, ঘরে পৌঁছে দিই</span><p>আপনার পছন্দের খেজুরের গুড় এবার আপনার ঠিকানায়।</p></div>
+    <div class="skx-paper-wrap"><svg class="paper-clip paper-clip-back" viewBox="0 0 28 76" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 52 V14 A5 5 0 0 1 20 14" stroke="#5d6268" stroke-width="2.5"/><path d="M10 52 V14 A5 5 0 0 1 20 14" stroke="#a7abb1" stroke-width="1.6"/><path d="M10 52 V14 A5 5 0 0 1 20 14" stroke="#ffffff" stroke-width=".55" opacity="0.55" transform="translate(-.35 -.4)"/></g></svg><article class="skx-paper">
+      <div class="skx-paper-head"><img src="leaf-mark.webp" alt="" width="48" height="48"><div><h2 id="km-heading" tabindex="-1">অর্ডার মেমো</h2><p>সেরা খাবার · রাজশাহী</p></div><span class="skx-serial" aria-hidden="true">খাতা নং<br><b>০১</b></span></div>
+      <div class="skx-order">
+        <div class="v1-gal"><div class="v1-gal-rail" id="kmRail" role="region" aria-label="খেজুরের গুড়ের ছবি" tabindex="0">
+          <div class="v1-gal-slide"><img src="sun-jhola.webp" alt="খেজুরের ঝোলা গুড়" width="960" height="960" draggable="false"></div>
+          <div class="v1-gal-slide"><img src="sun-bij.webp" alt="বীজ গুড়" width="960" height="960" draggable="false"></div>
+          <div class="v1-gal-slide"><img src="sun-patali.webp" alt="পাটালি গুড়" width="960" height="960" draggable="false"></div>
+        </div><div class="v1-gal-capsule" id="kmCaps"><button type="button" aria-label="ছবি ১" aria-current="true"><img src="sun-jhola.webp" alt="" width="38" height="38"></button><button type="button" aria-label="ছবি ২" aria-current="false"><img src="sun-bij.webp" alt="" width="38" height="38"></button><button type="button" aria-label="ছবি ৩" aria-current="false"><img src="sun-patali.webp" alt="" width="38" height="38"></button></div></div>
+        <p class="v1-memo-pick" id="km-packs-label"><span>গুড় ও পরিমাণ বেছে নিন</span></p>
+        <p class="km-note">একাধিক বেছে নিতে পারেন</p>
+        <div class="v1-memo-packs" id="kmPacks" role="group" aria-labelledby="km-packs-label"></div>
+      </div>
+      <form class="skx-form" novalidate onsubmit="return false">
+        <section class="skx-section" aria-label="আপনার নাম, নম্বর ও ঠিকানা">
+          <div class="skx-row"><div class="skx-field"><label for="km-name">আপনার নাম<small>Full name</small></label><input id="km-name" name="name" type="text" autocomplete="name" placeholder="আপনার সম্পূর্ণ নাম লিখুন"></div><div class="skx-field"><label for="km-phone">মোবাইল নম্বর<small>Phone number</small></label><input id="km-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="01XXXXXXXXX"><span class="skx-field-hint">এই নম্বরেই অর্ডার কনফার্ম করব।</span></div></div>
+          <div class="skx-field"><label for="km-address">সম্পূর্ণ ঠিকানা<small>Delivery address</small></label><textarea id="km-address" name="address" rows="3" autocomplete="street-address" placeholder="বাড়ি / হোল্ডিং, রাস্তা, এলাকা"></textarea></div>
+        </section>
+        <section class="skx-payment" aria-label="পেমেন্ট ও ডেলিভারি"><div class="skx-stamp" aria-hidden="true">আগে অর্ডার<br><b>পরে পেমেন্ট</b><small>ক্যাশ অন ডেলিভারি</small></div></section>
+        <div class="skx-amounts"><div><span>পণ্যের দাম</span><strong id="kmSub">৳০</strong></div><div><span>ডেলিভারি চার্জ<small class="v1-eta">সম্ভাব্য ডেলিভারি <b>২৭–২৯ অক্টোবর</b></small></span><strong>৳১০০</strong></div><div class="skx-grand"><span>সর্বমোট<small>হাতে পেয়ে পরিশোধ করবেন</small></span><strong><span class="v1-roll" id="kmTot">—</span></strong></div></div>
+        <button type="submit" class="skx-submit" id="kmSubmit" disabled><span>অর্ডার নিশ্চিত করুন</span><span class="skx-submit-end"><span id="kmBtnTot">—</span> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10M7 17 17 7"/></svg></span></button>
+        <p class="v1-pay-line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg><span><b>ক্যাশ অন ডেলিভারি</b> · পণ্য হাতে পেয়ে টাকা দেবেন</span></p>
+        <p class="skx-submit-help">কনফার্ম করতে আমরা আপনাকে ফোন করব।</p><p class="skx-terms">অর্ডার করে আপনি আমাদের <a href="#" onclick="return false">শর্তাবলি</a> ও <a href="#" onclick="return false">রিটার্ন নীতিমালা</a> মেনে নিচ্ছেন।</p>
+        <details class="skx-policy"><summary>ডেলিভারি ও ফেরত নীতি <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><ul><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>পেমেন্ট শুধু ক্যাশ অন ডেলিভারি।</span></li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>ঢাকায় ১–২ দিন, ঢাকার বাইরে ২–৩ দিনে ডেলিভারি।</span></li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>পণ্যে সমস্যা হলে ডেলিভারির ২৪ ঘণ্টার মধ্যে জানান।</span></li></ul></details>
+        <div class="skx-signoff"><span>বিশ্বাসের সঙ্গে,</span><b>সেরা খাবার</b><img src="leaf-mark.webp" alt="" width="30" height="30"></div>
+      </form>
+    </article><svg class="paper-clip paper-clip-front" viewBox="0 0 28 76" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14 V66 A8 8 0 0 1 4 66 V10 A10 10 0 0 1 24 10 V56" stroke="#6b7077" stroke-width="2.5"/><path d="M20 14 V66 A8 8 0 0 1 4 66 V10 A10 10 0 0 1 24 10 V56" stroke="#c9cdd2" stroke-width="1.6"/><path d="M20 14 V66 A8 8 0 0 1 4 66 V10 A10 10 0 0 1 24 10 V56" stroke="#ffffff" stroke-width=".55" opacity="0.9" transform="translate(-.35 -.4)"/></g></svg></div>
+  </div></div>
+  </section>
+  <footer class="fv fvq"><div class="fvq-in" id="kmFoot" data-fv data-visible="false">
+    <img class="fvq-logo" src="sera-khabar-logo.webp" alt="সেরা খাবার" width="700" height="128" loading="lazy">
+    <p class="fvq-tag">প্রকৃতির স্বাদ, যত্নের সঙ্গে পৌঁছে দিই আপনার ঘরে।</p>
+    <div class="fvq-links">
+      <a href="tel:+8801310980289"><span class="fvq-idx" aria-hidden="true">০১</span><span class="fvq-ring"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M8 3c0.5 0 2.5 4.5 2.5 5c0 1 -1.5 2 -2 3c-0.5 1 0.5 2 1.5 3c0.39 0.39 2 2 3 1.5c1 -0.5 2 -2 3 -2c0.5 0 5 2 5 2.5c0 2 -1.5 3.5 -3 4c-1.5 0.5 -2.5 0.5 -4.5 0c-2 -0.5 -3.5 -1 -6 -3.5c-2.5 -2.5 -3 -4 -3.5 -6c-0.5 -2 -0.5 -3 0 -4.5c0.5 -1.5 2 -3 4 -3Z" stroke-dasharray="62"><animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="62;0"/><animateTransform attributeName="transform" type="rotate" dur="4s" repeatCount="indefinite" keyTimes="0;0.024;0.047;0.071;0.095;0.118;0.142;0.165;0.189;1" values="0 12 12;15 12 12;0 12 12;-12 12 12;0 12 12;12 12 12;0 12 12;-15 12 12;0 12 12;0 12 12"/></path><path d="M15.76 8.28c-0.5 -0.51 -1.1 -0.93 -1.76 -1.24M15.76 8.28c0.49 0.49 0.9 1.08 1.2 1.72" stroke-dasharray="6" stroke-dashoffset="6"><animate attributeName="stroke-dashoffset" begin="0.7s" dur="4s" repeatCount="indefinite" keyTimes="0;0.101;0.203;1" values="6;0;6;6"/></path><path d="M18.67 5.35c-1 -1 -2.26 -1.73 -3.67 -2.1M18.67 5.35c0.99 1 1.72 2.25 2.08 3.65" stroke-dasharray="8" stroke-dashoffset="8"><animate attributeName="stroke-dashoffset" begin="1s" dur="4s" repeatCount="indefinite" keyTimes="0;0.101;0.203;1" values="8;0;8;8"/></path></g></svg></span><b>কল করুন</b><svg class="fvq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10M7 17 17 7"/></svg></a>
+      <a href="https://wa.me/8801303103540" target="_blank" rel="noopener noreferrer"><span class="fvq-idx" aria-hidden="true">০২</span><span class="fvq-whatsapp"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></span><b>হোয়াটসঅ্যাপ</b><svg class="fvq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10M7 17 17 7"/></svg></a>
+    </div>
+    <p class="fvq-trust"><b>ক্যাশ অন ডেলিভারি</b> · সারা বাংলাদেশে</p>
+    <a class="fv-sign" href="https://www.arc-bangladesh.com/" target="_blank" rel="noopener noreferrer"><small>Designed &amp; Engineered by</small><span aria-hidden="true"></span><img src="arc-credit.webp" alt="Arc Labs Corporation" width="188" height="72" loading="lazy"></a>
+    <p class="fv-copy">© <span class="num">২০২৬</span> সেরা খাবার · নওহাটা, পবা, রাজশাহী, বাংলাদেশ, <span class="num">৬২১৩</span></p>
+    <nav class="fv-pol" aria-label="নীতিমালা"><a href="https://www.serakhabar.com/privacy-policy">• Privacy Policy</a><a href="https://www.serakhabar.com/refund-return-exchange">• Refund &amp; Return</a><a href="https://www.serakhabar.com/terms-and-conditions">• Terms &amp; Conditions</a></nav>
+  </div></footer>
+  </div>
+
+</main>
+<!-- ═════════ footers (shapes style) ═════════ -->
+<footer class="ftw" id="ftw" data-ft="1">
+  <!-- ১ · ফিতা: wavy ribbon into a navy footer -->
+  <div class="ft ft1" data-io>
+    <div class="ft1-wave" aria-hidden="true"><svg viewBox="0 0 400 40" preserveAspectRatio="none"><path d="M0 40 V18 C 50 0, 100 0, 150 16 S 250 34, 300 16 S 370 2, 400 14 V40Z" fill="#fbd772"/><path d="M0 18 C 50 0, 100 0, 150 16 S 250 34, 300 16 S 370 2, 400 14" fill="none" stroke="#f47b5c" stroke-width="4"/></svg></div>
+    <div class="ft1-in">
+      <span class="ftd pop" style="--d:100ms;left:4%;top:8%;width:44px;height:44px"><span class="spin" style="display:block;width:100%;height:100%;--t:18s" data-shape="burst" data-c="coral"></span></span>
+      <span class="ftd pop" style="--d:200ms;right:16%;top:4%;width:24px;height:24px"><span class="twk" style="display:block;width:100%;height:100%" data-shape="sparkle" data-c="yellow"></span></span>
+      <span class="ftd pop" style="--d:300ms;right:5%;top:6%;width:30px;height:30px"><span class="spin r" style="display:block;width:100%;height:100%;--t:22s" data-shape="flower" data-c="lilac"></span></span>
+      <img class="ft-logo" src="sera-khabar-logo.webp" alt="সেরা খাবার" width="700" height="128" loading="lazy">
+      <p class="ft-tag">প্রকৃতির স্বাদ, যত্নের সঙ্গে পৌঁছে দিই আপনার ঘরে।</p>
+      <div class="sg">
+        <a class="sg-cell" href="tel:+8801310980289"><span class="sg-idx num">০১</span><span class="sg-ico sg-phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="ring" d="M8 3c.5 0 2.5 4.5 2.5 5 0 1-1.5 2-2 3s.5 2 1.5 3c.39.39 2 2 3 1.5s2-2 3-2c.5 0 5 2 5 2.5 0 2-1.5 3.5-3 4-1.5.5-2.5.5-4.5 0s-3.5-1-6-3.5S4.5 13 4 11s-.5-3 0-4.5S6 3 8 3Z"/></svg><i></i></span><b>কল করুন</b><small class="num">০১৩১০-৯৮০২৮৯</small><svg class="sg-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+        <a class="sg-cell" href="https://wa.me/8801303103540" target="_blank" rel="noopener noreferrer"><span class="sg-idx num">০২</span><span class="sg-ico sg-wa"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg><i></i></span><b>হোয়াটসঅ্যাপ</b><small>মেসেজে অর্ডার</small><svg class="sg-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+      </div>
+      <p class="ft-trust"><b>ক্যাশ অন ডেলিভারি</b> · সারা বাংলাদেশে</p>
+      <nav class="ft-pol" aria-label="নীতিমালা"><a href="https://www.serakhabar.com/privacy-policy">Privacy Policy</a><a href="https://www.serakhabar.com/refund-return-exchange">Refund &amp; Return</a><a href="https://www.serakhabar.com/terms-and-conditions">Terms &amp; Conditions</a></nav>
+      <a class="ft-credit" href="https://www.arc-bangladesh.com/" target="_blank" rel="noopener noreferrer"><small>Designed &amp; Engineered by</small><i></i><img src="arc-credit.webp" alt="Arc Labs Corporation" width="188" height="72" loading="lazy"></a>
+      <p class="ft-copy">© <span class="num">২০২৬</span> সেরা খাবার · নওহাটা, পবা, রাজশাহী, বাংলাদেশ, <span class="num">৬২১৩</span></p>
+    </div>
+  </div>
+
+</footer>
+
+<div class="bar" id="bar"><p>খেজুরের গুড় · ৩ রকম<b class="num">৳৩৫০ থেকে</b></p><a class="btn sm y" href="#orderK" data-go>অর্ডার করুন</a></div>
+<div class="toast" id="toast" role="status"></div>
+</div>
+
+<script>
+const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = s => document.querySelector(s), root = $("#sp");
+const bn = v => String(v).replace(/\d/g, d => "০১২৩৪৫৬৭৮৯"[d]), tk = v => "৳" + bn(v);
+const COL = { blue:"#1f5fd6", yellow:"#fbd772", coral:"#f47b5c", green:"#3f8f6b", lilac:"#e3c4ec", navy:"#0f3b4f" };
+const P = [
+  { name:"ঝোলা গুড়", short:"ঝোলা", img:"cut-jhola.webp", c:"#c2451d", shape:"scallop", sc:"yellow", sizes:[{l:"৫০০ গ্রাম",p:380},{l:"১ কেজি",p:720}], line:"ঘন, চকচকে — চামচ থেকে ধীরে গড়িয়ে পড়ে।", use:["পিঠা","রুটি","মুড়ি"] },
+  { name:"বীজ গুড়", short:"বীজ", img:"cut-bij.webp", c:"#a8700a", shape:"flower", sc:"lilac", sizes:[{l:"১ কেজি",p:550,c:750}], line:"নরম আর দানা দানা — জিভে দিলেই গলে যায়।", use:["পায়েস","চা","চামচে"] },
+  { name:"পাটালি গুড়", short:"পাটালি", img:"cut-patali.webp", c:"#a33a1c", shape:"burst", sc:"green", sizes:[{l:"৫০০ গ্রাম",p:350},{l:"১ কেজি",p:671}], line:"জমাট পাটালি, ভাঙলে ভেতরে নরম দানা।", use:["ভেঙে খান","মিষ্টান্ন","উপহার"] },
+];
+
+/* ── shape library (viewBox -50..50) ── */
+const f = p => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`, pol = (r, a) => [r * Math.cos(a), r * Math.sin(a)];
+const circ = (x, y, r) => `M${x - r} ${y} a${r} ${r} 0 1 0 ${2 * r} 0 a${r} ${r} 0 1 0 ${-2 * r} 0`;
+const SH = {
+  scallop(n = 16) { let d = ""; for (let i = 0; i < n; i++) { const a0 = i / n * 2 * Math.PI - Math.PI / 2, a1 = (i + 1) / n * 2 * Math.PI - Math.PI / 2; d += (i ? "" : "M" + f(pol(41, a0))) + ` Q${f(pol(54, (a0 + a1) / 2))} ${f(pol(41, a1))}`; } return d + "Z"; },
+  flower(n = 8) { let d = ""; for (let i = 0; i < n; i++) { const a0 = i / n * 2 * Math.PI, a1 = (i + 1) / n * 2 * Math.PI, k = (a1 - a0) * .1; d += (i ? "" : "M" + f(pol(22, a0))) + ` C${f(pol(64, a0 + k))} ${f(pol(64, a1 - k))} ${f(pol(22, a1))}`; } return d + "Z"; },
+  burst(n = 18, r1 = 48, r2 = 34) { let d = ""; for (let i = 0; i < 2 * n; i++) d += (i ? " L" : "M") + f(pol(i % 2 ? r2 : r1, i / (2 * n) * 2 * Math.PI - Math.PI / 2)); return d + "Z"; },
+  star() { return SH.burst(8, 48, 22); },
+  sparkle() { return "M0 -48 C4 -8 8 -4 48 0 C8 4 4 8 0 48 C-4 8 -8 4 -48 0 C-8 -4 -4 -8 0 -48Z"; },
+  clover() { return [circ(-20, 0, 24), circ(20, 0, 24), circ(0, -20, 24), circ(0, 20, 24), circ(0, 0, 20)].join(" "); },
+  blob() { let d = circ(0, 0, 26); for (let i = 0; i < 5; i++) { const [x, y] = pol(24, i / 5 * 2 * Math.PI - Math.PI / 2); d += " " + circ(x, y, 22); } return d; },
+  wave() { const L = [], R = []; for (let i = 0; i <= 40; i++) { const y = -48 + i * 2.4, w = 9 * Math.sin(i / 40 * Math.PI * 4); L.push([-14 + w, y]); R.push([14 + w, y]); } return "M" + L.map(f).join(" L") + " L" + R.reverse().map(f).join(" L") + "Z"; },
+  arch() { return "M-48 30 A48 48 0 0 1 48 30 Z"; },
+  rays() { let d = "M-50 46 H50 V50 H-50Z"; for (let i = 0; i < 9; i++) { const a = Math.PI + (i + .5) / 9 * Math.PI, w = .07; const p = [pol(14, a - w), pol(50, a - w * .6), pol(50, a + w * .6), pol(14, a + w)].map(([x, y]) => [x, y + 46]); d += " M" + p.map(f).join(" L") + "Z"; } return d; },
+  ring() { return circ(0, 0, 46) + " " + circ(0, 0, 26); },
+};
+const svgOf = (t, c) => `<svg class="shp" viewBox="-50 -50 100 100" aria-hidden="true"><path d="${SH[t]()}" fill="${COL[c] || c}" fill-rule="${t === "ring" ? "evenodd" : "nonzero"}"/></svg>`;
+const maskOf = t => `url('data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'><path d='${SH[t]()}'/></svg>`).replace(/'/g, "%27")}')`;
+document.querySelectorAll("[data-shape]").forEach(el => el.innerHTML = svgOf(el.dataset.shape, el.dataset.c));
+
+/* ── background scatter: hand-placed per section, drifting with scroll ── */
+const DECO = {
+  ha: [["flower", "lilac", 4, 30, 54, 0, "spin", .15], ["burst", "coral", 82, 24, 44, 0, "spin r", -.2], ["star", "blue", 88, 62, 30, 0, "twk", .1], ["clover", "green", 2, 62, 38, 0, "bob", -.1]],
+  pa: [["sparkle", "yellow", 86, 4, 46, 0, "twk", .2], ["wave", "coral", 2, 40, 30, 0, "wig", -.15], ["scallop", "blue", 88, 70, 40, 0, "spin", .1]],
+  ra: [["burst", "yellow", 2, 6, 40, 0, "spin", .2], ["clover", "lilac", 86, 30, 46, 0, "bob", -.12], ["sparkle", "coral", 4, 58, 34, 0, "twk", .15], ["flower", "green", 88, 82, 44, 0, "spin r", -.1]],
+  hb: [["scallop", "lilac", 84, 18, 50, 0, "spin", .15], ["star", "green", 76, 40, 30, 0, "twk", -.1]],
+  pb: [["flower", "coral", 88, 6, 44, 0, "spin", .2], ["sparkle", "blue", 2, 70, 36, 0, "twk", -.1]],
+};
+const decoEls = [];
+document.querySelectorAll("[data-deco]").forEach(host => {
+  const sec = host.parentElement; sec.style.position = "relative";
+  (DECO[host.dataset.deco] || []).forEach(([t, c, x, y, s, , anim, par], i) => {
+    const w = document.createElement("span"); w.className = "deco pop"; w.style.cssText = `--d:${300 + i * 90}ms;left:${x}%;top:${y}%;width:${s}px;height:${s}px`;
+    w.innerHTML = `<span class="${anim}" style="display:block;width:100%;height:100%;--t:${10 + i * 4}s">${svgOf(t, c)}</span>`;
+    host.replaceWith(w); sec.prepend(w); decoEls.push({ el: w, par, sec });
+  });
+  host.remove();
+});
+
+/* ── content ── */
+const bandTxt = `<span>খাঁটি খেজুরের গুড়</span><i>${svgOf("sparkle", "yellow")}</i><span>ঝোলা · বীজ · পাটালি</span><i>${svgOf("flower", "lilac")}</i><span>ক্যাশ অন ডেলিভারি</span><i>${svgOf("burst", "coral")}</i><span>সারা দেশে ৳১০০</span><i>${svgOf("clover", "yellow")}</i>`;
+$("#bandB").innerHTML = bandTxt.repeat(4);
+$("#paList").innerHTML = P.map((p, i) => `<article class="pa-card rise" style="--d:${150 + i * 120}ms;--c:${p.c}"><div class="pa-pic"><span class="spin" style="position:absolute;inset:0;--t:${40 + i * 10}s">${svgOf(p.shape, p.sc)}</span><img src="${p.img}" alt="${p.name}" loading="lazy"></div>
+  <div><small>০${bn(i + 1)} · ${p.use.join(" · ")}</small><h3>${p.name}</h3><p>${p.line}</p><div class="buy"><b class="num">${tk(p.sizes[0].p)}</b><span>${p.sizes[0].l}</span><button class="btn sm" data-add="${i}">যোগ করুন</button></div></div></article>`).join("");
+$("#pbGrid").innerHTML = P.map((p, i) => `<div class="pb-tile rise" style="--d:${150 + i * 110}ms;--r:${[-3, 2, -2][i]}deg"><div class="pb-pic"><span class="spin" style="position:absolute;inset:0;--t:${30 + i * 8}s">${svgOf(["scallop", "flower", "star"][i], ["yellow", "lilac", "green"][i])}</span><img src="${p.img}" alt="${p.name}" loading="lazy"></div>
+  <b>${p.short}</b><span class="num">${tk(p.sizes[0].p)}</span><small>${p.sizes[0].l}</small><button class="btn sm" data-add="${i}">যোগ</button></div>`).join("");
+const PERKS = [["burst", "coral", "ক্যাশ অন ডেলিভারি", "হাতে পেয়ে টাকা দিন"], ["sparkle", "blue", "সারা দেশে ডেলিভারি", "চার্জ ৳১০০"], ["flower", "green", "১–৩ দিনে পৌঁছায়", "ঢাকায় ১–২, বাইরে ২–৩ দিন"], ["clover", "lilac", "ফোনে কনফার্ম", "অর্ডারের পর আমরা কল করি"]];
+$("#perksA").innerHTML = PERKS.map(([t, c, a, b], i) => `<li class="rise" style="--d:${120 + i * 90}ms"><i class="spin" style="--t:${16 + i * 4}s">${svgOf(t, c)}</i><span>${a}<small>${b}</small></span></li>`).join("");
+const FAQ = [["পেমেন্ট কীভাবে করব?", "শুধু ক্যাশ অন ডেলিভারি। পণ্য হাতে পেয়ে টাকা দেবেন।"], ["ডেলিভারি কতদিনে?", "ঢাকায় ১–২ দিন, ঢাকার বাইরে ২–৩ দিনে।"], ["ডেলিভারি চার্জ কত?", "সারা বাংলাদেশে ৳১০০।"], ["পণ্যে সমস্যা হলে?", "ডেলিভারির ২৪ ঘণ্টার মধ্যে আমাদের জানান।"]];
+$("#faqB").innerHTML = FAQ.map(([q, a], i) => `<details><summary><i>${svgOf(["sparkle", "burst", "flower", "clover"][i], ["blue", "coral", "green", "lilac"][i])}</i>${q}</summary><p>${a}</p></details>`).join("");
+
+/* ── wavy ribbon: band ripples gently, text flows along it ── */
+(function wave() {
+  const box = $("#waveA"), fill = box.querySelector(".wb-fill"), line = $("#waveLineA"), tp = $("#waveTextA"), svg = box.querySelector("svg");
+  const CHUNK = "খাঁটি খেজুরের গুড়  ✦  ঝোলা · বীজ · পাটালি  ✦  ক্যাশ অন ডেলিভারি  ✦  সারা দেশে ডেলিভারি ৳১০০  ✦  ";
+  let W = 0, chunkLen = 0, off = 0, ph = 0, last = 0;
+  const A = 9, Lw = 300, H = 78, top = 16, bot = 60, mid = 38;
+  const y = (x, base) => base + A * Math.sin((x / Lw) * 2 * Math.PI + ph);
+  function paths() {
+    const xs = []; for (let x = -40; x <= W + 40; x += 12) xs.push(x);
+    fill.setAttribute("d", "M" + xs.map(x => `${x} ${y(x, top).toFixed(1)}`).join(" L") + " L" + xs.slice().reverse().map(x => `${x} ${y(x, bot).toFixed(1)}`).join(" L") + "Z");
+    line.setAttribute("d", "M" + xs.map(x => `${x} ${y(x, mid).toFixed(1)}`).join(" L"));
+  }
+  function setup() {
+    W = box.clientWidth; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); paths();
+    tp.textContent = CHUNK; chunkLen = tp.getComputedTextLength() || 600;
+    tp.textContent = CHUNK.repeat(Math.ceil((W + 200) / chunkLen) + 2);
+  }
+  function tick(t) {
+    const dt = Math.min(50, t - (last || t)); last = t;
+    if (box.offsetParent && !RM) {
+      ph += dt * .0012; paths();
+      off -= dt * .045; if (off < -chunkLen) off += chunkLen; tp.setAttribute("startOffset", off.toFixed(1));
+    }
+    requestAnimationFrame(tick);
+  }
+  document.fonts.ready.then(() => { setup(); requestAnimationFrame(tick); });
+  addEventListener("resize", setup);
+})();
+
+/* ── timeline stops (shared by both roads) ── */
+const HOUSE = `<svg viewBox="0 0 100 100" style="position:absolute;inset:14%"><rect x="20" y="44" width="60" height="44" fill="#f47b5c"/><path d="M12 48 L50 16 L88 48Z" fill="#0f3b4f"/><path d="M42 88 V68 A8 8 0 0 1 58 68 V88Z" fill="#fbd772"/><rect x="62" y="70" width="22" height="18" rx="2" fill="#fffaf2" stroke="#1d2430" stroke-width="2"/><path d="M62 76 H84" stroke="#c2451d" stroke-width="2"/></svg>`;
+const STOPS = [
+  { t: "ভোর ৪টা", h: "রস নামানো", p: "কুয়াশা কাটার আগেই গাছি রসের হাঁড়ি নামিয়ে আনেন।", c: "#3f8f6b", img: "sap.webp", mask: "scallop", under: ["burst", "coral"] },
+  { t: "সকাল ৭টা", h: "জ্বাল দেওয়া", p: "কাঠের আগুনে রস ফোটে। জ্বাল যত, গুড় তত ঘন।", c: "#f47b5c", img: "boil.webp", mask: "blob", under: ["scallop", "yellow"] },
+  { t: "দুপুর ১২টা", h: "তিন রূপে গুড়", p: "কম জ্বালে ঝোলা, আরেকটু জ্বালে বীজ, বেশি জ্বালে পাটালি।", c: "#1f5fd6", img: "trio.png", ct: true, under: ["flower", "lilac"] },
+  { t: "বিকেল", h: "যত্নে প্যাকিং", p: "বয়াম আর পাটালি যত্নে প্যাক করে পাঠানো হয়।", c: "#a8700a", jars: true, under: ["clover", "yellow"] },
+  { t: "১–৩ দিনে", h: "আপনার দরজায়", p: "হাতে পেয়ে টাকা দিন। ডেলিভারি চার্জ ৳১০০।", c: "#0f3b4f", house: true, under: ["star", "green"] },
+];
+const BADGE = ["burst", "sparkle", "flower", "star", "scallop"], BCOL = ["coral", "blue", "green", "coral", "navy"];
+function stopPic(s, i) {
+  let inner;
+  if (s.img && !s.ct) inner = `<span class="frame" style="background-image:url('${s.img}');-webkit-mask-image:${maskOf(s.mask)};mask-image:${maskOf(s.mask)}"></span>`;
+  else if (s.ct) inner = `<span class="frame ct" style="background-image:url(${s.img});inset:10% -6%"></span>`;
+  else if (s.jars) inner = `<span class="frame ct" style="background:none;inset:0"><img src="cut-jhola.webp" alt="" style="position:absolute;left:4%;bottom:14%;width:44%"><img src="cut-patali.webp" alt="" style="position:absolute;right:4%;bottom:14%;width:44%"><img src="cut-bij.webp" alt="" style="position:absolute;left:26%;bottom:22%;width:48%"></span>`;
+  else inner = `<span class="frame ct" style="background:none;inset:0">${HOUSE}</span>`;
+  return `<div class="ra-pic">${svgOf(s.under[0], s.under[1])}${inner}<span class="ra-badge"><span class="spin" style="position:absolute;inset:0;--t:14s">${svgOf(BADGE[i], BCOL[i])}</span><b>${bn(i + 1)}</b></span></div>`;
+}
+const stopTxt = s => `<div class="ra-txt" style="--c:${s.c}"><small>${s.t}</small><h3>${s.h}</h3><p>${s.p}</p></div>`;
+const RA = [
+  { t: "ভোর ৪টা", h: "রস নামানো", p: "কুয়াশা কাটার আগেই গাছি রসের হাঁড়ি নামিয়ে আনেন।", img: "st-tap.webp", r1: "-14deg", r2: "-4deg" },
+  { t: "সকাল ৭টা", h: "জ্বাল দেওয়া", p: "কাঠের আগুনে রস ফোটে। জ্বাল যত, গুড় তত ঘন।", img: "st-boil.webp", r1: "16deg", r2: "3deg" },
+  { t: "দুপুর ১২টা", h: "তিন রূপে গুড়", p: "কম জ্বালে ঝোলা, আরেকটু জ্বালে বীজ, বেশি জ্বালে পাটালি।", img: "trio.png", trio: true, r1: "-10deg", r2: "-2deg" },
+];
+$("#raStops").innerHTML = RA.map((s, i) => `<article class="rs" data-side="${i % 2 ? "r" : "l"}" style="--r1:${s.r1};--r2:${s.r2}">
+  <div class="rs-st"><img ${s.trio ? 'class="trio-st" ' : ""}src="${s.img}" alt="${s.h}" loading="lazy"></div>
+  <div class="rs-sign"><small><i>${bn(i + 1)}</i>${s.t}</small><h3>${s.h}</h3></div>
+  <p class="rs-p">${s.p}</p>${i === RA.length - 1 ? '<a class="btn sm" href="#orderK" data-go>এই গুড় অর্ডার করুন</a>' : ""}</article>`).join("");
+$("#hrTrack").innerHTML = STOPS.map((s, i) => `<article class="hr-card">${stopPic(s, i)}${stopTxt(s)}${i === 4 ? '<a class="btn sm" href="#orderK" data-go style="margin-top:10px">অর্ডার করুন</a>' : ""}</article>`).join("");
+$("#hrProg").innerHTML = STOPS.map((s, i) => `<i>${svgOf(BADGE[i], BCOL[i])}</i>`).join("");
+
+/* ── hero word roll ── */
+let rw = 0; const rws = [...document.querySelectorAll("#rollA span")];
+if (!RM) setInterval(() => { const a = rws[rw]; rw = (rw + 1) % 3; const b = rws[rw]; a.classList.replace("cur", "off"); b.classList.remove("off"); b.style.transition = "none"; b.offsetWidth; b.style.transition = ""; b.classList.add("cur"); setTimeout(() => a.classList.remove("off"), 500); }, 2300);
+
+/* ── A: winding road; the van follows scroll ── */
+let raLen = 0, raStops = [], raTick = 0, raCur = 0, raTarget = 0, raAng = 90, raRun = false, raPuff = 0, raKm = [];
+function raBuild() {
+  const body = $("#raBody"), B = body.getBoundingClientRect(); if (!B.width) return;
+  const W = B.width, stops = [...body.querySelectorAll(".rs")].map(st => { const r = st.getBoundingClientRect(), im = st.querySelector(".rs-st").getBoundingClientRect(); return { l: st.dataset.side === "l", top: r.top - B.top, bot: r.bottom - B.top, mid: im.top - B.top + im.height / 2 }; });
+  const lane = l => l ? W * .86 : W * .14;
+  let x = lane(stops[0].l), d = `M${x} ${stops[0].top - 6} L${x} ${stops[0].top + 20}`;
+  stops.forEach((s, i) => {
+    const x0 = lane(s.l), n = stops[i + 1];
+    if (n) { const x1 = lane(n.l), y0 = s.bot + 6, y1 = n.top + 10, g = y1 - y0; d += ` L${x0} ${y0} C${x0} ${y0 + g * .8}, ${x1} ${y1 - g * .8}, ${x1} ${y1}`; }
+    else d += ` L${x0} ${s.bot - 30}`;
+  });
+  const H = stops[stops.length - 1].bot, svg = $("#raSvg");
+  svg.setAttribute("width", W); svg.setAttribute("height", H + 40); svg.setAttribute("viewBox", `0 -40 ${W} ${H + 40}`); svg.style.top = "-40px";
+  svg.querySelectorAll("path").forEach(p => p.setAttribute("d", d));
+  const done = svg.querySelector(".rd-done"); raLen = done.getTotalLength(); done.style.strokeDasharray = raLen;
+  raStops = stops.map(s => raAtY(done, s.mid));
+  // roadside props: km stones, trees, finish line
+  const props = $("#raProps"), at = L => { const a = done.getPointAtLength(L), b = done.getPointAtLength(Math.min(raLen, L + 1)); const ang = Math.atan2(b.y - a.y, b.x - a.x); return { x: a.x, y: a.y, nx: -Math.sin(ang), ny: Math.cos(ang), ang }; };
+  let html = ""; raKm = [];
+  for (let L = 220, k = 1; L < raLen - 80; L += 300, k++) {
+    const p = at(L), side = k % 2 ? 1 : -1, oy = p.y + p.ny * 44 * side; let ox = p.x + p.nx * 44 * side; if (ox < 18 || ox > W - 18) ox = p.x - p.nx * 44 * side;
+    html += `<span class="km" data-l="${L}" style="left:${ox}px;top:${oy}px"><svg viewBox="0 0 30 36"><path d="M3 34 V12 A12 12 0 0 1 27 12 V34Z" fill="#fffaf2" stroke="#1d2430" stroke-width="2"/><path d="M3 14 A12 12 0 0 1 27 14 V16 H3Z" fill="#f47b5c"/><text x="15" y="29" text-anchor="middle" font-family="Noto Serif Bengali" font-size="11" font-weight="900" fill="#1d2430">${bn(k * 2)}</text></svg></span>`;
+    const q = at(L + 150), ts = -side; html += `<span class="tree" style="left:${q.x + q.nx * 46 * ts}px;top:${q.y + q.ny * 46 * ts}px">${svgOf(["clover", "blob", "flower"][k % 3], "green")}</span>`;
+  }
+  const e = at(raLen - 2); html += `<span class="finish" style="left:${e.x}px;top:${e.y}px;transform:rotate(${e.ang * 180 / Math.PI + 90}deg)"></span>`;
+  props.innerHTML = html; raKm = [...props.querySelectorAll(".km")];
+  raCur = Math.min(raCur, raLen); raScroll(); raDraw(raCur);
+}
+function raAtY(path, y) { let lo = 0, hi = raLen; for (let k = 0; k < 24; k++) { const m = (lo + hi) / 2; if (path.getPointAtLength(m).y < y) lo = m; else hi = m; } return lo; }
+function raDraw(len) {
+  const done = $("#raSvg .rd-done"); if (!done) return;
+  done.style.strokeDashoffset = raLen - len;
+  const a = done.getPointAtLength(len), b = done.getPointAtLength(Math.min(raLen, len + 3)), want = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  let dA = ((want - raAng + 540) % 360) - 180; raAng += dA * .25;
+  $("#raVan").style.transform = `translate(${a.x}px,${a.y}px) rotate(${raAng}deg)`;
+  document.querySelectorAll("#raStops .rs").forEach((el, i) => el.classList.toggle("lit", len >= raStops[i] - 120 || RM));
+  raKm.forEach(k => k.classList.toggle("on", len >= +k.dataset.l - 20));
+  return a;
+}
+function raLoop(t) {
+  const prev = raCur; raCur += (raTarget - raCur) * .12; if (Math.abs(raTarget - raCur) < .4) raCur = raTarget;
+  const a = raDraw(raCur);
+  if (a && Math.abs(raCur - prev) > 1.2 && t - raPuff > 110) {
+    raPuff = t; const r = raAng * Math.PI / 180, p = document.createElement("span"); p.className = "puff";
+    p.style.left = `${a.x - Math.cos(r) * 30}px`; p.style.top = `${a.y - Math.sin(r) * 30}px`; $("#raBody").append(p); setTimeout(() => p.remove(), 950);
+  }
+  if (raCur !== raTarget) requestAnimationFrame(raLoop); else raRun = false;
+}
+function raScroll() {
+  raTick = 0; if (root.dataset.v !== "a" || !raLen) return;
+  const done = $("#raSvg .rd-done"), B = $("#raBody").getBoundingClientRect();
+  raTarget = RM ? raLen : Math.max(0, Math.min(raLen, raAtY(done, innerHeight * .58 - B.top + 40)));
+  if (RM) { raCur = raTarget; raDraw(raCur); return; }
+  if (!raRun) { raRun = true; requestAnimationFrame(raLoop); }
+}
+
+/* ── B: pinned horizontal road ── */
+const HR_TIMES = STOPS.map(s => s.t), HR_KM = ["যাত্রা শুরু", "২ কিমি", "৫ কিমি", "রওনা হলো", "পৌঁছে গেছে"];
+let hrSpan = 0, hrStep = -1, hrTick = 0;
+function hrMeasure() { const t = $("#hrTrack"), c = t.children; if (!c.length || !t.offsetWidth) return; hrSpan = (c[c.length - 1].offsetLeft + c[c.length - 1].offsetWidth / 2) - (c[0].offsetLeft + c[0].offsetWidth / 2); hrScroll(); }
+function hrScroll() {
+  hrTick = 0; if (root.dataset.v !== "b" || RM) return;
+  const sec = $("#hr"), r = sec.getBoundingClientRect(), total = sec.offsetHeight - innerHeight; if (total <= 0) return;
+  const p = Math.min(1, Math.max(0, -r.top / total)), n = STOPS.length - 1;
+  const raw = p * n, base = Math.min(n - 1, Math.floor(raw)), fr = raw - base, t = Math.min(1, Math.max(0, (fr - .3) / .4)), e = p >= 1 ? n : base + t * t * (3 - 2 * t);
+  const dist = e / n * hrSpan;
+  $("#hrTrack").style.transform = `translate3d(${-dist}px,0,0)`;
+  $("#hrLane").style.backgroundPosition = `${-dist * 1.6}px 0`; $("#hrGrass").style.backgroundPosition = `${-dist * 1.1}px 0`;
+  const rot = dist * 2.2; $("#whA").style.transform = $("#whB").style.transform = `rotate(${rot}deg)`;
+  const s = Math.round(e);
+  if (s !== hrStep) { hrStep = s; [...$("#hrTrack").children].forEach((c, i) => c.classList.toggle("on", i === s)); [...$("#hrProg").children].forEach((c, i) => c.classList.toggle("on", i <= s)); $("#hrClock").textContent = HR_TIMES[s]; $("#hrKm").textContent = HR_KM[s]; }
+}
+
+new IntersectionObserver(([e]) => { if (e.isIntersecting) $(".ra-head").classList.add("on"); }, { threshold: .4 }).observe($(".ra-head"));
+/* ── scroll plumbing ── */
+let pTick = 0;
+function parallax() { pTick = 0; if (RM) return; decoEls.forEach(({ el, par, sec }) => { if (!sec.offsetParent) return; const r = sec.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) return; el.style.translate = `0 ${(r.top + r.height / 2 - innerHeight / 2) * par}px`; }); }
+addEventListener("scroll", () => { if (!raTick) raTick = requestAnimationFrame(raScroll); if (!hrTick) hrTick = requestAnimationFrame(hrScroll); if (!pTick) pTick = requestAnimationFrame(parallax); }, { passive: true });
+addEventListener("resize", () => { raBuild(); hrMeasure(); });
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add("in"); }), { threshold: .2 });
+
+/* ── memo (আমসত্ত্ব checkout) ── */
+const rows = []; P.forEach((p, i) => p.sizes.forEach((z, j) => rows.push({ i, p, z, q: 0 })));
+function renderMemo() {
+  $("#kmPacks").innerHTML = rows.map((r, k) => `<div class="v1-memo-pack" data-checked="${r.q > 0}"><label><input class="sr-only" type="checkbox" data-km="${k}" ${r.q ? "checked" : ""}><span class="dot" aria-hidden="true"></span><span class="lbl"><b>${r.p.name}</b> · ${r.z.l}${r.z.c ? `<em class="off">${bn(Math.round((1 - r.z.p / r.z.c) * 100))}% ছাড়</em>` : ""}<small>${r.p.use.join(" · ")}</small></span></label>
+    <div class="end"><span class="pr">${tk(r.z.p)}${r.z.c ? `<s>${tk(r.z.c)}</s>` : ""}</span>${r.q ? `<div class="skx-qty" role="group"><button type="button" data-kmq="${k}:-1" aria-label="কমান">−</button><output>${bn(r.q)}</output><button type="button" data-kmq="${k}:1" aria-label="বাড়ান">+</button></div>` : ""}</div></div>`).join("");
+  const sub = rows.reduce((t, r) => t + r.q * r.z.p, 0);
+  $("#kmSub").textContent = tk(sub); $("#kmTot").textContent = $("#kmBtnTot").textContent = sub ? tk(sub + 100) : "—"; $("#kmSubmit").disabled = !sub;
+}
+$("#kmPacks").addEventListener("change", e => { const c = e.target.closest("[data-km]"); if (c) { rows[+c.dataset.km].q = c.checked ? 1 : 0; renderMemo(); } });
+$("#kmPacks").addEventListener("click", e => { const b = e.target.closest("[data-kmq]"); if (!b) return; e.preventDefault(); const [k, d] = b.dataset.kmq.split(":").map(Number); rows[k].q = Math.max(0, Math.min(9, rows[k].q + d)); renderMemo(); });
+rows[0].q = 1; renderMemo();
+const rail = $("#kmRail"), caps = [...$("#kmCaps").children];
+rail.addEventListener("scroll", () => { const a = Math.round(rail.scrollLeft / Math.max(rail.clientWidth, 1)); caps.forEach((c, j) => c.setAttribute("aria-current", j === a)); }, { passive: true });
+caps.forEach((c, j) => c.addEventListener("click", () => rail.scrollTo({ left: j * rail.clientWidth, behavior: RM ? "auto" : "smooth" })));
+const foot = $("#kmFoot"); new IntersectionObserver(([e]) => { foot.dataset.visible = e.isIntersecting; if (e.isIntersecting) foot.classList.add("is-in"); }, { threshold: .2 }).observe(foot);
+function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 1700); }
+document.addEventListener("click", e => {
+  const g = e.target.closest("[data-go]"); if (g) { e.preventDefault(); $("#orderK").scrollIntoView({ behavior: RM ? "auto" : "smooth" }); return; }
+  const j = e.target.closest("[data-jump]"); if (j) { e.preventDefault(); $("#hr").scrollIntoView({ behavior: RM ? "auto" : "smooth" }); return; }
+  const a = e.target.closest("[data-add]"); if (a) { const r = rows.find(x => x.i === +a.dataset.add); if (r && !r.q) { r.q = 1; renderMemo(); } toast(`${P[+a.dataset.add].name} মেমোতে যোগ হয়েছে`); }
+  if (e.target.closest("#kmSubmit")) toast("মকআপ — অর্ডার পাঠানো হয়নি");
+});
+
+/* ── footer variants ── */
+const MQ = `<span>খেজুরের গুড়</span><i>${svgOf("sparkle", "coral")}</i><span>সেরা খাবার</span><i>${svgOf("flower", "green")}</i>`;
+document.querySelectorAll("#ftw .mq-in").forEach(el => el.innerHTML = MQ.repeat(6));
+document.querySelectorAll("#ftw [data-shape]").forEach(el => el.innerHTML = svgOf(el.dataset.shape, el.dataset.c));
+const ftIo = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add("in"); }), { threshold: .2 });
+document.querySelectorAll("#ftw .ft").forEach(el => ftIo.observe(el));
+document.querySelector(".fts")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-ftb]"); if (!b) return;
+  $("#ftw").dataset.ft = b.dataset.ftb; document.querySelectorAll("[data-ftb]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  document.querySelectorAll("#ftw .ft").forEach(el => { el.classList.remove("in"); ftIo.unobserve(el); ftIo.observe(el); });
+  $("#ftw").scrollIntoView({ block: "end" });
+});
+/* ── sticky bar + variant switch ── */
+let heroGone = false, orderIn = false;
+const barIo = new IntersectionObserver(es => es.forEach(e => { if (e.target.id === "orderK") orderIn = e.isIntersecting; else heroGone = !e.isIntersecting && e.boundingClientRect.top < 0; $("#bar").classList.toggle("show", heroGone && !orderIn); }));
+function setV(v) {
+  root.dataset.v = v; document.querySelectorAll(".vs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.set === v));
+  document.querySelectorAll(".sp .in").forEach(el => el.classList.remove("in")); io.disconnect(); barIo.disconnect();
+  history.replaceState(null, "", "#" + v); scrollTo({ top: 0 });
+  const go = () => requestAnimationFrame(() => {
+    document.querySelectorAll(`[data-only="${v}"] [data-io], .am-k`).forEach(el => io.observe(el));
+    barIo.observe($("#orderK")); barIo.observe(document.querySelector(`[data-only="${v}"] [data-hero]`));
+    raBuild(); hrMeasure(); hrStep = -1; hrScroll(); setTimeout(() => { raBuild(); hrMeasure(); }, 700);
+  });
+  Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 900))]).then(go);
+}
+document.querySelector(".vs").addEventListener("click", e => { const b = e.target.closest("[data-set]"); if (b) setV(b.dataset.set); });
+document.querySelectorAll("img").forEach(im => im.complete || im.addEventListener("load", () => { raBuild(); hrMeasure(); }, { once: true }));
+setV(location.hash === "#b" ? "b" : "a");
+</script>
+</body>
+</html>
