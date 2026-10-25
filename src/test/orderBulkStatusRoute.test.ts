@@ -64,6 +64,7 @@ function fixture(seed: Row[], options: { onOrdersUpdate?: (tables: Record<string
     "MAX_EVENT_INSERT_ATTEMPTS", "BULK_STATUS_STALE_REASON", "BULK_STATUS_WRITE_FAILED_REASON",
     "prepareStatusEvent", "buildOperationRequestId", "recordStatusEvent", "recordOrderActivity", "recordStatusEvents", "recordOrderActivities",
     "isMissingDetailedActivityTable", "delay", "errorMessage", "sendError", "chunkIds", "normalizeBusinessStatus",
+    "staffCache", "getOrgStaff", "getActiveOrgStaff", "getStaffNameMap",
   ], [`app.post("${ROUTE}"`]);
   const count = (table: string, method: string) => db.calls.filter((call) => call.table === table && call.method === method).length;
   return { app: harness.app, db, risk, count };

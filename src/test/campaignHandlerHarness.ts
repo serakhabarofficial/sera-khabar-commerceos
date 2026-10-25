@@ -8,6 +8,7 @@ import * as abandoned from "../../server/abandonedCheckouts.js";
 import * as clientContext from "../../server/clientContext.js";
 import * as campaignEvents from "../../server/campaignEvents.js";
 import { normalizeBusinessReportSource } from "../../server/businessReport.js";
+import { createIdCache } from "../../server/idCache.js";
 import crypto from "node:crypto";
 
 export const orgId = "11111111-1111-4111-8111-111111111111";
@@ -108,6 +109,7 @@ export function handlers(db: ReturnType<typeof database>, extras: Record<string,
     // jsdom's AbortSignal lacks Node's timeout(); handlers use it for bounded optional lookups.
     AbortSignal: { timeout: (ms: number) => { const controller = new AbortController(); setTimeout(() => controller.abort(), ms); return controller.signal; } },
     getServiceSupabase: () => db,
+    createIdCache,
     getToken: (req: express.Request) => req.headers.authorization,
     getUser: async (token: string) => ({ user: token ? { id: uuid(1) } : null }),
     getUserOrg: async () => ({ orgId }),

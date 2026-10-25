@@ -32,7 +32,7 @@ function fixture(seed: Record<string, Record<string, unknown>[]> = {}) {
     sendError: (res: { status: (code: number) => { json: (body: unknown) => unknown } }, e: Error) => res.status(500).json({ error: e.message }),
   });
   harness.load(
-    ["ORDER_ID_RE", "ORDER_CALL_FIELDS", "ORDER_CALLS_LIMIT", "ORDER_CALL_INCOMING_WINDOW_MS", "hashCallHelperKey", "formatCallDuration", "orderCallSummary", "recordOrderCallActivity", "withStaffNames", "parseOrderCallDetails", "activeCallHelperKey"],
+    ["ORDER_ID_RE", "ORDER_CALL_FIELDS", "ORDER_CALLS_LIMIT", "ORDER_CALL_INCOMING_WINDOW_MS", "hashCallHelperKey", "formatCallDuration", "orderCallSummary", "recordOrderCallActivity", "withStaffNames", "staffCache", "getOrgStaff", "getActiveOrgStaff", "getStaffNameMap", "parseOrderCallDetails", "activeCallHelperKey"],
     ['app.get("/api/orders/:id/calls"', 'app.post("/api/orders/:id/calls"', 'app.patch("/api/order-calls/:id"', 'app.get("/api/order-calls/helper-key"', 'app.post("/api/order-calls/helper-key"', 'app.get("/api/order-calls/incoming"', 'app.post("/api/webhooks/microsip"'],
   );
   return { ...harness, db, activity };

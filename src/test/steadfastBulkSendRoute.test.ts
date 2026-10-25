@@ -76,6 +76,7 @@ function fixture(seed: Row[], options: { reply?: (payload: Row[]) => Reply; look
     "isOrderDispatched", "getCourierOrderItems", "formatCourierItems", "readableVariantName", "variantDisplay",
     "buildOperationRequestId", "recordOrderActivity", "recordOrderActivities", "isMissingDetailedActivityTable", "delay",
     "errorMessage", "sendError", "chunkIds", "normalizeBusinessStatus", "normalizeOperationalFailureCode",
+    "staffCache", "getOrgStaff", "getActiveOrgStaff", "getStaffNameMap",
   ], [`app.post("${CHECK}"`, `app.post("${SEND}"`, `app.post("${SINGLE}", `]);
   const saved = (n: number) => db.tables.orders.find((row) => row.id === uuid(n))!;
   return { app: harness.app, db, fetch, lookupSteadfastInvoice, sendBulkSms, sentPayloads, messagesAtSend, saved };
