@@ -68,6 +68,10 @@ const MOVE_TARGET_LABELS: Record<Exclude<MoveTarget, "keep">, string> = {
   approved: "Confirmed",
 };
 
+// The start-up reload throws this when the checkout left the queue, usually
+// because the customer placed an order and it was closed as "already ordered".
+const CHECKOUT_CLOSED = "Checkout is no longer active";
+
 const EMPTY_HOLD_DETAILS: OrderHoldMetadata = { hold_reason_code: null, hold_reason_detail: null, hold_until_date: null };
 
 function customerFromDraft(draft: AbandonedCheckout): CustomerDraft {
@@ -275,13 +279,19 @@ export default function AbandonedDetail() {
     if (!response.ok) throw new Error("Could not refresh checkout");
     const latest = await response.json() as AbandonedCheckoutResponse;
     const fresh = latest.checkouts.find(item => item.id === draftId);
-    if (!fresh) throw new Error("Checkout is no longer active");
+    if (!fresh) throw new Error(CHECKOUT_CLOSED);
     // A retained draft must keep the version it was based on. Cache updates may
     // inform other screens, but only a clean editor adopts the refreshed record.
     if (!dirty) initializeCheckout(fresh);
     queryClient.setQueryData(["/api/abandoned-checkouts"], latest);
   } });
   const canEdit = handling.canEdit && Boolean(checkout) && !listQuery.isError;
+  const checkoutClosed = Boolean(checkout) && handling.status === "error" && handling.error === CHECKOUT_CLOSED;
+  const refetchOrders = ordersQuery.refetch;
+  // Refresh orders so the customer's new order can be linked.
+  useEffect(() => {
+    if (checkoutClosed) void refetchOrders();
+  }, [checkoutClosed, refetchOrders]);
 
   function addCatalogItem(product: CatalogProduct, variant?: CatalogVariant) {
     setDraft((items) => upsertCartItem(items, product, variant));
@@ -563,7 +573,25 @@ export default function AbandonedDetail() {
         {checkout && <OrderEditorTabSwitch value={editorTab} onChange={setEditorTab} className="sm:ml-auto" />}
       </div>
 
-      {pendingMatches.length > 0 && (
+      {checkoutClosed ? (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg bg-status-rose-background/60 px-4 py-3 text-[13px] text-status-rose-text">
+          <Warning weight="light" size={18} aria-hidden className="shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">{pendingMatches.length > 0 ? "Customer already ordered" : "This checkout was closed"}</p>
+            <p className="mt-0.5">
+              {pendingMatches.length > 0
+                ? `This checkout was closed because ${pendingOrderLabel(pendingMatches[0])} is waiting in Pending.`
+                : "It is no longer in the incomplete orders queue, so it can only be viewed."}
+            </p>
+          </div>
+          {pendingMatches.length > 0 && (
+            <Link to={`/orders/${pendingMatches[0].id}`} className="rounded-lg bg-black px-3 py-2 text-xs font-medium text-white">
+              Open order {pendingOrderLabel(pendingMatches[0])}
+            </Link>
+          )}
+          <button type="button" onClick={goBack} className="rounded-lg px-3 py-2 text-xs font-medium text-black">Back to incomplete orders</button>
+        </div>
+      ) : pendingMatches.length > 0 && (
         <div role="status" className="flex items-start gap-2 rounded-[6px] bg-status-rose-background/60 px-3 py-2 text-[13px] text-status-rose-text">
           <Warning weight="light" size={16} aria-hidden className="mt-0.5 shrink-0" />
           <p>
@@ -590,7 +618,7 @@ export default function AbandonedDetail() {
         </div>
       )}
 
-      <OrderHandlingNotice handling={handling} dirty={dirty} onBack={goBack} />
+      {!checkoutClosed && <OrderHandlingNotice handling={handling} dirty={dirty} onBack={goBack} />}
       <OrderHandlingWorkspace canEdit={canEdit} onDraftChange={() => setTouched(true)}>
       {!checkout ? (
         listQuery.isLoading ? (
