@@ -332,7 +332,7 @@ export function DateRangePicker({
    * "toolbar" drops the animated beam ring and matches the h-9 toolbar controls.
    * "plain" is a borderless text trigger showing the preset name (Home's metric strip).
    */
-  variant?: "beam" | "toolbar" | "plain";
+  variant?: "beam" | "toolbar" | "plain" | "segment";
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pendingValue, setPendingValue] = useState<DateRangeValue | null>(toDateRangeValue(value));
@@ -364,8 +364,12 @@ export function DateRangePicker({
       ref={triggerRef}
       data-testid="button-date-range-picker"
       className={cn(
-        "flex items-center gap-2 px-3 text-[11px] font-medium text-foreground/70 hover:text-foreground border border-border hover:border-foreground/30 rounded-lg bg-background transition-all",
-        variant === "toolbar" ? "h-9 whitespace-nowrap" : "h-8",
+        variant === "segment"
+          // A segment of a filter capsule: borderless, full height, tinted while a date is set.
+          ? cn("flex h-full items-center gap-2 whitespace-nowrap px-3 text-[12px] font-medium outline-none transition-colors focus-visible:bg-black/[0.05]",
+              value?.from ? "bg-[#EEF4FF] pr-9 text-[#1D4ED8] hover:bg-[#E4EDFF]" : "text-black/70 hover:bg-black/[0.035] hover:text-black")
+          : "flex items-center gap-2 px-3 text-[11px] font-medium text-foreground/70 hover:text-foreground border border-border hover:border-foreground/30 rounded-lg bg-background transition-all",
+        variant === "toolbar" ? "h-9 whitespace-nowrap" : variant === "segment" ? "" : "h-8",
         // Leaves room for the reset × so it sits beside the arrow, not on it.
         variant === "toolbar" && value?.from && "pr-9",
       )}
@@ -425,9 +429,9 @@ export function DateRangePicker({
   if (!children) {
     return (
       <DialogTrigger isOpen={isOpen} onOpenChange={handleOpenChange}>
-        <span className={cn(variant === "toolbar" || variant === "plain" ? "relative inline-flex" : "uv-beam rounded-full", triggerClassName)}>
+        <span className={cn(variant === "segment" ? "relative flex h-full" : variant === "toolbar" || variant === "plain" ? "relative inline-flex" : "uv-beam rounded-full", triggerClassName)}>
           {trigger}
-          {variant === "toolbar" && value?.from && (
+          {(variant === "toolbar" || variant === "segment") && value?.from && (
             <button
               type="button"
               aria-label="Reset date range"
