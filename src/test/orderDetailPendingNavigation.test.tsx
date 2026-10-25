@@ -16,6 +16,8 @@ vi.mock("@/components/order-editor/CustomerDossier", () => ({
     order: { customer_name?: string };
     customer: { customerName: string; phone: string; address: string };
     onApply: (customer: { customerName: string; phone: string; address: string }) => void;
+    note?: string;
+    onNoteChange?: (note: string) => void;
   }) =>
     createElement(
       "div",
@@ -26,6 +28,8 @@ vi.mock("@/components/order-editor/CustomerDossier", () => ({
         { onClick: () => props.onApply({ ...props.customer, phone: "01799999999" }) },
         "Change phone",
       ),
+      createElement("span", { "data-testid": "order-note" }, props.note ?? ""),
+      createElement("button", { onClick: () => props.onNoteChange?.("Call after 5pm") }, "Write note"),
     ),
 }));
 vi.mock("@/components/order-editor/OrderSavePanel", () => ({
@@ -172,6 +176,31 @@ describe("pending order prev/next navigation", () => {
     } finally {
       successSpy.mockRestore();
     }
+  });
+
+  it("loads the order note and saves an edited note with the order", async () => {
+    const user = userEvent.setup();
+    apiFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return Promise.resolve(response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() }));
+      if (url === "/api/orders/order-1" && init?.method === "PATCH") return Promise.resolve(response({ order: { ...orderOne, notes: "Call after 5pm" } }));
+      if (url === "/api/orders/order-1") return Promise.resolve(response({ order: { ...orderOne, notes: "Gift wrap" }, items: [], canEditItems: true }));
+      if (url === "/api/products") return Promise.resolve(response({ products: [] }));
+      if (url === "/api/orders") return Promise.resolve(response({ orders: [orderOne, orderTwo] }));
+      return Promise.resolve(response({}));
+    });
+
+    renderOrderDetail(["order-1", "order-2"]);
+
+    expect(await screen.findByTestId("order-note")).toHaveTextContent("Gift wrap");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Write note" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Write note" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const call = apiFetch.mock.calls.filter(([url, init]) => url === "/api/orders/order-1" && init?.method === "PATCH").at(-1);
+      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ notes: "Call after 5pm" });
+    });
+    await waitFor(() => expect(screen.getByTestId("order-note")).toHaveTextContent("Call after 5pm"));
   });
 
   it("shows pending nav in a new tab from the stored snapshot", async () => {

@@ -220,6 +220,7 @@ export default function OrderDetail() {
   const [deliveryRate, setDeliveryRate] = useState(DEFAULT_DELIVERY_FEE);
   const [statusDraft, setStatusDraft] = useState<string | null>(null);
   const [sourceDraft, setSourceDraft] = useState<OrderSource | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
   const [holdDetailsDraft, setHoldDetailsDraft] = useState<OrderHoldMetadata>({
     hold_reason_code: null,
     hold_reason_detail: null,
@@ -293,6 +294,7 @@ export default function OrderDetail() {
     setDeliveryOn(savedDeliveryRate > 0);
     setStatusDraft(detailQuery.data.order.status ?? null);
     setSourceDraft(normalizeOrderSource(detailQuery.data.order.source));
+    setNotesDraft(detailQuery.data.order.notes ?? "");
     setHoldDetailsDraft({
       hold_reason_code: detailQuery.data.order.hold_reason_code ?? null,
       hold_reason_detail: detailQuery.data.order.hold_reason_detail ?? null,
@@ -349,6 +351,7 @@ export default function OrderDetail() {
   const statusChanged = statusDraft !== (order?.status ?? null);
   const sourceEditable = canChangeOrderSource(order);
   const sourceChanged = sourceEditable && sourceDraft !== null && sourceDraft !== normalizeOrderSource(order?.source);
+  const notesChanged = notesDraft.trim() !== (order?.notes ?? "").trim();
   const holdDetailsChanged = holdDetailsDraft.hold_reason_code !== (order?.hold_reason_code ?? null)
     || holdDetailsDraft.hold_reason_detail !== (order?.hold_reason_detail ?? null)
     || holdDetailsDraft.hold_until_date !== (order?.hold_until_date ?? null);
@@ -378,7 +381,7 @@ export default function OrderDetail() {
     return draft.filter((item) => Number(item.quantity) > (initial.get(orderItemActivityKey(item)) || 0)).map(orderItemActivityKey);
   }, [detail?.items, draft]);
   const cancellationRequired = ["cancelled", "canceled"].includes((statusDraft || "").toLowerCase()) && !["cancelled", "canceled"].includes((order?.status || "").toLowerCase());
-  const dirty = touched || Boolean(detail && (JSON.stringify(customer) !== JSON.stringify(customerFromOrder(detail.order)) || !cartsMatch(draft, detail.items) || overallChanged || deliveryChanged || advanceChanged || proofChanged || statusChanged || sourceChanged || holdDetailsChanged));
+  const dirty = touched || Boolean(detail && (JSON.stringify(customer) !== JSON.stringify(customerFromOrder(detail.order)) || !cartsMatch(draft, detail.items) || overallChanged || deliveryChanged || advanceChanged || proofChanged || statusChanged || sourceChanged || notesChanged || holdDetailsChanged));
   const handling = useOrderHandling("order", id, { beforeStart: async () => {
     const response = await apiFetch(`/api/orders/${id}`);
     if (!response.ok) throw new Error("Could not refresh order");
@@ -432,7 +435,7 @@ export default function OrderDetail() {
   async function save() {
     if (!canEdit || !detail || !order || !id || detailQuery.isPlaceholderData || saving) return;
     const originalCustomer = customerFromOrder(order);
-    const detailsChanged = JSON.stringify(customer) !== JSON.stringify(originalCustomer) || sourceChanged;
+    const detailsChanged = JSON.stringify(customer) !== JSON.stringify(originalCustomer) || sourceChanged || notesChanged;
     const cartChanged = !cartsMatch(draft, detail.items);
     if (!detailsChanged && !cartChanged && !overallChanged && !deliveryChanged && !advanceChanged && !proofChanged && !statusChanged && !holdDetailsChanged) {
       if (!hasQueueNav) goBack();
@@ -487,6 +490,7 @@ export default function OrderDetail() {
             phone: customer.phone.trim(),
             address: customer.address.trim(),
             ...(sourceChanged ? { source: sourceDraft } : {}),
+            ...(notesChanged ? { notes: notesDraft.trim() || null } : {}),
             activity_group_id: activityGroupId,
             ...(expectedVersion ? { expected_updated_at: expectedVersion } : {}),
           }),
@@ -558,6 +562,7 @@ export default function OrderDetail() {
       setDeliveryOn(savedDeliveryRate > 0);
       setStatusDraft(currentOrder.status ?? null);
       setSourceDraft(normalizeOrderSource(currentOrder.source));
+      setNotesDraft(currentOrder.notes ?? "");
       setHoldDetailsDraft({
         hold_reason_code: currentOrder.hold_reason_code ?? null,
         hold_reason_detail: currentOrder.hold_reason_detail ?? null,
@@ -653,7 +658,7 @@ export default function OrderDetail() {
             }
             details={
               <div data-testid="order-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 gap-3 xl:h-[calc(100dvh-8.75rem)] xl:min-h-[600px] xl:grid-cols-[380px_minmax(0,1fr)]">
-                <CustomerDossier className="rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={order} customer={customer} disabled={saving || !canEdit} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} calls={callSteps} />
+                <CustomerDossier className="rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={order} customer={customer} disabled={saving || !canEdit} history={history} historyLoading={historyQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`, siblingState ? { state: siblingState } : undefined)} onApply={setCustomer} source={sourceEditable && sourceDraft ? sourceDraft : normalizeOrderSource(order.source)} originSource={order.origin_source} onSourceChange={sourceEditable ? setSourceDraft : undefined} smsAmount={amountDue} smsAdvancePaid={clampedAdvance} calls={callSteps} note={notesDraft} onNoteChange={setNotesDraft} />
                 <section aria-label="Order cart" className="flex min-h-0 min-w-0 flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-black/[0.07] sm:p-5 xl:overflow-y-auto">
                   {cartLocked && <p className="rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-800">Editing is locked after courier dispatch.</p>}
                   <ProductPicker products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEditCart} locked={cartLocked} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} cartItems={draft} />
