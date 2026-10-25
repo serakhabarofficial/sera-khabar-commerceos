@@ -32,14 +32,19 @@ type OrderItemsTableProps = {
   onAdditionReasonChange?: (itemKey: string, reason: AdditionReason) => void;
   /** Replaces the read-only unit price, e.g. New Order's editable price. */
   renderUnitPrice?: (item: OrderEditorItem) => ReactNode;
+  /** Incomplete checkouts have no discounts, so they hide the column. */
+  showDiscount?: boolean;
 };
 
 const COLUMNS = "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.6fr)_minmax(128px,0.9fr)_88px_auto_auto_92px_32px]";
 const COLUMNS_EDITABLE_PRICE = "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.4fr)_minmax(120px,0.8fr)_136px_auto_auto_92px_32px]";
+const COLUMNS_NO_DISCOUNT = "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.6fr)_minmax(128px,0.9fr)_88px_auto_92px_32px]";
+const RIGHT_ALIGNED_HEADINGS = new Set(["Unit", "Qty", "Line"]);
 
 /** The order lines as an editable table: weight, discount, quantity and line total per row. */
-export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, onRemove, onDiscount, onChangeVariant, requiredAdditionReasonKeys = [], additionReasons = {}, onAdditionReasonChange, renderUnitPrice }: OrderItemsTableProps) {
-  const columns = renderUnitPrice ? COLUMNS_EDITABLE_PRICE : COLUMNS;
+export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, onRemove, onDiscount, onChangeVariant, requiredAdditionReasonKeys = [], additionReasons = {}, onAdditionReasonChange, renderUnitPrice, showDiscount = true }: OrderItemsTableProps) {
+  const columns = renderUnitPrice ? COLUMNS_EDITABLE_PRICE : showDiscount ? COLUMNS : COLUMNS_NO_DISCOUNT;
+  const headings = ["Product", "Weight", "Unit", ...(showDiscount ? ["Discount"] : []), "Qty", "Line", ""];
   if (items.length === 0) {
     return (
       <div className="grid place-items-center gap-2 py-14 text-center">
@@ -52,8 +57,8 @@ export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, 
   return (
     <div role="table" aria-label="Order items" className="min-w-0">
       <div role="row" className={`sticky top-0 z-10 hidden gap-3 bg-white pb-2.5 md:grid ${columns}`}>
-        {["Product", "Weight", "Unit", "Discount", "Qty", "Line", ""].map((heading, index) => (
-          <span key={index} role="columnheader" className={`text-[8px] font-medium uppercase tracking-[0.3em] text-black ${index >= 2 && index !== 3 ? "text-right" : ""}`}>{heading}</span>
+        {headings.map((heading, index) => (
+          <span key={index} role="columnheader" className={`text-[8px] font-medium uppercase tracking-[0.3em] text-black ${RIGHT_ALIGNED_HEADINGS.has(heading) ? "text-right" : ""}`}>{heading}</span>
         ))}
       </div>
       {items.map((item) => {
@@ -108,9 +113,11 @@ export function OrderItemsTable({ items, products, canEdit, saving, onQuantity, 
                   {unitDiscount > 0 && <p className="font-mono text-[10px] tabular-nums text-black/35 line-through">{formatTaka(item.unit_price)}</p>}
                 </div>
               )}
-              <div role="cell" className="min-w-0">
-                <DiscountEditor item={item} disabled={!canEdit || isLegacy} onApply={(type, value) => onDiscount(item.id, type, value)} onRemove={() => onDiscount(item.id, null, 0)} />
-              </div>
+              {showDiscount && (
+                <div role="cell" className="min-w-0">
+                  <DiscountEditor item={item} disabled={!canEdit || isLegacy} onApply={(type, value) => onDiscount(item.id, type, value)} onRemove={() => onDiscount(item.id, null, 0)} />
+                </div>
+              )}
               <div role="cell" className="flex justify-end">
                 <div className="flex items-center rounded-full bg-black/[0.04] p-0.5">
                   <button type="button" aria-label={`Decrease ${name} quantity`} onClick={() => onQuantity(item.id, Math.max(1, item.quantity - 1))} disabled={!canEdit || item.quantity <= 1} className="grid h-7 w-7 place-items-center rounded-full text-black transition hover:bg-white disabled:opacity-20"><Minus weight="light" size={13} /></button>

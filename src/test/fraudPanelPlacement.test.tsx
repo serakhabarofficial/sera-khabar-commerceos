@@ -47,8 +47,8 @@ describe("fraud panel placement", () => {
     expect(newOrder).not.toContain("AI capture");
   });
 
-  it("keeps the abandoned checkout surface on the shared customer panel", () => {
-    expect(read("src/pages/AbandonedDetail.tsx")).toContain("CustomerPanel");
+  it("keeps the abandoned checkout surface on the order editor's customer dossier", () => {
+    expect(read("src/pages/AbandonedDetail.tsx")).toContain("<CustomerDossier");
   });
 
   it("leaves the inbox table on its own cell but routes its checks through the cache", () => {

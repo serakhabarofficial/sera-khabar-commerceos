@@ -8,9 +8,12 @@ import { apiFetch } from "@/lib/api";
 import { Button as BuiButton } from "@/components/base/buttons/button";
 import { Spinner } from "@/components/ui/ios-spinner";
 import { toast } from "@/components/ui/sonner";
-import { CustomerPanel, type CustomerDraft } from "@/components/order-editor/CustomerPanel";
-import { CatalogPanel } from "@/components/order-editor/CatalogPanel";
-import { CartPanel } from "@/components/order-editor/CartPanel";
+import type { CustomerDraft, HistoryEntry } from "@/components/order-editor/CustomerPanel";
+import { CustomerDossier } from "@/components/order-editor/CustomerDossier";
+import { ProductPicker } from "@/components/order-editor/ProductPicker";
+import { OrderItemsTable } from "@/components/order-editor/OrderItemsTable";
+import { CollectOnDeliveryBar, OrderPaymentPanel } from "@/components/order-editor/OrderPaymentPanel";
+import { OrderSaveActions } from "@/components/order-editor/OrderSavePanel";
 import { OrderHoldFields, type OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
 import {
   AlertDialog,
@@ -36,6 +39,7 @@ import type {
 } from "@/lib/abandonedCheckouts";
 import {
   calculateCartTotals,
+  changeCartItemVariant,
   upsertCartItem,
   variantLabel,
   type CatalogProduct,
@@ -46,8 +50,8 @@ import { validateOrderHoldDetails } from "../../shared/orderHold.js";
 
 type ProductsResponse = { products: CatalogProduct[] };
 
-// Only the fields the Pending-match needs from the shared ["/api/orders"] cache.
-type PendingMatchOrder = SyncableOrder & StatusFilterOrder & { order_number?: string | null; phone?: string | null };
+// Only the fields the Pending-match and Last orders need from the shared ["/api/orders"] cache.
+type PendingMatchOrder = SyncableOrder & StatusFilterOrder & HistoryEntry & { order_number?: string | null; phone?: string | null };
 
 type MoveTarget = "keep" | "pending" | "on_hold" | "approved";
 
@@ -106,6 +110,7 @@ export default function AbandonedDetail() {
   const [editorTab, setEditorTab] = useOrderEditorTab();
   const [draft, setDraft] = useState<OrderEditorItem[]>([]);
   const [customer, setCustomer] = useState<CustomerDraft>({ customerName: "", phone: "", address: "" });
+  const [notesDraft, setNotesDraft] = useState("");
   const [catalogSearch, setCatalogSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -166,12 +171,22 @@ export default function AbandonedDetail() {
 
   const pendingOrdersByPhone = useMemo(() => buildPendingOrdersByPhone(ordersQuery.data ?? []), [ordersQuery.data]);
   const pendingMatches = checkout ? pendingOrdersForPhone(pendingOrdersByPhone, customer.phone) : [];
+  // The customer's latest orders, matched on the last 10 digits of the phone being edited.
+  const history = useMemo(() => {
+    const key = customer.phone.replace(/\D/g, "").slice(-10);
+    if (key.length < 10) return [];
+    return (ordersQuery.data ?? [])
+      .filter((order) => (order.phone || "").replace(/\D/g, "").slice(-10) === key)
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 5);
+  }, [customer.phone, ordersQuery.data]);
 
   const initializeCheckout = useCallback((checkout: AbandonedCheckout) => {
     initializedDraftKey.current = checkout.id;
     setEditingCheckout(checkout);
     setTouched(false);
     setCustomer(customerFromDraft(checkout));
+    setNotesDraft(checkout.notes ?? "");
     setDraft(checkout.cart.map((line, index) => draftLineToItem(line, index, checkout.id)));
     const savedRate = Number(checkout.delivery_rate) || 0;
     setDeliveryRate(savedRate > 0 ? savedRate : 100);
@@ -193,7 +208,9 @@ export default function AbandonedDetail() {
     void apiFetch(`${activityEndpoint}/view`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_surface: "abandoned_queue" }) }).then((response) => response.ok && refreshOrderActivity(queryClient, activityEndpoint)).catch(() => {});
   }, [checkout, queryClient]);
 
-  // When products load, try to match existing cart items (product_id: null) to catalog products by name
+  // Match cart items (product_id: null) to catalog products by name. Runs when the
+  // catalog or the cart changes, because the catalog is often cached before the
+  // checkout loads and saving resets the cart to unmatched lines.
   useEffect(() => {
     const products = productsQuery.data?.products;
     if (!products?.length) return;
@@ -223,7 +240,7 @@ export default function AbandonedDetail() {
       });
       return changed ? resolved : items;
     });
-  }, [productsQuery.data]);
+  }, [productsQuery.data, draft]);
 
   const totals = useMemo(
     () => calculateCartTotals(draft, deliveryOn ? deliveryRate : 0, 0),
@@ -240,6 +257,7 @@ export default function AbandonedDetail() {
     if (customer.customerName.trim() !== (checkout.customer_name || "").trim()) return true;
     if (customer.address.trim() !== (checkout.address || "").trim()) return true;
     if (customer.phone.replace(/\D/g, "") !== (checkout.phone || "").replace(/\D/g, "")) return true;
+    if (notesDraft.trim() !== (checkout.notes ?? "").trim()) return true;
     if ((deliveryOn ? deliveryRate : 0) !== (Number(checkout.delivery_rate) || 0)) return true;
     if (draft.length !== checkout.cart.length) return true;
     return draft.some((item, index) => {
@@ -249,7 +267,7 @@ export default function AbandonedDetail() {
         || item.quantity !== Number(line.quantity)
         || item.unit_price !== (Number(line.unitPrice) || 0);
     });
-  }, [checkout, customer, draft, deliveryOn, deliveryRate]);
+  }, [checkout, customer, notesDraft, draft, deliveryOn, deliveryRate]);
 
   const dirty = touched || isDirty || target !== "keep" || advanceDraft > 0 || Boolean(advanceMethod || advanceReference);
   const handling = useOrderHandling("abandoned", draftId, { beforeStart: async () => {
@@ -267,6 +285,10 @@ export default function AbandonedDetail() {
 
   function addCatalogItem(product: CatalogProduct, variant?: CatalogVariant) {
     setDraft((items) => upsertCartItem(items, product, variant));
+  }
+
+  function changeItemVariant(itemId: string, product: CatalogProduct, variant: CatalogVariant) {
+    setDraft((items) => changeCartItemVariant(items, itemId, product, variant));
   }
 
   function updateQuantity(itemId: string, quantity: number) {
@@ -334,6 +356,7 @@ export default function AbandonedDetail() {
             unitPrice: item.unit_price,
           })),
           deliveryRate: rate,
+          notes: notesDraft.trim(),
           addition_reasons: additionReasonsByName,
           activity_group_id: activityGroupId,
         }),
@@ -357,6 +380,7 @@ export default function AbandonedDetail() {
       setEditingCheckout(updated);
       setTouched(false);
       setCustomer(customerFromDraft(updated));
+      setNotesDraft(updated.notes ?? "");
       setDraft(updated.cart.map((line, index) => draftLineToItem(line, index, updated.id)));
       setAdditionReasons({});
       void refreshOrderActivity(queryClient, `/api/abandoned-checkouts/${draftId}/activity`);
@@ -492,41 +516,40 @@ export default function AbandonedDetail() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [checkout, saving, dismissOpen]);
 
-  const primaryLabel = target === "keep" ? "Save changes" : `Save & move to ${MOVE_OPTIONS.find((option) => option.value === target)?.label}`;
-
-  const actionBlock = (
-    <div data-testid="abandoned-action-bar" className="mt-2 flex flex-col gap-2">
-      <p className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">Status after save</p>
-      <div role="group" aria-label="Move checkout to" className="grid grid-cols-4 gap-1 rounded-[10px] bg-black/[0.04] p-1">
-        {MOVE_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={target === option.value}
-            disabled={saving || !canEdit}
-            onClick={() => { setTarget(option.value); setSaveError(""); }}
-            className={`h-8 truncate rounded-[6px] text-[12px] disabled:cursor-not-allowed disabled:opacity-35 ${target === option.value ? "bg-white font-medium text-black ring-1 ring-inset ring-black/[0.08]" : "text-black/60 hover:text-black"}`}
-          >
-            {option.label}
-          </button>
-        ))}
+  // Same radio rows as the order editor's Status: each row is as tall as a
+  // payment row, so the two columns end on the same line.
+  const statusBlock = (
+    <section aria-label="Status after save" className="flex min-w-0 flex-col gap-1">
+      <p className="mb-2.5 text-[8px] font-medium uppercase tracking-[0.3em] text-black">Status after save</p>
+      <div role="radiogroup" aria-label="Move checkout to" className="grid gap-1">
+        {MOVE_OPTIONS.map((option) => {
+          const checked = target === option.value;
+          const hold = option.value === "on_hold";
+          const tone = checked ? (hold ? "bg-amber-50 font-medium text-amber-800" : "bg-black/[0.07] font-medium text-black") : "text-black/60 hover:bg-black/[0.04] hover:text-black";
+          const dot = checked ? (hold ? "shadow-[inset_0_0_0_5px_#D97706]" : "shadow-[inset_0_0_0_5px_#0A0A0A]") : "shadow-[inset_0_0_0_1.5px_rgba(10,10,10,0.3)]";
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              disabled={saving || !canEdit}
+              onClick={() => { setTarget(option.value); setSaveError(""); }}
+              className={`flex h-9 min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 text-left text-[13px] transition-[background-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
+            >
+              <span aria-hidden="true" className={`h-4 w-4 shrink-0 rounded-full transition-shadow duration-150 ${dot}`} />
+              <span className="truncate">{option.label}</span>
+            </button>
+          );
+        })}
       </div>
-      {target === "on_hold" && (
-        <div>
-          <OrderHoldFields value={holdDetails} onChange={setHoldDetails} disabled={saving || !canEdit} />
-        </div>
-      )}
-      {saveError && <p role="alert" className="text-[12px] text-red-600">{saveError}</p>}
-      <div className="flex items-center gap-1.5">
-        <BuiButton variant="danger" size="medium" onClick={() => setDismissOpen(true)} disabled={saving || !canEdit} className="rounded-[6px]">Dismiss</BuiButton>
-        <BuiButton variant="ghost" size="medium" onClick={goBack} disabled={saving} className="ml-auto rounded-[6px]">Cancel</BuiButton>
-        <button type="button" onClick={() => { void submit(); }} disabled={saving || !canEdit} className="inline-flex h-9 items-center justify-center gap-2 rounded-[6px] bg-black px-4 text-[12px] text-white disabled:cursor-not-allowed disabled:opacity-35">{saving && <Spinner size="sm" />}{saving ? "Saving…" : primaryLabel}</button>
-      </div>
-    </div>
+      {target === "on_hold" && <div className="mt-2 min-w-0"><OrderHoldFields value={holdDetails} onChange={setHoldDetails} disabled={saving || !canEdit} /></div>}
+      {saveError && <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] leading-snug text-red-700">{saveError}</p>}
+    </section>
   );
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 bg-[#FAFAF8] px-2 pb-3 pt-0 lg:px-3 lg:pt-1">
+    <div className="flex min-h-full flex-col gap-3 bg-[#FAFAF8] px-2 pb-3 pt-0 lg:px-3 lg:pt-1">
       <div data-testid="abandoned-editor-toolbar" className="sticky top-0 z-30 flex flex-wrap items-center gap-3 bg-[#FAFAF8]/95 py-2 backdrop-blur-sm">
         <BuiButton variant="ghost" size="small" iconOnly leadingIcon={ArrowLeft} aria-label="Back" onClick={goBack} />
         <div className="flex min-w-0 items-baseline gap-2.5">
@@ -589,14 +612,25 @@ export default function AbandonedDetail() {
             </div>
           }
           details={
-            <div className="flex min-h-0 flex-col gap-px overflow-hidden rounded-xl bg-black/[0.07] ring-1 ring-black/[0.07]">
-              <div ref={customerPanelRef}>
-                <CustomerPanel order={{}} customer={customer} disabled={saving || !canEdit} onApply={setCustomer} />
+            <div data-testid="abandoned-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 gap-3 xl:h-[calc(100dvh-8.75rem)] xl:min-h-[600px] xl:grid-cols-[380px_minmax(0,1fr)]">
+              <div ref={customerPanelRef} className="min-h-0 min-w-0">
+                <CustomerDossier className="h-full rounded-2xl ring-1 ring-black/[0.07] xl:overflow-y-auto xl:overscroll-contain" order={{ created_at: checkout.created_at, updated_at: checkout.updated_at }} customer={customer} disabled={saving || !canEdit} history={history} historyLoading={ordersQuery.isPending} onOpenOrder={(orderId) => navigate(`/orders/${orderId}`)} onApply={setCustomer} smsSendUrl={`/api/abandoned-checkouts/${checkout.id}/send-sms`} note={notesDraft} onNoteChange={setNotesDraft} />
               </div>
-              <div data-testid="abandoned-editor-workspace" data-mobile-layout="single-column" className="grid min-h-0 grid-cols-1 items-start gap-px bg-black/[0.07] xl:h-[100vh] xl:min-h-[560px] xl:grid-cols-2">
-                <CatalogPanel products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEdit} locked={false} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} />
-                <CartPanel items={draft} totals={totals} canEdit={canEdit} locked={false} saving={saving} error={undefined} overallDiscountType={null} overallDiscountValue={0} deliveryOn={deliveryOn} advance={advance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethod} advanceReference={advanceReference} onAdvanceMethodChange={setAdvanceMethod} onAdvanceReferenceChange={setAdvanceReference} status={null} onStatusChange={() => {}} onToggleDelivery={setDeliveryOn} onOverallDiscount={() => {}} onRemoveOverallDiscount={() => {}} onQuantity={updateQuantity} onRemove={(itemId) => setDraft((items) => items.filter((item) => item.id !== itemId))} onDiscount={() => {}} onSave={() => {}} onCancel={goBack} hideOrderSections actions={actionBlock} requiredAdditionReasonKeys={requiredAdditionReasonKeys} additionReasons={additionReasons} onAdditionReasonChange={(key, reason) => setAdditionReasons((current) => ({ ...current, [key]: reason }))} />
-              </div>
+              <section aria-label="Order cart" className="flex min-h-0 min-w-0 flex-col gap-4 rounded-2xl bg-white p-4 ring-1 ring-black/[0.07] sm:p-5 xl:overflow-y-auto">
+                <ProductPicker products={productsQuery.data?.products || []} search={catalogSearch} loading={productsQuery.isPending} error={productsQuery.isError} canEdit={canEdit} locked={false} onSearch={setCatalogSearch} onRetry={() => { void productsQuery.refetch(); }} onAdd={addCatalogItem} cartItems={draft} />
+                <div data-testid="order-items-scroll-region" className="min-h-[160px] min-w-0 flex-1 xl:overflow-y-auto xl:overscroll-contain">
+                  <OrderItemsTable items={draft} products={productsQuery.data?.products || []} canEdit={canEdit} saving={saving} showDiscount={false} onQuantity={updateQuantity} onRemove={(itemId) => setDraft((items) => items.filter((item) => item.id !== itemId))} onDiscount={() => {}} onChangeVariant={changeItemVariant} requiredAdditionReasonKeys={requiredAdditionReasonKeys} additionReasons={additionReasons} onAdditionReasonChange={(key, reason) => setAdditionReasons((current) => ({ ...current, [key]: reason }))} />
+                </div>
+                {/* Same two rows as the order editor: details on top, then Collect and Save side by side. */}
+                <div data-testid="abandoned-action-bar" className="grid shrink-0 gap-x-5 gap-y-4 border-t border-black/[0.07] pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+                  <OrderPaymentPanel items={draft} totals={totals} canEdit={canEdit} showOrderDiscount={false} overallDiscountType={null} overallDiscountValue={0} onOverallDiscount={() => {}} onRemoveOverallDiscount={() => {}} deliveryOn={deliveryOn} onToggleDelivery={setDeliveryOn} advance={advance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethod} advanceReference={advanceReference} onAdvanceMethodChange={setAdvanceMethod} onAdvanceReferenceChange={setAdvanceReference} />
+                  {statusBlock}
+                  <CollectOnDeliveryBar total={totals.finalTotal} advance={advance} />
+                  <OrderSaveActions saving={saving} saveDisabled={!canEdit} onSave={() => { void submit(); }} onCancel={goBack} trailingAction={
+                    <button type="button" onClick={() => setDismissOpen(true)} disabled={saving || !canEdit} className="shrink-0 whitespace-nowrap rounded-[20px] bg-red-50 px-[1.3em] py-[0.6em] text-[15px] text-red-600 transition-[background-color,transform] duration-150 hover:bg-red-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">Dismiss</button>
+                  } />
+                </div>
+              </section>
             </div>
           }
         />

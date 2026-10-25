@@ -52,6 +52,8 @@ type CustomerDossierProps = {
   smsAdvancePaid?: number | null;
   /** The call log; shown for saved orders. Steps that change the status set the editor's draft. */
   calls?: { canSetStatus: (status: string) => boolean; onNextStep: (step: CallNextStep) => void };
+  /** Sends SMS somewhere other than the saved order, e.g. an incomplete checkout. */
+  smsSendUrl?: string;
   /** The order note draft; saved with the editor and shown in the orders table. */
   note?: string;
   onNoteChange?: (note: string) => void;
@@ -130,7 +132,7 @@ export function LastOrdersCard({ history, loading = false, onOpenOrder }: { hist
 }
 
 /** The customer file: who this is, whether they can be trusted, and what they ordered before. */
-export function CustomerDossier({ order, customer, disabled = false, history = [], historyLoading = false, onOpenOrder, onApply, source, originSource, onSourceChange, smsAmount, smsAdvancePaid, calls, note = "", onNoteChange, className = "" }: CustomerDossierProps) {
+export function CustomerDossier({ order, customer, disabled = false, history = [], historyLoading = false, onOpenOrder, onApply, source, originSource, onSourceChange, smsAmount, smsAdvancePaid, calls, smsSendUrl, note = "", onNoteChange, className = "" }: CustomerDossierProps) {
   const [editing, setEditing] = useState(false);
   const [local, setLocal] = useState(customer);
   const [copied, setCopied] = useState(false);
@@ -162,7 +164,10 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
   // Landing pages live on the storefront, not on this dashboard's domain.
   const landingUrl = landingHref && storefrontUrl ? `${storefrontUrl}${landingHref}` : landingHref;
   const SourceIcon = ORDER_SOURCE_ICONS[normalizeOrderSource(source)];
-  const messagingAvailable = Boolean(order.id && whatsappHref && !disabled && !editing);
+  const smsUrl = smsSendUrl ?? (order.id ? `/api/orders/${order.id}/send-sms` : null);
+  const messagingAvailable = Boolean(smsUrl && whatsappHref && !disabled && !editing);
+  // WhatsApp is just a link, so it also works for unsaved checkouts; SMS needs a saved order.
+  const whatsappAvailable = Boolean(whatsappHref && !disabled && !editing);
 
   return (
     <section aria-label="Customer and order" className={`flex min-h-0 flex-col gap-4 bg-[#F3F2EE] p-4 sm:p-5 ${className}`}>
@@ -207,7 +212,7 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
         <div className="grid grid-cols-3 gap-1.5">
           {telPhone ? <a href={`tel:${telPhone}`} onClick={callLog.dial} aria-label="Call customer" className={actionClass}><Phone weight="light" size={15} /> Call</a> : <span className={`${actionClass} opacity-40`}><Phone weight="light" size={15} /> Call</span>}
           <button type="button" aria-label="Send SMS" onClick={() => setSmsOpen(true)} disabled={!messagingAvailable} className={actionClass}><SmsIcon size={15} /> SMS</button>
-          {messagingAvailable && whatsappHref
+          {whatsappAvailable && whatsappHref
             ? <a href={whatsappHref} target="_blank" rel="noreferrer" aria-label="Open WhatsApp chat" className={`${actionClass} text-[#128C4A]`}><WhatsappLogo size={15} /> WhatsApp</a>
             : <span className={`${actionClass} opacity-40`}><WhatsappLogo size={15} /> WhatsApp</span>}
         </div>
@@ -268,11 +273,11 @@ export function CustomerDossier({ order, customer, disabled = false, history = [
         ))}
       </dl>
 
-      {order.id && whatsappHref && (
+      {smsUrl && whatsappHref && (
         <IndividualSmsDialog
           open={smsOpen}
           onOpenChange={setSmsOpen}
-          orderId={order.id}
+          sendUrl={smsUrl}
           orderNumber={order.order_number}
           customerName={customer.customerName}
           phone={customer.phone}

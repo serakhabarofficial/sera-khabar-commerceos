@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Select as BuiSelect, SelectItem as BuiSelectItem } from "@/components/base/select/select";
 import { Spinner } from "@/components/ui/ios-spinner";
 import { OrderHoldFields, type OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
@@ -92,15 +93,18 @@ export function OrderSavePanel({ status, savedStatus, onStatusChange, holdDetail
 }
 
 /** Save and Cancel; sits beside the Collect bar so both stay put while the status fields change. */
-export function OrderSaveActions({ saving, saveDisabled = false, onSave, onCancel }: { saving: boolean; saveDisabled?: boolean; onSave: () => void; onCancel: () => void }) {
+export function OrderSaveActions({ saving, saveDisabled = false, onSave, onCancel, trailingAction }: { saving: boolean; saveDisabled?: boolean; onSave: () => void; onCancel: () => void; trailingAction?: ReactNode }) {
+  // A third button (e.g. Dismiss) shrinks the text so the row still fits.
+  const text = trailingAction ? "text-[15px]" : "text-[17px]";
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <button type="button" onClick={onSave} disabled={saving || saveDisabled} className="save-pill inline-flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[20px] bg-black px-[1.5em] py-[0.6em] text-[17px] text-white transition-[background-color,transform] duration-150 hover:bg-[#262626] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40">
+      <button type="button" onClick={onSave} disabled={saving || saveDisabled} className={`save-pill inline-flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[20px] bg-black px-[1.5em] py-[0.6em] ${text} text-white transition-[background-color,transform] duration-150 hover:bg-[#262626] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40`}>
         {saving && <Spinner size="sm" />}{saving ? "Saving…" : "Save changes"}
       </button>
-      <button type="button" onClick={onCancel} disabled={saving} className="shrink-0 whitespace-nowrap rounded-[20px] bg-black/[0.075] px-[1.3em] py-[0.6em] text-[17px] text-black transition-[background-color,transform] duration-150 hover:bg-[#e2e2e0] active:scale-[0.97] disabled:opacity-40">
+      <button type="button" onClick={onCancel} disabled={saving} className={`shrink-0 whitespace-nowrap rounded-[20px] bg-black/[0.075] px-[1.3em] py-[0.6em] ${text} text-black transition-[background-color,transform] duration-150 hover:bg-[#e2e2e0] active:scale-[0.97] disabled:opacity-40`}>
         Cancel
       </button>
+      {trailingAction}
     </div>
   );
 }

@@ -225,6 +225,13 @@ const validEdit = {
 };
 
 describe("abandoned checkout staff edit parsing", () => {
+  it("accepts a staff note, clears it when blank, and leaves it out when not sent", () => {
+    expect(parseAbandonedCheckoutStaffEdit({ ...validEdit, notes: "  Call after 5pm  " }).notes).toBe("Call after 5pm");
+    expect(parseAbandonedCheckoutStaffEdit({ ...validEdit, notes: "   " }).notes).toBeNull();
+    expect(parseAbandonedCheckoutStaffEdit(validEdit)).not.toHaveProperty("notes");
+    expect(() => parseAbandonedCheckoutStaffEdit({ ...validEdit, notes: "x".repeat(2001) })).toThrow();
+  });
+
   it("normalizes contact fields and recomputes totals from items", () => {
     expect(parseAbandonedCheckoutStaffEdit(validEdit)).toEqual({
       customer_name: "Farzana Akter",

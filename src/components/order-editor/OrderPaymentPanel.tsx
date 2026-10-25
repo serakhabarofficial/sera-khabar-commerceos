@@ -21,10 +21,12 @@ type OrderPaymentPanelProps = {
   advanceReference: string;
   onAdvanceMethodChange: (method: string) => void;
   onAdvanceReferenceChange: (reference: string) => void;
+  /** Incomplete checkouts have no order discount, so they hide the row. */
+  showOrderDiscount?: boolean;
 };
 
 /** Money for the order: discounts, delivery, advance, and what the courier collects. */
-export function OrderPaymentPanel({ items, totals, canEdit, overallDiscountType, overallDiscountValue, onOverallDiscount, onRemoveOverallDiscount, deliveryOn, onToggleDelivery, advance, onAdvanceChange, advanceMethod, advanceReference, onAdvanceMethodChange, onAdvanceReferenceChange }: OrderPaymentPanelProps) {
+export function OrderPaymentPanel({ items, totals, canEdit, overallDiscountType, overallDiscountValue, onOverallDiscount, onRemoveOverallDiscount, deliveryOn, onToggleDelivery, advance, onAdvanceChange, advanceMethod, advanceReference, onAdvanceMethodChange, onAdvanceReferenceChange, showOrderDiscount = true }: OrderPaymentPanelProps) {
   const overallBase = roundTaka(totals.grossSubtotal - totals.itemDiscount);
   const totalWeight = formatWeight(items.reduce((sum, item) => sum + (Number(item.weight_kg) || 0) * item.quantity, 0));
 
@@ -34,13 +36,13 @@ export function OrderPaymentPanel({ items, totals, canEdit, overallDiscountType,
       <dl className="grid gap-1 text-[12.5px] leading-snug">
         <div className="flex min-h-9 items-center justify-between gap-3"><dt className="text-black/60">Subtotal{totalWeight ? ` · ${totals.quantity} pcs · ${totalWeight}` : ""}</dt><dd className="font-mono tabular-nums">{formatTaka(totals.grossSubtotal)}</dd></div>
         {totals.itemDiscount > 0 && <div className="flex min-h-9 items-center justify-between gap-3"><dt className="text-black/60">Item discounts</dt><dd className="font-mono tabular-nums text-emerald-700">−{formatTaka(totals.itemDiscount)}</dd></div>}
-        <div className="flex min-h-9 items-center justify-between gap-3">
+        {showOrderDiscount && <div className="flex min-h-9 items-center justify-between gap-3">
           <dt className="text-black/60">Order discount</dt>
           <dd className="flex items-center gap-2">
             {totals.legacyDiscount > 0 && <span className="font-mono tabular-nums text-emerald-700">−{formatTaka(totals.legacyDiscount)}</span>}
             <CartDiscountEditor base={overallBase} discountType={overallDiscountType} discountValue={overallDiscountValue} disabled={!canEdit} onApply={onOverallDiscount} onRemove={onRemoveOverallDiscount} />
           </dd>
-        </div>
+        </div>}
         <div className="flex min-h-9 items-center justify-between gap-3">
           <dt className="flex items-center gap-2.5 text-black/60"><Switch size="sm" aria-label="Toggle delivery charge" isSelected={deliveryOn} onChange={onToggleDelivery} isDisabled={!canEdit} />Delivery</dt>
           <dd className="font-mono tabular-nums">{totals.deliveryFee > 0 ? formatTaka(totals.deliveryFee) : "Free"}</dd>

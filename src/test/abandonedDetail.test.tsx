@@ -23,8 +23,9 @@ function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }) {
   return { ok: init?.ok ?? true, status: init?.status ?? 200, json: async () => body };
 }
 
-function renderDetail(initialEntries: string[] = ["/abandoned/draft-1"]) {
+function renderDetail(initialEntries: string[] = ["/abandoned/draft-1"], seed?: (client: QueryClient) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  seed?.(client);
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={initialEntries}>
@@ -51,13 +52,78 @@ describe("AbandonedDetail", () => {
     });
   });
 
+  it("matches cart items to catalog products even when the catalog loaded before the checkout", async () => {
+    const honey = { id: "p-honey", name: "Sundarbans Honey", selling_price: 750, stock_quantity: 10, variants: [{ id: "v-1kg", attributes: { size: "1 kg" }, stock_quantity: 10 }] };
+    renderDetail(undefined, (client) => client.setQueryData(["/api/products"], { products: [honey] }));
+
+    expect(await screen.findByText("Sundarbans Honey")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(/detached legacy item/i)).not.toBeInTheDocument());
+  });
+
+  it("loads the checkout note and saves an edited note", async () => {
+    const user = userEvent.setup();
+    apiFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
+      if (url === "/api/abandoned-checkouts") return jsonResponse({ checkouts: [{ ...draft, notes: "Gift wrap" }], activeCount: 1 });
+      if (url === "/api/products") return jsonResponse({ products: [] });
+      if (url === "/api/abandoned-checkouts/draft-1" && init?.method === "PATCH") return jsonResponse({ checkout: { ...draft, notes: "Call after 5pm" } });
+      return jsonResponse({});
+    });
+    renderDetail();
+
+    const note = await screen.findByRole("textbox", { name: "Order note" });
+    expect(note).toHaveValue("Gift wrap");
+    await user.clear(note);
+    await user.type(note, "Call after 5pm");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      const call = apiFetch.mock.calls.find(([url, init]) => url === "/api/abandoned-checkouts/draft-1" && init?.method === "PATCH");
+      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ notes: "Call after 5pm" });
+    });
+  });
+
+  it("sends an SMS to the checkout's customer through the checkout endpoint", async () => {
+    const user = userEvent.setup();
+    apiFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+      if (url.startsWith("/api/order-handling/")) return jsonResponse({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
+      if (url === "/api/abandoned-checkouts") return jsonResponse({ checkouts: [draft], activeCount: 1 });
+      if (url === "/api/products") return jsonResponse({ products: [] });
+      if (url === "/api/abandoned-checkouts/draft-1/send-sms" && init?.method === "POST") return jsonResponse({ success: true });
+      return jsonResponse({});
+    });
+    renderDetail();
+
+    const sms = await screen.findByRole("button", { name: "Send SMS" });
+    await waitFor(() => expect(sms).toBeEnabled());
+    await user.click(sms);
+    await user.type(await screen.findByRole("textbox", { name: "Message" }), "Hello");
+    await user.click(screen.getByRole("button", { name: /^send/i }));
+
+    await waitFor(() => {
+      const call = apiFetch.mock.calls.find(([url, init]) => url === "/api/abandoned-checkouts/draft-1/send-sms" && init?.method === "POST");
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ message: "Hello" });
+    });
+  });
+
+  it("uses the order editor layout: customer dossier beside the cart", async () => {
+    renderDetail();
+    expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
+    const workspace = screen.getByTestId("abandoned-editor-workspace");
+    expect(within(workspace).getByRole("region", { name: "Customer and order" })).toBeInTheDocument();
+    expect(within(workspace).getByRole("region", { name: "Order cart" })).toBeInTheDocument();
+    expect(within(workspace).getByRole("table", { name: "Order items" })).toBeInTheDocument();
+    expect(within(workspace).getByTestId("collect-on-delivery")).toHaveTextContent("৳850");
+    expect(within(workspace).queryByRole("columnheader", { name: "Discount" })).not.toBeInTheDocument();
+  });
+
   it("renders the draft name, phone, cart line, and total with no order-status select or discount UI", async () => {
     renderDetail();
 
     expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
     expect(screen.getByText("01712345678")).toBeInTheDocument();
     expect(screen.getByText("Sundarbans Honey")).toBeInTheDocument();
-    expect(screen.getByText(/৳850/)).toBeInTheDocument();
+    expect(screen.getAllByText(/৳850/).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /order status/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /discount/i })).not.toBeInTheDocument();
   });
@@ -260,7 +326,7 @@ describe("AbandonedDetail", () => {
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
       const bar = screen.getByTestId("abandoned-action-bar");
-      expect(within(bar).getByRole("button", { name: "Incomplete" })).toHaveAttribute("aria-pressed", "true");
+      expect(within(bar).getByRole("radio", { name: "Incomplete" })).toHaveAttribute("aria-checked", "true");
       expect(within(bar).getByRole("button", { name: "Save changes" })).toBeInTheDocument();
 
       await editName(user);
@@ -277,9 +343,9 @@ describe("AbandonedDetail", () => {
       renderDetail();
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
-      await user.click(screen.getByRole("button", { name: "Confirmed" }));
-      expect(screen.getByRole("button", { name: "Confirmed" })).toHaveAttribute("aria-pressed", "true");
-      await user.click(screen.getByRole("button", { name: "Save & move to Confirmed" }));
+      await user.click(screen.getByRole("radio", { name: "Confirmed" }));
+      expect(screen.getByRole("radio", { name: "Confirmed" })).toHaveAttribute("aria-checked", "true");
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();
       const calls = mutationCalls();
@@ -296,8 +362,8 @@ describe("AbandonedDetail", () => {
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
       await editName(user);
-      await user.click(screen.getByRole("button", { name: "Pending" }));
-      await user.click(screen.getByRole("button", { name: "Save & move to Pending" }));
+      await user.click(screen.getByRole("radio", { name: "Pending" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();
       const calls = mutationCalls();
@@ -316,8 +382,8 @@ describe("AbandonedDetail", () => {
       renderDetail();
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
-      await user.click(screen.getByRole("button", { name: "On hold" }));
-      await user.click(screen.getByRole("button", { name: "Save & move to On hold" }));
+      await user.click(screen.getByRole("radio", { name: "On hold" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Choose a hold reason");
       expect(mutationCalls().length).toBe(0);
@@ -330,8 +396,8 @@ describe("AbandonedDetail", () => {
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
       await editName(user);
-      await user.click(screen.getByRole("button", { name: "Pending" }));
-      await user.click(screen.getByRole("button", { name: "Save & move to Pending" }));
+      await user.click(screen.getByRole("radio", { name: "Pending" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Your edits were saved");
       expect(screen.queryByTestId("dashboard-home")).not.toBeInTheDocument();
@@ -343,7 +409,7 @@ describe("AbandonedDetail", () => {
       renderDetail();
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
-      await user.click(screen.getByRole("button", { name: "Pending" }));
+      await user.click(screen.getByRole("radio", { name: "Pending" }));
       await user.click(screen.getByRole("button", { name: /edit customer/i }));
       await user.type(screen.getByLabelText("Customer name"), " Jr");
       await user.keyboard("{Control>}{Enter}{/Control}");
@@ -359,8 +425,8 @@ describe("AbandonedDetail", () => {
       renderDetail();
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
-      await user.click(screen.getByRole("button", { name: "Pending" }));
-      await user.click(screen.getByRole("button", { name: "Save & move to Pending" }));
+      await user.click(screen.getByRole("radio", { name: "Pending" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Checkout phone is no longer valid");
       expect(screen.queryByTestId("dashboard-home")).not.toBeInTheDocument();
@@ -372,10 +438,10 @@ describe("AbandonedDetail", () => {
       renderDetail();
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
-      await user.click(screen.getByRole("button", { name: "On hold" }));
+      await user.click(screen.getByRole("radio", { name: "On hold" }));
       await user.click(screen.getByRole("button", { name: /Hold reason/ }));
       await user.click(await screen.findByRole("option", { name: "গ্রাহক পরে যোগাযোগ করতে বলেছেন" }));
-      await user.click(screen.getByRole("button", { name: "Save & move to On hold" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();
       const body = JSON.parse(mutationCalls()[0][1]?.body ?? "{}");
@@ -389,8 +455,8 @@ describe("AbandonedDetail", () => {
       renderDetail();
       expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
 
-      await user.click(screen.getByRole("button", { name: "Pending" }));
-      await user.click(screen.getByRole("button", { name: "Save & move to Pending" }));
+      await user.click(screen.getByRole("radio", { name: "Pending" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
 
       expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();
       const body = JSON.parse(mutationCalls()[0][1]?.body ?? "{}");
