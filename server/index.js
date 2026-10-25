@@ -69,6 +69,7 @@ import {
 import { buildProductCacheUrls, purgeProductCacheUrls } from "./productCache.js";
 import { createSidebarInsightsCache } from "./sidebarAlertInsightsCache.js";
 import { createTtlCache } from "./ttlCache.js";
+import { createIdCache } from "./idCache.js";
 import { createAuthCache } from "./authCache.js";
 import { createOrderHandling } from "./orderHandling.js";
 import {
@@ -670,6 +671,33 @@ const authCache = createAuthCache();
 
 function invalidateAuthCacheForUser(userId) {
   if (userId) authCache.invalidateUser(userId);
+  // Every user_roles write lands here, so cached staff names follow it.
+  staffCache.clear();
+}
+
+// Org staff (names, archived/switched-off flags) per warm instance. Other
+// instances can show an old display name for up to 60s.
+const staffCache = createIdCache({ ttlMs: 60_000, maxEntries: 20 });
+
+async function getOrgStaff(supabase, orgId) {
+  const found = await staffCache.getMany([orgId], async () => {
+    const { data, error } = await supabase
+      .from("user_roles")
+      .select("user_id, display_name, deleted_at, suspended_at, created_at")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return new Map([[orgId, data || []]]);
+  });
+  return found.get(orgId) || [];
+}
+
+async function getActiveOrgStaff(supabase, orgId) {
+  return (await getOrgStaff(supabase, orgId)).filter((member) => !member.deleted_at && !member.suspended_at);
+}
+
+async function getStaffNameMap(supabase, orgId) {
+  return new Map((await getOrgStaff(supabase, orgId)).map((member) => [member.user_id, member.display_name]));
 }
 
 async function ensureUserRole(supabase, user) {
@@ -783,23 +811,30 @@ function customStoreApiKeyFromRequest(req) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+// Storefront API key -> org id per warm instance. Saving a
+// custom_store_api_key clears it (see saveSettings).
+const customStoreOrgCache = createIdCache({ ttlMs: 5 * 60_000, maxEntries: 20 });
+
 async function resolveCustomStoreOrgId(supabase, apiKey) {
   if (!apiKey) return null;
-  const { data: settings, error } = await supabase
-    .from("app_settings")
-    .select("key")
-    .eq("value", apiKey)
-    .like("key", "%:custom_store_api_key");
-  if (error) throw error;
+  const found = await customStoreOrgCache.getMany([apiKey], async () => {
+    const { data: settings, error } = await supabase
+      .from("app_settings")
+      .select("key")
+      .eq("value", apiKey)
+      .like("key", "%:custom_store_api_key");
+    if (error) throw error;
 
-  for (const setting of settings || []) {
-    const key = String(setting.key || "");
-    const suffix = ":custom_store_api_key";
-    if (!key.endsWith(suffix)) continue;
-    const orgId = key.slice(0, -suffix.length);
-    if (isValidOrgId(orgId)) return orgId;
-  }
-  return null;
+    for (const setting of settings || []) {
+      const key = String(setting.key || "");
+      const suffix = ":custom_store_api_key";
+      if (!key.endsWith(suffix)) continue;
+      const orgId = key.slice(0, -suffix.length);
+      if (isValidOrgId(orgId)) return new Map([[apiKey, orgId]]);
+    }
+    return new Map();
+  });
+  return found.get(apiKey) || null;
 }
 
 async function requireAdmin(req, res) {
@@ -1201,7 +1236,7 @@ async function getCurrentUserContext(token) {
   if (error) throw error;
 
   const orgId = roleRow?.org_id || null;
-  const orgSettings = orgId ? await getOrgSettings(orgId, ["org_name"]) : {};
+  const orgSettings = orgId ? await getOrgSettings(orgId, ["org_name"], { cached: true }) : {};
   const role = roleRow?.role || null;
 
   return {
@@ -1275,17 +1310,10 @@ app.get("/api/staff", async (req, res) => {
     const supabase = getServiceSupabase();
     const { orgId } = await getUserOrg(supabase, user.id);
 
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("user_id, display_name")
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .is("suspended_at", null)
-      .order("created_at", { ascending: true });
-    if (error) throw error;
+    const data = await getActiveOrgStaff(supabase, orgId);
 
     return res.json({
-      staff: (data || []).map((member) => ({
+      staff: data.map((member) => ({
         user_id: member.user_id,
         display_name: member.display_name || "Unnamed member",
       })),
@@ -1601,14 +1629,13 @@ app.get("/api/team-chat/channels", async (req, res) => {
     // One round of reads on the usual path; the first visit also seeds the
     // default channels, and a new teammate joins #general.
     const load = async () => {
-      const [{ data: channels, error: channelsError }, { data: staff, error: staffError }, { data: presence, error: presenceError }, summaries] = await Promise.all([
+      const [{ data: channels, error: channelsError }, staff, { data: presence, error: presenceError }, summaries] = await Promise.all([
         supabase.from("team_channels").select("id, kind, name, topic, dm_key, created_at").eq("org_id", orgId).order("created_at", { ascending: true }),
-        supabase.from("user_roles").select("user_id, display_name").eq("org_id", orgId).is("deleted_at", null).is("suspended_at", null).order("created_at", { ascending: true }),
+        getActiveOrgStaff(supabase, orgId),
         supabase.from("team_presence").select("user_id, seen_at").eq("org_id", orgId),
         teamChatSummaries(supabase, orgId, user.id),
       ]);
       if (channelsError) throw channelsError;
-      if (staffError) throw staffError;
       if (presenceError) throw presenceError;
       return { channels: channels || [], staff: staff || [], presence: presence || [], summaries };
     };
@@ -2128,6 +2155,27 @@ async function getSettings(keys) {
   return map;
 }
 
+// Read-mostly settings (storefront handle, org name, analytics settings) per
+// warm instance. saveSettings clears the keys it writes; other instances can
+// serve the old value for up to 60s.
+const settingsCache = createIdCache({ ttlMs: 60_000, maxEntries: 500 });
+
+async function getSettingsCached(keys) {
+  const found = await settingsCache.getMany(keys, async (missing) => {
+    const { data, error } = await getServiceSupabase()
+      .from("app_settings")
+      .select("key, value")
+      .in("key", missing);
+    if (error) throw error;
+    return new Map((data || []).map((row) => [row.key, row.value]));
+  });
+  const map = {};
+  for (const [key, value] of found) {
+    if (value !== null) map[key] = value;
+  }
+  return map;
+}
+
 async function saveSettings(settings) {
   const supabase = getServiceSupabase();
   const rows = Object.entries(settings).map(([key, value]) => ({
@@ -2135,16 +2183,20 @@ async function saveSettings(settings) {
     value: String(value),
     updated_at: new Date().toISOString(),
   }));
-  return supabase.from("app_settings").upsert(rows, { onConflict: "key" });
+  const result = await supabase.from("app_settings").upsert(rows, { onConflict: "key" });
+  const keys = Object.keys(settings);
+  settingsCache.delete(keys);
+  if (keys.some((key) => key.endsWith(":custom_store_api_key"))) customStoreOrgCache.clear();
+  return result;
 }
 
 function orgSettingKey(orgId, key) {
   return `${orgId}:${key}`;
 }
 
-async function getOrgSettings(orgId, keys) {
+async function getOrgSettings(orgId, keys, { cached = false } = {}) {
   const scopedKeys = keys.map((key) => orgSettingKey(orgId, key));
-  const settings = await getSettings(scopedKeys);
+  const settings = cached ? await getSettingsCached(scopedKeys) : await getSettings(scopedKeys);
   const map = {};
   for (const key of keys) {
     map[key] = settings[orgSettingKey(orgId, key)];
@@ -2165,13 +2217,13 @@ async function resolveStorefrontHandle(handle) {
   const check = validateStorefrontHandle(handle);
   if (!check.ok) return null;
   const key = `storefront_handle:${check.handle}`;
-  const settings = await getSettings([key]);
+  const settings = await getSettingsCached([key]);
   return settings[key] || null;
 }
 
-async function getStorefrontHandle(orgId) {
+async function getStorefrontHandle(orgId, { cached = true } = {}) {
   const key = `${orgId}:public_storefront_handle`;
-  const settings = await getSettings([key]);
+  const settings = cached ? await getSettingsCached([key]) : await getSettings([key]);
   return settings[key] || null;
 }
 
@@ -2248,6 +2300,7 @@ async function setStorefrontHandle(orgId, handle) {
     .from("app_settings")
     .insert({ key: forwardKey, value: orgId, updated_at: nowIso })
     .select();
+  settingsCache.delete([forwardKey]);
   if (insertError && insertError.code !== "23505") throw insertError;
 
   if (!inserted || inserted.length === 0) {
@@ -2262,9 +2315,10 @@ async function setStorefrontHandle(orgId, handle) {
 
   // Update reverse mapping. If the org previously had a different handle,
   // free that forward key so it can be reclaimed and doesn't keep resolving.
-  const previous = await getStorefrontHandle(orgId);
+  const previous = await getStorefrontHandle(orgId, { cached: false });
   if (previous && previous !== clean) {
     await supabase.from("app_settings").delete().eq("key", `storefront_handle:${previous}`);
+    settingsCache.delete([`storefront_handle:${previous}`]);
   }
   await saveSettings({ [reverseKey]: clean });
   return clean;
@@ -5396,16 +5450,15 @@ function activityActorLabel(event, staffById) {
 }
 
 async function fetchOrderActivityTimeline(supabase, orgId, orderTable, orderId, entity) {
-  const [detailedResult, legacyResult, staffResult] = await Promise.all([
+  const [detailedResult, legacyResult, staff] = await Promise.all([
     supabase.from("order_activity_events").select("*").eq("org_id", orgId).eq("order_table", orderTable).eq("order_id", orderId).order("created_at", { ascending: false }),
     supabase.from("order_status_events").select("id, from_status, to_status, actor_id, actor_kind, created_at").eq("org_id", orgId).eq("order_table", orderTable).eq("order_id", orderId).order("created_at", { ascending: false }),
-    supabase.from("user_roles").select("user_id, display_name").eq("org_id", orgId),
+    getOrgStaff(supabase, orgId),
   ]);
   if (detailedResult.error && !isMissingDetailedActivityTable(detailedResult.error)) throw detailedResult.error;
   if (legacyResult.error) throw legacyResult.error;
-  if (staffResult.error) throw staffResult.error;
   const detailedRows = detailedResult.error ? [] : (detailedResult.data || []);
-  const staffById = new Map((staffResult.data || []).map((member) => [member.user_id, member.display_name || "Unnamed member"]));
+  const staffById = new Map(staff.map((member) => [member.user_id, member.display_name || "Unnamed member"]));
   const detailed = groupActivityEvents(detailedRows).map((event) => ({ ...event, occurred_at: event.created_at, action: event.event_type, actor_display_name: activityActorLabel(event, staffById) }));
   const legacy = filterLegacyActivityEvents(detailedRows, legacyResult.data || []).map((event) => {
     const action = classifyActivityEvent({ ...event, order_table: orderTable });
@@ -5687,7 +5740,7 @@ app.get("/api/analytics", async (req, res) => {
       // but keep legacy manual Facebook Ads settings as fallback.
       let adSpend = null;
       let fbError = null;
-      const cfg = await getOrgSettings(orgId, ["facebook_access_token", "facebook_ad_account_id", "usd_to_bdt_rate"]);
+      const cfg = await getOrgSettings(orgId, ["facebook_access_token", "facebook_ad_account_id", "usd_to_bdt_rate"], { cached: true });
       let fbToken = cfg["facebook_access_token"];
       let fbAccountId = cfg["facebook_ad_account_id"];
       let fbAccountCurrency = null;
@@ -8567,11 +8620,8 @@ async function recordOrderCallActivity(supabase, orgId, call, sourceSurface) {
 }
 
 async function withStaffNames(supabase, orgId, calls) {
-  const ids = [...new Set(calls.map((call) => call.staff_id))];
-  if (!ids.length) return calls;
-  const { data, error } = await supabase.from("user_roles").select("user_id, display_name").eq("org_id", orgId).in("user_id", ids);
-  if (error) throw error;
-  const names = new Map((data || []).map((row) => [row.user_id, row.display_name]));
+  if (!calls.length) return calls;
+  const names = await getStaffNameMap(supabase, orgId);
   return calls.map((call) => ({ ...call, staff_name: names.get(call.staff_id) || "Unnamed member" }));
 }
 
@@ -10847,9 +10897,7 @@ function profilePageEnvelope(items, requestedPage) {
 }
 
 async function customerProfileActor(supabase, orgId, userId) {
-  const { data, error } = await supabase.from("user_roles").select("display_name").eq("org_id", orgId).eq("user_id", userId).maybeSingle();
-  if (error) throw error;
-  return data?.display_name || "Unnamed member";
+  return (await getStaffNameMap(supabase, orgId)).get(userId) || "Unnamed member";
 }
 
 app.get("/api/customers/:id", async (req, res) => {
@@ -10994,8 +11042,8 @@ async function recordOrderActivity(supabase, event) {
   if (!event) return { recorded: false, id: null };
   const row = { ...event, id: event.id || crypto.randomUUID() };
   if (row.actor_kind === "user" && row.actor_id && !row.actor_display_name) {
-    const { data: actor } = await supabase.from("user_roles").select("display_name").eq("org_id", row.org_id).eq("user_id", row.actor_id).maybeSingle();
-    row.actor_display_name = actor?.display_name || "Unknown";
+    const names = await getStaffNameMap(supabase, row.org_id).catch(() => new Map());
+    row.actor_display_name = names.get(row.actor_id) || "Unknown";
   }
   let lastError = null;
   for (let attempt = 1; attempt <= MAX_EVENT_INSERT_ATTEMPTS; attempt += 1) {
@@ -11044,11 +11092,9 @@ async function recordOrderActivities(supabase, events) {
   const unnamed = rows.filter((row) => row.actor_kind === "user" && row.actor_id && !row.actor_display_name);
   for (const rowOrgId of new Set(unnamed.map((row) => row.org_id))) {
     const orgRows = unnamed.filter((row) => row.org_id === rowOrgId);
-    const actorIds = [...new Set(orgRows.map((row) => row.actor_id))];
     let names = new Map();
     try {
-      const { data } = await supabase.from("user_roles").select("user_id, display_name").eq("org_id", rowOrgId).in("user_id", actorIds);
-      names = new Map((data || []).map((actor) => [actor.user_id, actor.display_name]));
+      names = await getStaffNameMap(supabase, rowOrgId);
     } catch { /* fall back to "Unknown" below */ }
     for (const row of orgRows) row.actor_display_name = names.get(row.actor_id) || "Unknown";
   }

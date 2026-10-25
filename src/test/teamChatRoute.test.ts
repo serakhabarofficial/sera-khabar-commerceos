@@ -88,7 +88,8 @@ function fixture(seed: Record<string, Record<string, unknown>[]> = {}, role = "a
   });
   harness.load(
     ["TEAM_CHAT_ID_RE", "TEAM_CHAT_MESSAGE_FIELDS", "TEAM_CHAT_PAGE", "TEAM_CHAT_TYPING_MS", "TEAM_CHAT_ONLINE_MS", "TEAM_CHAT_EVERYONE_CHANNEL", "TEAM_CHAT_DEFAULT_CHANNELS", "TEAM_CHAT_ORDER_FIELDS", "TEAM_CHAT_ORDER_RESULTS", "errorMessage", "teamChatUser", "teamChatChannel", "touchTeamChatMember", "addTeamChatMembers", "teamChatStaffIds", "teamChatManagedChannel", "markTeamPresence", "teamChatSummaries",
-      "TEAM_CHAT_BUCKET", "TEAM_CHAT_FILE_RE", "TEAM_CHAT_ATTACHMENT_FIELDS", "TEAM_CHAT_LINK_SECONDS", "teamChatLinks", "teamChatAttachments", "teamChatUploadedFiles", "teamChatBadFile"],
+      "TEAM_CHAT_BUCKET", "TEAM_CHAT_FILE_RE", "TEAM_CHAT_ATTACHMENT_FIELDS", "TEAM_CHAT_LINK_SECONDS", "teamChatLinks", "teamChatAttachments", "teamChatUploadedFiles", "teamChatBadFile",
+      "staffCache", "getOrgStaff", "getActiveOrgStaff", "getStaffNameMap"],
     ['app.get("/api/team-chat/', 'app.post("/api/team-chat/', 'app.delete("/api/team-chat/'],
   );
   return { ...harness, db, objects, signed };

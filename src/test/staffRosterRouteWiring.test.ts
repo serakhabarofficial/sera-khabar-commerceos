@@ -23,16 +23,18 @@ describe("GET /api/staff", () => {
     expect(section).not.toContain("requireAdmin");
   });
 
-  it("uses the resolved workspace to read staff", () => {
+  it("uses the resolved workspace to read active staff", () => {
     const section = staff();
     expect(section).toContain("getUserOrg(supabase, user.id)");
-    expect(section).toContain('.eq("org_id", orgId)');
-    expect(section).toContain('.is("deleted_at", null)');
+    expect(section).toContain("getActiveOrgStaff(supabase, orgId)");
+    const roster = routeSection("async function getOrgStaff", "async function getStaffNameMap");
+    expect(roster).toContain('.eq("org_id", orgId)');
+    expect(roster).toContain("!member.deleted_at && !member.suspended_at");
   });
 
   it("returns only dropdown-safe staff details", () => {
     const section = staff();
-    expect(section).toContain('select("user_id, display_name")');
+    expect(section).toContain("user_id: member.user_id");
     expect(section).toContain("display_name");
     expect(section).not.toContain("getAuthUserEmail");
     expect(section).not.toMatch(/\brole\b/);

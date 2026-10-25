@@ -59,7 +59,12 @@ function harness({ user = { id: userId }, rows = {}, dbError = null }: { user?: 
   const start = source.indexOf("// ── Customer profile endpoints");
   const end = source.indexOf("// ── Order attribution", start);
   expect(start, "production customer profile route block is registered").toBeGreaterThan(-1);
-  const deps = { app, getToken: () => "jwt", getUser: async () => ({ user }), getServiceSupabase: () => supabase, getUserOrg: async () => ({ orgId }), filterLegacyActivityEvents, ...profileHelpers };
+  const deps = { app, getToken: () => "jwt", getUser: async () => ({ user }), getServiceSupabase: () => supabase, getUserOrg: async () => ({ orgId }), filterLegacyActivityEvents, ...profileHelpers,
+    // Stands in for the cached roster helper: same workspace-scoped user_roles read.
+    getStaffNameMap: async (client: typeof supabase, workspace: string) => {
+      const { data } = await client.from("user_roles").select("user_id, display_name").eq("org_id", workspace);
+      return new Map(((data || []) as Row[]).map((member) => [member.user_id, member.display_name]));
+    } };
   new Function(...Object.keys(deps), source.slice(start, end))(...Object.values(deps));
   return {
     db, requests,
