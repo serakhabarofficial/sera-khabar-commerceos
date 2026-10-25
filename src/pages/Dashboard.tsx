@@ -753,7 +753,7 @@ export default function Dashboard() {
 
   // Silent analytics tick keeps the selected range's metric values and mini
   // bars current without flashing the skeleton loader.
-  useVisibleInterval(() => fetchAnalytics(dateRange, true), 60000);
+  useVisibleInterval(() => fetchAnalytics(dateRange, true), 5 * 60_000);
 
   const applyBulkStatus = async (
     target: string,

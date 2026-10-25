@@ -172,7 +172,7 @@ export default function SocialInbox({ platform }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when the inbox changes
   }, [platform]);
 
-  useVisibleInterval(() => void loadConversations(), 2000);
+  useVisibleInterval(() => void loadConversations(), 10_000);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -199,7 +199,7 @@ export default function SocialInbox({ platform }: Props) {
         setPausedAi(d.paused_ai || false);
       })
       .catch(() => {});
-  }, 2000, Boolean(selectedId));
+  }, 5_000, Boolean(selectedId));
 
   useEffect(() => {
     isInitialLoad.current = true;

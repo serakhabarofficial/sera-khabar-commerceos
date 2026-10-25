@@ -20,7 +20,7 @@ import { DateRangePicker } from "@/components/DateRangePicker";
 import { AcquisitionTab, FunnelTab, HealthTab, OverviewTab, ProductsTab } from "@/components/analytics/WebsiteReportTabs";
 import { healthSummary, timeAgo, type WebsiteAnalyticsResponse } from "@/lib/websiteAnalytics";
 
-const WEBSITE_BEHAVIOR_REFETCH_MS = 30 * 1000;
+const WEBSITE_BEHAVIOR_REFETCH_MS = 60 * 1000;
 
 type WebsiteBehaviorResponse = {
   configured: boolean;

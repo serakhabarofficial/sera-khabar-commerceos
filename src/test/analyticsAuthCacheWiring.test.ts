@@ -65,8 +65,8 @@ describe("Dashboard analytics fresh=1 wiring", () => {
     expect(dashboard).toContain("apiFetch(`/api/analytics?${buildParams(prev)}`");
     // After a price/shipping edit.
     expect(dashboard).toContain("fetchAnalytics(dateRange, false, true);");
-    // The 60s poll stays cached.
-    expect(dashboard).toContain("useVisibleInterval(() => fetchAnalytics(dateRange, true), 60000);");
+    // The 5-minute poll stays cached.
+    expect(dashboard).toContain("useVisibleInterval(() => fetchAnalytics(dateRange, true), 5 * 60_000);");
   });
 });
 

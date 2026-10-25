@@ -15,7 +15,7 @@ import { QuickActions } from "@/components/home/QuickActions";
 import { Rise } from "@/components/home/Rise";
 import type { HomeSummary } from "@/components/home/types";
 
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 60_000;
 
 function dhakaToday(): Date {
   const local = new Date(Date.now() + 6 * 60 * 60 * 1000);

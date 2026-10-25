@@ -156,7 +156,8 @@ export default function Returns() {
   const { data, isLoading } = useQuery<{ returns: ReturnOrder[]; summary: ReturnsSummary }>({
     queryKey: ["/api/returns"],
     queryFn: () => apiFetch("/api/returns").then((r) => r.json()),
-    refetchInterval: 30000,
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
   });
 
   const returns = data?.returns || [];
