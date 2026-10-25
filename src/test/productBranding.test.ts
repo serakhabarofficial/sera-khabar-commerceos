@@ -13,7 +13,7 @@ const searchableExtensions = new Set([
   ".ts",
   ".tsx",
 ]);
-const ignoredDirs = new Set([".git", "dist", "node_modules"]);
+const ignoredDirs = new Set([".git", "dist", "mockups", "node_modules"]);
 
 function collectFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
