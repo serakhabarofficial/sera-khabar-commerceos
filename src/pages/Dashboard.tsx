@@ -11,7 +11,6 @@ import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { Select, SelectItem } from "@/components/base/select/select";
 import { getDhakaGreeting } from "@/lib/greeting";
-import { detectDistrict, DISTRICT_UNKNOWN_SENTINEL } from "@/lib/bdDistricts";
 import { matchesOrderSearch } from "@/lib/orderSearch";
 import { buildPendingOrdersByPhone } from "@/lib/abandonedPendingMatch";
 import { DottedGlobe } from "@/components/home/DottedGlobe";
@@ -1063,7 +1062,6 @@ export default function Dashboard() {
   const isBoardQueue = fulfillmentTab === "board";
   const activeOrderStatusFilter: OrderStatusFilter = fulfillmentTab === "abandoned" || fulfillmentTab === "board" ? "all" : fulfillmentTab;
   const boardCount = useOrderBoard().data?.cards?.length ?? 0;
-  const [districtFilter, setDistrictFilter] = useState("all");
   // Cancelled tab: date range, which date it applies to, and the reasons picked in the breakdown.
   const isCancelledTab = activeOrderStatusFilter === "cancelled";
   const [cancelPreset, setCancelPreset] = useState<CancellationPreset>("30d");
@@ -1118,21 +1116,27 @@ export default function Dashboard() {
   }, [orders, ordersDateRanges, rangeOrdersData, warehouseFilter, warehouseOrders]);
   const listOrders = (showOrdersDateFilter && rangeOrdersByTab[activeOrderStatusFilter]) || warehouseOrders;
 
+  // While searching (e.g. a district or thana), every tab counts only the matching orders.
+  const isSearching = debouncedSearch.trim() !== "";
+  const searchOrders = useCallback(
+    (list: Order[]) => (isSearching ? list.filter((order) => matchesOrderSearch(order, debouncedSearch)) : list),
+    [debouncedSearch, isSearching],
+  );
   const orderStatusCounts = useMemo(
-    () => countOrdersByStatus(warehouseOrders),
-    [warehouseOrders],
+    () => countOrdersByStatus(searchOrders(warehouseOrders)),
+    [searchOrders, warehouseOrders],
   );
   const displayedOrderStatusCounts = useMemo(() => {
-    const counts = warehouseFilter === "all" && totalOrdersCount !== null
+    const counts = warehouseFilter === "all" && totalOrdersCount !== null && !isSearching
       ? { ...orderStatusCounts, all: totalOrdersCount }
       : { ...orderStatusCounts };
     // A date tab with a picked range counts only orders placed in that range.
     for (const tab of DATE_FILTER_TABS) {
       const rangeOrders = rangeOrdersByTab[tab];
-      if (rangeOrders) counts[tab] = countOrdersByStatus(rangeOrders)[tab];
+      if (rangeOrders) counts[tab] = countOrdersByStatus(searchOrders(rangeOrders))[tab];
     }
     return counts;
-  }, [orderStatusCounts, rangeOrdersByTab, totalOrdersCount, warehouseFilter]);
+  }, [isSearching, orderStatusCounts, rangeOrdersByTab, searchOrders, totalOrdersCount, warehouseFilter]);
 
   // Full pending + print queues (ignores search text and table pagination) so the
   // order editor can offer Previous/Next navigation through the whole tab.
@@ -1212,22 +1216,6 @@ export default function Dashboard() {
     [cancelledListOrders, selectedOrderIds],
   );
 
-  const districtOf = (order: Order) => detectDistrict(order.address);
-
-  const districtCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    let unknown = 0;
-    for (const order of filteredOrders) {
-      const district = districtOf(order);
-      if (district) counts.set(district, (counts.get(district) || 0) + 1);
-      else unknown += 1;
-    }
-    const ranked = [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "en"));
-    return { ranked, unknown };
-  }, [filteredOrders]);
-
   // Held orders before the Hold tab's own filters; the cards and reason counts read these.
   const holdBaseOrders = useMemo(() => {
     if (!isHoldTab) return [];
@@ -1247,13 +1235,6 @@ export default function Dashboard() {
     return showOrdersDateFilter ? filterOrdersByDateRange(filteredOrders, ordersDateRange) : filteredOrders;
   }, [cancelledListOrders, filteredOrders, followUpListOrders, holdListOrders, isCancelledTab, isFollowUpTab, isHoldTab, ordersDateRange, showOrdersDateFilter]);
 
-  const districtFilteredOrders = useMemo(() => {
-    if (activeOrderStatusFilter !== "approved" || districtFilter === "all") return dateFilteredOrders;
-    return dateFilteredOrders.filter((order) => {
-      const district = districtOf(order);
-      return districtFilter === DISTRICT_UNKNOWN_SENTINEL ? !district : district === districtFilter;
-    });
-  }, [dateFilteredOrders, districtFilter, activeOrderStatusFilter]);
 
   const filteredAbandonedCheckouts = useMemo(
     () => abandonedCheckouts.filter((checkout) => matchesAbandonedCheckoutSearch(checkout, debouncedSearch)),
@@ -1275,11 +1256,11 @@ export default function Dashboard() {
 
   // Cap rendered rows so the (unvirtualized) table doesn't balloon the DOM,
   // which keeps interactions like the avatar menu responsive on the dashboard.
-  const orderTotalPages = Math.max(1, Math.ceil(districtFilteredOrders.length / orderPageSize));
+  const orderTotalPages = Math.max(1, Math.ceil(dateFilteredOrders.length / orderPageSize));
   const orderSafePage = Math.min(orderPage, orderTotalPages - 1);
   const visibleOrders = useMemo(
-    () => districtFilteredOrders.slice(orderSafePage * orderPageSize, (orderSafePage + 1) * orderPageSize),
-    [districtFilteredOrders, orderPageSize, orderSafePage],
+    () => dateFilteredOrders.slice(orderSafePage * orderPageSize, (orderSafePage + 1) * orderPageSize),
+    [dateFilteredOrders, orderPageSize, orderSafePage],
   );
 
   const metricSparklines = useMemo(() => {
@@ -1804,7 +1785,7 @@ export default function Dashboard() {
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder={isAbandonedQueue ? "Search name, phone, address or cart…" : "Search name, phone, order or courier ID…"}
+                placeholder={isAbandonedQueue ? "Search name, phone, address or cart…" : "Search name, phone, order, courier ID or area…"}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-10 w-full rounded-none border-0 bg-transparent pl-9 text-sm shadow-none placeholder:text-black/35 focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -1842,27 +1823,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {!isAbandonedQueue && activeOrderStatusFilter === "approved" && (
-              <div className={CAPSULE_SEGMENT}>
-                <Select
-                  aria-label="Filter approved orders by district"
-                  data-testid="select-district-filter"
-                  selectedKey={districtFilter}
-                  onSelectionChange={(key) => { setDistrictFilter(String(key)); setOrderPage(0); }}
-                  className="h-full max-md:w-full"
-                  triggerClassName={CAPSULE_SEGMENT_TRIGGER}
-                >
-                  <SelectItem id="all">{`All districts (${filteredOrders.length})`}</SelectItem>
-                  {districtCounts.ranked.map((entry) => (
-                    <SelectItem key={entry.name} id={entry.name}>{`${entry.name} (${entry.count})`}</SelectItem>
-                  ))}
-                  {districtCounts.unknown > 0 && (
-                    <SelectItem id={DISTRICT_UNKNOWN_SENTINEL}>{`Unknown (${districtCounts.unknown})`}</SelectItem>
-                  )}
-                </Select>
-              </div>
-            )}
-
               {/* On phones rows-per-page sits beside the order count instead. */}
               {!isMobile && (
                 <div className={CAPSULE_SEGMENT}>
@@ -1892,7 +1852,6 @@ export default function Dashboard() {
           onChange={(nextTab) => {
             setFulfillmentTab(nextTab);
             setOrderPage(0);
-            setDistrictFilter("all");
             if (nextTab === "abandoned" || nextTab === "board" || !DATE_FILTER_TABS.includes(nextTab)) setOrdersDateRanges({});
             if (nextTab !== "cancelled") setCancelReasons(new Set());
             if (nextTab !== "stuck") setFollowUpReasons(new Set());
@@ -2008,7 +1967,7 @@ export default function Dashboard() {
             <OrderTablePagination
               page={orderSafePage}
               pageSize={orderPageSize}
-              totalItems={districtFilteredOrders.length}
+              totalItems={dateFilteredOrders.length}
               onPageChange={setOrderPage}
             />
           </>

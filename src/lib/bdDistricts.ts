@@ -1,3 +1,5 @@
+import { BD_AREA_SPELLINGS } from "@/lib/bdAreaNames";
+
 export interface BdDistrict {
   name: string;
   match: string[];
@@ -192,4 +194,52 @@ export function detectDistrict(
   // Explicit district names win over area aliases: an address naming two
   // districts keeps the explicitly named one, not an area guess.
   return matchIndex(DISTRICT_INDEX, text, flat) ?? matchIndex(AREA_INDEX, text, flat);
+}
+
+// Search compares "flat" text: folded, Bangla digits as ASCII, and every space,
+// dash and punctuation mark removed, so "Mirpur-10" equals "mirpur 10".
+function searchFlat(value: string): string {
+  return foldUnicode(value.toLowerCase())
+    .replace(/[\u09E6-\u09EF]/g, (digit) => String(digit.charCodeAt(0) - 0x09e6))
+    .replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+
+// Every place name, as groups of flat spellings that mean the same place.
+const SEARCH_SPELLING_GROUPS: string[][] = [
+  ...BD_DISTRICTS.map((district) => [district.name, ...district.match]),
+  ...BD_AREA_SPELLINGS,
+].map((group) => [...new Set(group.map(searchFlat))].filter((spelling) => spelling.length >= 3));
+
+// The query plus each rewrite with a place name swapped for its other
+// spellings, so "mirpur 10" also looks for "মিরপুর10".
+// Search runs once per order, so the last query's variants are kept.
+let cachedVariants: { query: string; variants: string[] } | null = null;
+function searchVariants(query: string): string[] {
+  if (cachedVariants?.query === query) return cachedVariants.variants;
+  let variants = new Set([searchFlat(query)]);
+  for (const group of SEARCH_SPELLING_GROUPS) {
+    const next = new Set(variants);
+    for (const variant of variants) {
+      for (const spelling of group) {
+        if (!variant.includes(spelling)) continue;
+        for (const other of group) if (other !== spelling) next.add(variant.replace(spelling, other));
+      }
+    }
+    variants = next;
+  }
+  cachedVariants = { query, variants: [...variants].filter(Boolean) };
+  return cachedVariants.variants;
+}
+
+// Search: the query matches the address in English or Bangla (any thana, area
+// or city), or it names a district the address is detected in, so "Dhaka" also
+// finds addresses that only name a Dhaka area.
+export function addressMatchesSearch(address: string | null | undefined, query: string): boolean {
+  if (!address || !searchFlat(query)) return false;
+  const flatAddress = searchFlat(address);
+  if (searchVariants(query).some((variant) => flatAddress.includes(variant))) return true;
+  const q = normalizeText(query);
+  const flatQuery = q.replace(/\s+/g, "");
+  const district = DISTRICT_INDEX.find((entry) => entry.spaced.includes(q) || entry.flat.includes(flatQuery))?.name;
+  return Boolean(district && detectDistrict(address) === district);
 }
