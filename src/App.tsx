@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { NotchToaster } from "notch-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
@@ -184,6 +185,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
+      <NotchToaster position="top-center" mode="floating" />
       <BrowserRouter>
         <AuthProvider>
           <Suspense fallback={<RouteFallback />}>
