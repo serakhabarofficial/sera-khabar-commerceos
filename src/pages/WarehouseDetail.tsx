@@ -30,6 +30,8 @@ import type { OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
 import { Chip } from "@/components/base/badges/chip";
 import { RichButton } from "@/components/ui/rich-button";
 import { PopButton } from "@/components/ui/pop-button";
+import { pickerPrimaryButtonClassName } from "@/components/base/date-picker/shared";
+import { cn } from "@/lib/utils";
 import {
   Popover,
   PopoverContent,
@@ -322,16 +324,15 @@ export default function WarehouseDetail() {
                 ariaLabel="Rows per page for warehouse orders"
               />
               <div className="h-4 w-px bg-black/10" />
-              <PopButton
-                color="brand"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => navigate(`/orders/new`, { state: { from: `/warehouses/${id}` } })}
-                className="gap-1.5 px-3 text-[11px] font-bold tracking-normal"
+                className={cn(pickerPrimaryButtonClassName, "inline-flex h-9 shrink-0 items-center gap-1.5 px-3 text-sm")}
                 data-testid="button-create-warehouse-order"
               >
                 <PlusIcon className="h-3.5 w-3.5" />
                 Create Order
-              </PopButton>
+              </button>
               <Popover open={bulkMenuOpen} onOpenChange={setBulkMenuOpen}>
                 <PopoverTrigger asChild>
                   <PopButton

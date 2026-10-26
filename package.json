@@ -85,6 +85,7 @@
     "lucide-react": "^0.462.0",
     "motion": "^12.34.0",
     "next-themes": "^0.3.0",
+    "notch-toast": "^0.2.0",
     "pg": "^8.20.0",
     "postprocessing": "^6.39.4",
     "react": "^18.3.1",

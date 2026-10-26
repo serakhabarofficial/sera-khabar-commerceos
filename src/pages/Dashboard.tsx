@@ -44,6 +44,7 @@ import { CaretDown, Printer } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { pickerPrimaryButtonClassName } from "@/components/base/date-picker/shared";
 import { format, parseISO } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { Spinner } from "@/components/ui/ios-spinner";
@@ -1688,17 +1689,16 @@ export default function Dashboard() {
                 Packing Summary
               </PopButton>
             )}
-            <PopButton
-              color="brand"
-              size="sm"
+            <button
+              type="button"
               onClick={() => navigate("/orders/new", { state: { from: location.pathname } })}
               disabled={bulkUpdating}
-              className="gap-1.5 rounded-lg px-3 text-[11px] font-bold tracking-normal max-md:w-full max-md:justify-center"
+              className={cn(pickerPrimaryButtonClassName, "inline-flex h-9 shrink-0 items-center gap-1.5 px-3 text-sm max-md:w-full max-md:justify-center")}
               data-testid="button-create-order"
             >
               <Plus className="h-3.5 w-3.5" />
               Create Order
-            </PopButton>
+            </button>
 
             {!isAbandonedQueue && (
               <Popover open={bulkMenuOpen} onOpenChange={setBulkMenuOpen}>
