@@ -87,6 +87,9 @@ import { OrderHoldDialog } from "@/components/orders/OrderHoldDialog";
 import type { OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
 import { CopyButton } from "@/components/ui/copy-button";
 import { CancellationReasonCell, CancelledAtCell } from "@/components/orders/CancellationReasonCell";
+import { AddressReason } from "@/components/orders/AddressReason";
+import { toast as notchToast } from "notch-toast";
+import { fraudCheckToast } from "@/lib/fraudCheckToast";
 
 function copyTextValue(value: string) {
   if (navigator.clipboard?.writeText) {
@@ -958,6 +961,10 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
 
   const handleCheckFraud = async (order: Order) => {
     setCheckingFraudIds((prev) => new Set(prev).add(order.id));
+    const label = String(order.order_number ?? "").replace(/^#+/, "");
+    const toastId = notchToast.loading(`Checking ${label}`, { id: `fraud-check-${order.id}` });
+    const failed = (reason: string) =>
+      notchToast.update(toastId, { title: `${label} · ${reason}`, type: "error", duration: 0, dismissible: true });
 
     try {
       const res = await apiFetch("/api/check-fraud", {
@@ -972,7 +979,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
       }
 
       if (data?.error && !data?.order) {
-        toast.error(data.error);
+        failed(data.error);
         return;
       }
 
@@ -982,44 +989,15 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
 
       if (data?.fraudError) {
         // Show the real error from the API so the user can diagnose it
-        toast.custom(() => (
-          <DarkToast className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-red-500/15 border border-red-400/20 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4 text-red-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium text-white">Fraud check failed</p>
-              <p className="text-[11px] text-white/50 mt-0.5 break-words leading-snug">{data.fraudError}</p>
-            </div>
-          </DarkToast>
-        ), { duration: 10000, fit: true });
+        failed(data.fraudError);
         return;
       }
 
-      toast.custom(() => (
-        <DarkToast className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-emerald-500/15 border border-emerald-400/20 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div>
-            <p className="text-[13px] font-medium text-white">Order #{order.order_number} verified</p>
-            <p className="text-[11px] text-white/50 mt-0.5">Fraud analysis complete</p>
-          </div>
-        </DarkToast>
-      ), { fit: true });
+      const result = fraudCheckToast(order.order_number, data?.order?.fraud_data);
+      notchToast.update(toastId, { ...result, duration: 0, dismissible: true });
     } catch (error) {
       console.error("Error checking fraud:", error);
-      toast.custom(() => (
-        <DarkToast className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-red-500/15 border border-red-400/20 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-4 h-4 text-red-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium text-white">Fraud check failed</p>
-            <p className="text-[11px] text-white/50 mt-0.5">Could not verify order</p>
-          </div>
-        </DarkToast>
-      ), { fit: true });
+      failed("Fraud check failed");
     } finally {
       setCheckingFraudIds((prev) => {
         const next = new Set(prev);
@@ -1863,9 +1841,10 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                   <TableCell colSpan={1 + (showRiskColumn ? 1 : 0) + (showCancellationReason ? 2 : 3) + 2} className="pt-0 pb-3 pr-4">
                     <div className="flex items-start gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-1">
                       <MapPin className="mt-[2px] h-3.5 w-3.5 shrink-0 text-emerald-700" strokeWidth={2} />
-                      <p data-testid={`order-address-${order.id}`} className="text-[13px] font-medium leading-snug text-emerald-950">
+                      <p data-testid={`order-address-${order.id}`} className="min-w-0 flex-1 text-[13px] font-medium leading-snug text-emerald-950">
                         {order.address || "Digital Delivery"}
                       </p>
+                      {!showCancellationReason && <AddressReason order={order} />}
                     </div>
                   </TableCell>
                 </TableRow>
