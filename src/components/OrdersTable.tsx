@@ -1861,9 +1861,9 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                 >
                   <TableCell colSpan={2} className="p-0" />
                   <TableCell colSpan={1 + (showRiskColumn ? 1 : 0) + (showCancellationReason ? 2 : 3) + 2} className="pt-0 pb-3 pr-4">
-                    <div className="flex items-start gap-2 rounded-[10px] border border-yellow-200 bg-yellow-100 px-3 py-2">
-                      <MapPin className="mt-[3px] h-3.5 w-3.5 shrink-0 text-yellow-700" strokeWidth={2} />
-                      <p data-testid={`order-address-${order.id}`} className="text-[13px] font-medium leading-relaxed text-yellow-950">
+                    <div className="flex items-start gap-2 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-1">
+                      <MapPin className="mt-[2px] h-3.5 w-3.5 shrink-0 text-emerald-700" strokeWidth={2} />
+                      <p data-testid={`order-address-${order.id}`} className="text-[13px] font-medium leading-snug text-emerald-950">
                         {order.address || "Digital Delivery"}
                       </p>
                     </div>
