@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { Fragment, useEffect, useRef, useState, type ComponentProps } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -1465,7 +1465,6 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
             {showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Reason</TableHead>}
             {showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto">Cancelled</TableHead>}
             {!showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Warehouse</TableHead>}
-            {!showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Ship To</TableHead>}
             <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Items</TableHead>
             <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Total</TableHead>
             {!showCancellationReason && <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-black py-3 h-auto text-center">Order State</TableHead>}
@@ -1481,10 +1480,12 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                   ? ["pending", "confirmed", "print", "on_hold", "cancelled"]
                   : ["pending", "confirmed", "on_hold", "cancelled"];
               const sendBlockReason = courierSendBlockReason(order.status);
+              const openOrder = () => navigate(`/orders/${order.id}`, orderLinkState ? { state: orderLinkState } : undefined);
+              const rowBackground = selectedIds.has(order.id) ? "bg-blue-50/60" : "";
 
               return (
+                <Fragment key={order.id}>
                 <TableRow
-                  key={order.id}
                   tabIndex={0}
                   aria-label={`Open order ${order.order_number}`}
                   onMouseEnter={() => prefetchOrder(order.id)}
@@ -1492,20 +1493,21 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                   onClick={(event) => {
                     const target = event.target as HTMLElement;
                     if (target.closest("button, a, input, textarea, select, [role='button'], [data-row-interactive='true']")) return;
-                    navigate(`/orders/${order.id}`, orderLinkState ? { state: orderLinkState } : undefined);
+                    openOrder();
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     const target = event.target as HTMLElement;
                     if (target.closest("button, a, input, textarea, select, [role='button'], [data-row-interactive='true']")) return;
                     event.preventDefault();
-                    navigate(`/orders/${order.id}`, orderLinkState ? { state: orderLinkState } : undefined);
+                    openOrder();
                   }}
                   className={cn(
-                    "border-b border-[#F1F1F2] transition-all duration-200 group relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-inset",
+                    "border-b-0 transition-all duration-200 group relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-inset",
+                    rowBackground,
                     selectedIds.has(order.id)
-                      ? "bg-blue-50/60 hover:bg-blue-50/80"
-                      : "hover:bg-black/[0.015]"
+                      ? "hover:bg-blue-50/80 [&:has(+tr:hover)]:bg-blue-50/80"
+                      : "hover:bg-black/[0.015] [&:has(+tr:hover)]:bg-black/[0.015]"
                   )}
                 >
                   <TableCell className="w-10 py-3 pl-4">
@@ -1629,34 +1631,6 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                     <BuiSelect aria-label={`Warehouse for ${order.order_number}`} placeholder="Select warehouse" selectedKey={order.warehouse_id || null} onSelectionChange={(key) => handleWarehouseChange(order, String(key))} className="items-center" triggerClassName={`h-8 w-auto max-w-full border-transparent ${order.warehouse_id ? "bg-status-lime-background text-status-lime-text hover:bg-status-lime-background" : "bg-status-yellow-background text-status-yellow-text hover:bg-status-yellow-background"}`} popoverClassName="w-[var(--trigger-width)]">
                       {warehouses.map((warehouse) => <BuiSelectItem key={warehouse.id} id={warehouse.id} textValue={warehouse.name}>{warehouse.name}</BuiSelectItem>)}
                     </BuiSelect>
-                  </TableCell>
-                  <TableCell className="max-w-[120px] 2xl:max-w-[150px] py-3">
-                    <Tooltip delayDuration={0}>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1 group/addr cursor-default min-w-0">
-                          <MapPin className="h-3 w-3 shrink-0 text-blue-400 group-hover/addr:text-blue-500 transition-colors" />
-                          <p className="text-xs text-black font-light truncate">
-                            {order.address || "Digital Delivery"}
-                          </p>
-                        </div>
-                      </TooltipTrigger>
-                      {order.address && (
-                        <TooltipContent side="top" className="max-w-[260px] p-0 overflow-hidden rounded-2xl border border-black/10 bg-white/95 shadow-2xl shadow-black/10 backdrop-blur-xl">
-                          <div className="border-b border-black/[0.06] px-3.5 py-2.5 flex items-center gap-2.5">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                              <MapPin className="h-3.5 w-3.5" strokeWidth={1.8} />
-                            </span>
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">Delivery Address</p>
-                              <p className="text-[10px] text-muted-foreground">Ship to</p>
-                            </div>
-                          </div>
-                          <div className="px-3.5 py-2.5">
-                            <p className="text-xs text-foreground leading-relaxed">{order.address}</p>
-                          </div>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
                   </TableCell>
                   </>)}
                   <TableCell className="max-w-[130px] 2xl:max-w-[160px] py-3">
@@ -1870,6 +1844,32 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                   </TableCell>
                   </>)}
                 </TableRow>
+                <TableRow
+                  data-testid={`order-address-row-${order.id}`}
+                  onClick={(event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest("button, a, input, textarea, select, [role='button'], [data-row-interactive='true']")) return;
+                    openOrder();
+                  }}
+                  className={cn(
+                    "border-b border-[#F1F1F2] cursor-pointer transition-all duration-200",
+                    rowBackground,
+                    selectedIds.has(order.id)
+                      ? "hover:bg-blue-50/80 [tr:hover+&]:bg-blue-50/80"
+                      : "hover:bg-black/[0.015] [tr:hover+&]:bg-black/[0.015]"
+                  )}
+                >
+                  <TableCell colSpan={2} className="p-0" />
+                  <TableCell colSpan={1 + (showRiskColumn ? 1 : 0) + (showCancellationReason ? 2 : 3) + 2} className="pt-0 pb-3 pr-4">
+                    <div className="flex items-start gap-2 rounded-[10px] border border-yellow-200 bg-yellow-100 px-3 py-2">
+                      <MapPin className="mt-[3px] h-3.5 w-3.5 shrink-0 text-yellow-700" strokeWidth={2} />
+                      <p data-testid={`order-address-${order.id}`} className="text-[13px] font-medium leading-relaxed text-yellow-950">
+                        {order.address || "Digital Delivery"}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                </Fragment>
               );
             })}
         

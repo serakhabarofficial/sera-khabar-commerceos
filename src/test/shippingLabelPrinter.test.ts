@@ -90,11 +90,10 @@ describe("shipping label HTML", () => {
       '<div class="meta-field"><span>COD</span><strong>৳1,580</strong></div>',
     );
     expect(result.html).toContain('<div class="customer-label">CUSTOMER</div>');
-    expect(result.html).toContain(
-      '<div class="recipient-contact contact-size-normal">Rahim Uddin - 01700000000</div>',
-    );
-    expect(result.html).not.toContain('class="recipient-name"');
-    expect(result.html).not.toContain('class="recipient-phone"');
+    expect(result.html).toContain('<div class="recipient-name name-size-normal">Rahim Uddin</div>');
+    expect(result.html).toContain('<div class="recipient-phone">01700000000</div>');
+    expect(result.html).toContain('<footer class="label-footer"><span>TOTAL QTY</span><strong>3</strong></footer>');
+    expect(result.html).toContain('preserveAspectRatio="none"');
     expect(result.html).not.toContain('class="recipient-address"');
     expect(result.html).not.toContain('class="address-label"');
     expect(result.html).not.toContain("ADDRESS");
@@ -122,19 +121,20 @@ describe("shipping label HTML", () => {
   });
 
   it.each([
-    [19, "contact-size-compact"],
-    [27, "contact-size-small"],
-    [35, "contact-size-tight"],
-  ])("uses an adaptive contact size for a %i-character customer name", (nameLength, sizeClass) => {
+    [14, "name-size-normal"],
+    [19, "name-size-compact"],
+    [27, "name-size-small"],
+    [35, "name-size-tight"],
+  ])("gives a %i-character customer name its own line at an adaptive size", (nameLength, sizeClass) => {
     const customerName = "A".repeat(nameLength);
     const result = buildShippingLabelHtml([makeOrder({ customer_name: customerName })]);
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected printable label HTML");
 
-    expect(result.html).toContain(
-      `<div class="recipient-contact ${sizeClass}">${customerName} - 01700000000</div>`,
-    );
+    expect(result.html).toContain(`<div class="recipient-name ${sizeClass}">${customerName}</div>`);
+    // The phone is on its own line, so a long name can never push it off the label.
+    expect(result.html).toContain('<div class="recipient-phone">01700000000</div>');
   });
 
   it("removes phone whitespace without otherwise rewriting the value", () => {
@@ -145,9 +145,7 @@ describe("shipping label HTML", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected printable label HTML");
 
-    expect(result.html).toContain(
-      '<div class="recipient-contact contact-size-normal">Rahim Uddin - +8801700000000</div>',
-    );
+    expect(result.html).toContain('<div class="recipient-phone">+8801700000000</div>');
   });
 
   it("escapes all customer and merchandise text", () => {
@@ -197,8 +195,38 @@ describe("shipping label HTML", () => {
     expect(result.html).toContain('<div class="label-summary">');
     expect(result.html).toContain(".label-summary { flex: 0 0 auto; }");
     expect(result.html).not.toContain("min-height: 1.58in");
-    expect(result.html).toContain("tbody tr { height: 0.29in; }");
+    expect(result.html).toContain('<section class="shipping-label many-items">');
+    expect(result.html).toContain(".many-items tbody tr { height: 0.2in; }");
     expect(result.html.match(/<td class="product">পণ্য \d \| Product \d<\/td>/g)).toHaveLength(5);
+  });
+
+  it("lists the first five of a large order and counts the rest instead of cutting rows off", () => {
+    const items = Array.from({ length: 9 }, (_, index) => ({
+      product_name: `Product ${index + 1}`,
+      variant_name: "500 g jar",
+      quantity: 2,
+    }));
+    const result = buildShippingLabelHtml([makeOrder({ items })]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected printable label HTML");
+
+    expect(result.html.match(/<td class="product">Product \d<\/td>/g)).toHaveLength(5);
+    expect(result.html).not.toContain("Product 6");
+    expect(result.html).toContain('<td colspan="2">+4 more items — see order #ML567907</td>');
+    expect(result.html).toContain('<td class="quantity">8</td>');
+    expect(result.html).toContain('<footer class="label-footer"><span>TOTAL QTY</span><strong>18</strong></footer>');
+  });
+
+  it("prints all six rows when an order has exactly six products", () => {
+    const items = Array.from({ length: 6 }, (_, index) => ({ product_name: `Product ${index + 1}`, variant_name: null, quantity: 1 }));
+    const result = buildShippingLabelHtml([makeOrder({ items })]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected printable label HTML");
+
+    expect(result.html.match(/<td class="product">Product \d<\/td>/g)).toHaveLength(6);
+    expect(result.html).not.toContain("more item");
   });
 
   it("falls back to legacy merchandise fields", () => {

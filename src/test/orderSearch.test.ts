@@ -42,4 +42,41 @@ describe("matchesOrderSearch", () => {
     expect(matchesOrderSearch(order, "")).toBe(true);
     expect(matchesOrderSearch(order, "   ")).toBe(true);
   });
+
+  it("matches a city, thana or area typed anywhere in the address", () => {
+    const withAddress = { ...order, address: "House 12, Road 5, Mirpur 10, Dhaka" };
+    expect(matchesOrderSearch(withAddress, "mirpur")).toBe(true);
+    expect(matchesOrderSearch(withAddress, "Mirpur 10")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "থানা লৌহজং, জেলা মুন্সিগঞ্জ" }, "লৌহজং")).toBe(true);
+    expect(matchesOrderSearch(withAddress, "uttara")).toBe(false);
+    expect(matchesOrderSearch({ ...order, address: null }, "mirpur")).toBe(false);
+  });
+
+  it("matches a district by any of its spellings, in English or Bangla", () => {
+    const banglaDhaka = { ...order, address: "উত্তর বাড্ডা, গুলশান, ঢাকা" };
+    const chittagong = { ...order, address: "Agrabad, Chittagong" };
+    expect(matchesOrderSearch(banglaDhaka, "dhaka")).toBe(true);
+    expect(matchesOrderSearch(chittagong, "চট্টগ্রাম")).toBe(true);
+    expect(matchesOrderSearch(chittagong, "Chattogram")).toBe(true);
+    expect(matchesOrderSearch(banglaDhaka, "chattogram")).toBe(false);
+  });
+
+  it("matches an area typed in English against a Bangla address, and the reverse", () => {
+    expect(matchesOrderSearch({ ...order, address: "বাসা ৫, মিরপুর ১০, ঢাকা" }, "Mirpur")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "বাসা ৫, মিরপুর ১০, ঢাকা" }, "mirpur 10")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "House 5, Mirpur-10, Dhaka" }, "মিরপুর")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "সাভার বাজার রোড" }, "Savar")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "সাভার বাজার রোড" }, "sabhar")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "Hathazari, Chattogram" }, "হাটহাজারী")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "চাঁদপুর সদর" }, "Chandpur sadar")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "বাসা ৫, মিরপুর ১০, ঢাকা" }, "Uttara")).toBe(false);
+  });
+
+  it("ignores spaces, dashes and punctuation when matching an address", () => {
+    const address = { ...order, address: "House 5, Mirpur 10, Dhaka" };
+    expect(matchesOrderSearch(address, "mirpur10")).toBe(true);
+    expect(matchesOrderSearch(address, "Mirpur-10")).toBe(true);
+    expect(matchesOrderSearch({ ...order, address: "Mirpur-10" }, "mirpur 10")).toBe(true);
+    expect(matchesOrderSearch(address, "mirpur 11")).toBe(false);
+  });
 });

@@ -14,14 +14,12 @@ describe("district alias API", () => {
 });
 
 describe("approved district filter wiring", () => {
-  it("renders a district filter only for Approved with built-in detection", () => {
+  it("has no district dropdown: searching a district filters the Confirmed tab instead", () => {
     const dashboardSource = readFileSync(resolve(process.cwd(), "src/pages/Dashboard.tsx"), "utf8");
 
-    expect(dashboardSource).toContain('data-testid="select-district-filter"');
-    expect(dashboardSource).toContain('activeOrderStatusFilter === "approved"');
-    expect(dashboardSource).toContain('from "@/lib/bdDistricts"');
+    expect(dashboardSource).not.toContain('data-testid="select-district-filter"');
+    expect(dashboardSource).not.toContain("setDistrictFilter");
     expect(dashboardSource).not.toContain("/api/orders/district-aliases");
     expect(dashboardSource).not.toContain("/api/orders/resolve-districts");
-    expect(dashboardSource).toContain('setDistrictFilter("all")');
   });
 });
