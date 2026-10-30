@@ -166,7 +166,6 @@ describe("AbandonedCheckoutQueue", () => {
   it("supports selection and opens the detail page from the Open button only", async () => {
     const user = userEvent.setup();
     const onToggleSelect = vi.fn();
-    const onSelectAll = vi.fn();
     const onOpenCheckout = vi.fn();
     render(
       <AbandonedCheckoutQueue
@@ -177,7 +176,6 @@ describe("AbandonedCheckoutQueue", () => {
         onAction={vi.fn()}
         selectedIds={new Set()}
         onToggleSelect={onToggleSelect}
-        onSelectAll={onSelectAll}
         onOpenCheckout={onOpenCheckout}
       />,
     );
@@ -185,9 +183,6 @@ describe("AbandonedCheckoutQueue", () => {
     await user.click(screen.getByTestId(`checkbox-abandoned-${checkout.id}`));
     expect(onToggleSelect).toHaveBeenCalledWith(checkout.id);
     expect(onOpenCheckout).not.toHaveBeenCalled();
-
-    await user.click(screen.getByTestId("checkbox-abandoned-all"));
-    expect(onSelectAll).toHaveBeenCalled();
 
     // Clicking the card itself no longer navigates.
     fireEvent.click(screen.getByText(checkout.address));
@@ -261,7 +256,7 @@ describe("AbandonedCheckoutQueue", () => {
         selectedIds={new Set()}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: "Select all checkouts" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Select all checkouts" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", { name: `Select checkout for ${checkout.customer_name}` }),
     ).toHaveAttribute("data-testid", `checkbox-abandoned-${checkout.id}`);

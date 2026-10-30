@@ -163,7 +163,7 @@ describe("warehouse detail", () => {
 
     renderDetail();
 
-    expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
+    expect(await screen.findByTestId("order-pagination-page-input")).toHaveValue("1");
     const pageSize = screen.getByRole("combobox", { name: "Rows per page for warehouse orders" });
     expect(pageSize).toHaveTextContent("20");
     expect(screen.getByTestId("warehouse-order-toolbar")).toContainElement(pageSize);
@@ -179,7 +179,7 @@ describe("warehouse detail", () => {
 
     await user.click(screen.getByRole("button", { name: "Next page" }));
 
-    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("order-pagination-page-input")).toHaveValue("2");
     expect(screen.queryByText("Warehouse Customer 1")).not.toBeInTheDocument();
     expect(screen.getByText("Warehouse Customer 21")).toBeInTheDocument();
   });

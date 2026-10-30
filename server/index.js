@@ -8131,6 +8131,55 @@ app.get("/api/abandoned-checkouts", async (req, res) => {
   }
 });
 
+// Dismissed checkouts are kept until their fixed expiry, so staff can find and
+// restore one when the customer calls back. Newest dismissal first.
+app.get("/api/abandoned-checkouts/dismissed", async (req, res) => {
+  try {
+    const token = getToken(req);
+    const { user } = await getUser(token);
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const supabase = getServiceSupabase();
+    const { orgId } = await getUserOrg(supabase, user.id);
+    const now = new Date();
+    const { data, error } = await supabase
+      .from("abandoned_checkouts")
+      .select(`${ABANDONED_CHECKOUT_DASHBOARD_FIELDS}, resolved_at, resolution`)
+      .eq("org_id", orgId)
+      .eq("status", "dismissed")
+      .gt("expires_at", now.toISOString())
+      .order("resolved_at", { ascending: false, nullsFirst: false })
+      .limit(200);
+    if (error) throw error;
+    const checkouts = data || [];
+
+    // Who dismissed each one, from its latest dismissal status event.
+    const dismissedBy = new Map();
+    if (checkouts.length > 0) {
+      const { data: events, error: eventsError } = await supabase
+        .from("order_status_events")
+        .select("order_id, actor_id, created_at")
+        .eq("org_id", orgId)
+        .eq("order_table", "abandoned_checkouts")
+        .eq("to_status", "dismissed")
+        .in("order_id", checkouts.map((checkout) => checkout.id))
+        .order("created_at", { ascending: false });
+      if (eventsError) throw eventsError;
+      const names = await getStaffNameMap(supabase, orgId);
+      for (const event of events || []) {
+        if (!dismissedBy.has(event.order_id)) dismissedBy.set(event.order_id, names.get(event.actor_id) || null);
+      }
+    }
+
+    return res.json({
+      checkouts: checkouts.map((checkout) => ({ ...checkout, dismissed_by: dismissedBy.get(checkout.id) || null })),
+    });
+  } catch {
+    console.warn("[AbandonedCheckout] dismissed list read failed");
+    return res.status(500).json({ error: "Could not load dismissed checkouts" });
+  }
+});
+
 app.patch("/api/abandoned-checkouts/:id", async (req, res) => {
   try {
     const token = getToken(req);
@@ -8159,12 +8208,16 @@ app.patch("/api/abandoned-checkouts/:id", async (req, res) => {
     const { orgId } = await getUserOrg(supabase, user.id);
     const activityGroupId = normalizeActivityGroupId(req.body?.activity_group_id);
     const now = new Date();
+    // Only "open" may reach a dismissed checkout: that is how staff restore one.
+    const lookupStatuses = hasAction && req.body.action === "open"
+      ? [...ACTIVE_ABANDONED_CHECKOUT_STATUSES, "dismissed"]
+      : ACTIVE_ABANDONED_CHECKOUT_STATUSES;
     const { data: current, error: currentError } = await supabase
       .from("abandoned_checkouts")
       .select("*")
       .eq("id", req.params.id)
       .eq("org_id", orgId)
-      .in("status", ACTIVE_ABANDONED_CHECKOUT_STATUSES)
+      .in("status", lookupStatuses)
       .gt("expires_at", now.toISOString())
       .maybeSingle();
     if (currentError) throw currentError;

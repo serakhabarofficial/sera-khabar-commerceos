@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesOrderSearch, type OrderSearchRecord } from "@/lib/orderSearch";
+import { matchesOrderSearch, singleProductOrdersFirst, type OrderSearchRecord } from "@/lib/orderSearch";
 
 const order: OrderSearchRecord = {
   order_number: "ML-150000",
@@ -78,5 +78,32 @@ describe("matchesOrderSearch", () => {
     expect(matchesOrderSearch(address, "Mirpur-10")).toBe(true);
     expect(matchesOrderSearch({ ...order, address: "Mirpur-10" }, "mirpur 10")).toBe(true);
     expect(matchesOrderSearch(address, "mirpur 11")).toBe(false);
+  });
+});
+
+describe("product search", () => {
+  const honey = { ...order, items: [{ product_name: "Sundarbans Honey" }] };
+  const honeySizes = { ...order, items: [{ product_name: "Sundarbans Honey" }, { product_name: "Sundarbans Honey" }] };
+  const mixed = { ...order, items: [{ product_name: "Sundarbans Honey" }, { product_name: "খেজুরের গুড়" }] };
+  const legacyMixed = { ...order, product: "2 x Ghee (1 kg), Sundarbans Honey" };
+
+  it("matches orders by product name, new items or legacy product text", () => {
+    expect(matchesOrderSearch(honey, "honey")).toBe(true);
+    expect(matchesOrderSearch(mixed, "গুড়")).toBe(true);
+    expect(matchesOrderSearch(legacyMixed, "ghee")).toBe(true);
+    expect(matchesOrderSearch(honey, "গুড়")).toBe(false);
+  });
+
+  it("finds every mixed order with the mix keyword", () => {
+    expect(matchesOrderSearch(mixed, "mix")).toBe(true);
+    expect(matchesOrderSearch(legacyMixed, "Mixed")).toBe(true);
+    expect(matchesOrderSearch(honey, "mix")).toBe(false);
+    // Two sizes of one product are not a mixed order.
+    expect(matchesOrderSearch(honeySizes, "mix")).toBe(false);
+  });
+
+  it("lists single-product orders before mixed ones", () => {
+    const results = singleProductOrdersFirst([mixed, honey, legacyMixed, honeySizes]);
+    expect(results).toEqual([honey, honeySizes, mixed, legacyMixed]);
   });
 });

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/components/ui/sonner";
+import { createActivityGroupId } from "@/lib/orderActivity";
 import type { BoardCard, BoardColor, BoardData, BoardList } from "@/lib/orderBoard";
 
 export const ORDER_BOARD_KEY = ["/api/order-board"] as const;
@@ -88,5 +89,11 @@ export function useOrderBoard() {
     () => boardRequest(`/api/order-board/lists/${listId}`, "DELETE"),
   ), [optimistic]);
 
-  return { ...query, addCard, updateCard, removeCard, addList, updateList, removeList };
+  // Changes the order's own status (e.g. Confirmed → Print); the card stays on the board.
+  const setOrderStatus = useCallback((orderId: string, status: string) => optimistic(
+    (board) => ({ ...board, cards: board.cards.map((card) => (card.order_id === orderId && card.order ? { ...card, order: { ...card.order, status } } : card)) }),
+    () => boardRequest<{ order?: { status: string } }>(`/api/orders/${orderId}`, "PATCH", { status, activity_group_id: createActivityGroupId() }),
+  ), [optimistic]);
+
+  return { ...query, addCard, updateCard, removeCard, addList, updateList, removeList, setOrderStatus };
 }

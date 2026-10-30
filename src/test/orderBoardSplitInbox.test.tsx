@@ -17,6 +17,7 @@ const board = vi.hoisted(() => ({
   addList: vi.fn(),
   updateList: vi.fn(),
   removeList: vi.fn(),
+  setOrderStatus: vi.fn(),
 }));
 
 vi.mock("@/hooks/useOrderBoard", () => ({ useOrderBoard: () => board }));
@@ -88,5 +89,94 @@ describe("Order Board split inbox", () => {
     await user.click(screen.getByRole("radio", { name: "green" }));
     await user.click(create);
     expect(board.addList).toHaveBeenCalledWith("Gift wrap", "green");
+  });
+});
+
+describe("Order Board list search", () => {
+  beforeEach(() => {
+    board.data = {
+      lists: [{ id: "l1", name: "বিশেষ নির্দেশনা", color: "teal", position: 0 }],
+      cards: [card("c1", "l1", "Rahim Uddin", "দুপুরে আবার কল"), card("c2", "l1", "Sumaiya Akter")],
+    };
+  });
+  afterEach(cleanup);
+
+  it("narrows the selected list's orders by name or note", async () => {
+    const user = userEvent.setup();
+    renderBoard();
+    const search = screen.getByTestId("board-list-filter");
+
+    await user.type(search, "Sumaiya");
+    expect(screen.getByRole("button", { name: /Sumaiya Akter/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Rahim Uddin/ })).not.toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, "দুপুরে");
+    expect(screen.getByRole("button", { name: /Rahim Uddin/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sumaiya Akter/ })).not.toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, "nobody");
+    expect(screen.getByText(/No orders in this list match/)).toBeInTheDocument();
+  });
+});
+
+describe("Order Board status change", () => {
+  beforeEach(() => {
+    const confirmed = card("c1", "l1", "Rahim Uddin");
+    confirmed.order = { ...confirmed.order!, status: "confirmed" };
+    board.data = { lists: [{ id: "l1", name: "বিশেষ নির্দেশনা", color: "teal", position: 0 }], cards: [confirmed] };
+    board.setOrderStatus.mockReset().mockResolvedValue({});
+    board.removeCard.mockReset();
+  });
+  afterEach(cleanup);
+
+  it("moves a confirmed order to Print and takes it off the board", async () => {
+    const user = userEvent.setup();
+    const onOrderStatusChange = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <OrderBoard orders={[]} onOrderStatusChange={onOrderStatusChange} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /Move to Print/ }));
+    expect(board.setOrderStatus).toHaveBeenCalledWith("o-c1", "print");
+    await vi.waitFor(() => expect(onOrderStatusChange).toHaveBeenCalledWith("o-c1", "print"));
+    expect(board.removeCard).toHaveBeenCalledWith("c1");
+  });
+});
+
+describe("Order Board Move to Print button", () => {
+  beforeEach(() => {
+    board.data = { lists: [{ id: "l1", name: "বিশেষ নির্দেশনা", color: "teal", position: 0 }], cards: [card("c1", "l1", "Rahim Uddin")] };
+  });
+  afterEach(cleanup);
+
+  it("only shows for confirmed orders", () => {
+    renderBoard();
+    expect(screen.queryByRole("button", { name: /Move to Print/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("Order Board copy chips", () => {
+  beforeEach(() => {
+    board.data = { lists: [{ id: "l1", name: "বিশেষ নির্দেশনা", color: "teal", position: 0 }], cards: [card("c1", "l1", "Rahim Uddin")] };
+  });
+  afterEach(cleanup);
+
+  it("copies the order number and phone and shows Copied", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderBoard();
+
+    await user.click(screen.getByTestId("board-copy-order"));
+    expect(writeText).toHaveBeenLastCalledWith("o-c1");
+    expect(screen.getByTestId("board-copy-order")).toHaveAccessibleName("order number copied");
+
+    await user.click(screen.getByTestId("board-copy-phone"));
+    expect(writeText).toHaveBeenLastCalledWith("01711234567");
+    expect(screen.getByTestId("board-copy-phone")).toHaveAccessibleName("phone number copied");
   });
 });

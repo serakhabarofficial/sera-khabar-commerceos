@@ -84,6 +84,20 @@ describe("abandoned checkout route wiring", () => {
     expect(queuePatch).toContain("isAbandonedCheckoutDraftKey(req.params.id)");
   });
 
+  it("authenticates and workspace-scopes the dismissed checkout list", () => {
+    const dismissedRead = routeSection(
+      'app.get("/api/abandoned-checkouts/dismissed"',
+      'app.patch("/api/abandoned-checkouts/:id"',
+    );
+
+    expect(dismissedRead).toContain("getToken(req)");
+    expect(dismissedRead).toContain("getUser(token)");
+    expect(dismissedRead).toContain("getUserOrg(supabase, user.id)");
+    expect(dismissedRead.match(/\.eq\("org_id", orgId\)/g)?.length).toBe(2);
+    expect(dismissedRead).toContain('.eq("status", "dismissed")');
+    expect(dismissedRead).toContain('.gt("expires_at", now.toISOString())');
+  });
+
   it("accepts staff field edits alongside contact/dismiss actions", () => {
     const queuePatch = routeSection(
       'app.patch("/api/abandoned-checkouts/:id"',
@@ -96,8 +110,13 @@ describe("abandoned checkout route wiring", () => {
     expect(queuePatch).toContain('"action"');
     expect(queuePatch).toContain('"activity_group_id"');
     expect(queuePatch).toContain('.eq("status", current.status)');
+    // Only the "open" (restore) action may reach a dismissed checkout.
+    expect(queuePatch).toContain('[...ACTIVE_ABANDONED_CHECKOUT_STATUSES, "dismissed"]');
     expect(
-      queuePatch.indexOf('.in("status", ACTIVE_ABANDONED_CHECKOUT_STATUSES)'),
+      queuePatch.indexOf('.in("status", lookupStatuses)'),
+    ).toBeGreaterThan(-1);
+    expect(
+      queuePatch.indexOf('.in("status", lookupStatuses)'),
     ).toBeLessThan(queuePatch.indexOf("parseAbandonedCheckoutStaffEdit"));
   });
 

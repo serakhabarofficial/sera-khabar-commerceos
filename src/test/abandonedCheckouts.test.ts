@@ -129,7 +129,7 @@ describe("abandoned checkout lifecycle", () => {
     expect(canAcceptBrowserCapture({ status: "open", expiresAt: "2026-09-11T11:59:59.000Z" }, now)).toBe(false);
   });
 
-  it("allows only manual contacted and dismissal transitions", () => {
+  it("allows only manual contacted, dismissal and restore transitions", () => {
     expect(canTransitionAbandonedCheckout("open", "contacted", "staff")).toBe(true);
     expect(canTransitionAbandonedCheckout("open", "dismissed", "staff")).toBe(true);
     expect(canTransitionAbandonedCheckout("contacted", "dismissed", "staff")).toBe(true);
@@ -137,6 +137,9 @@ describe("abandoned checkout lifecycle", () => {
     expect(canTransitionAbandonedCheckout("contacted", "open", "staff")).toBe(true);
     expect(canTransitionAbandonedCheckout("open", "open", "staff")).toBe(false);
     expect(canTransitionAbandonedCheckout("dismissed", "contacted", "staff")).toBe(false);
+    // Staff can restore a dismissed checkout.
+    expect(canTransitionAbandonedCheckout("dismissed", "open", "staff")).toBe(true);
+    expect(canTransitionAbandonedCheckout("recovered", "open", "staff")).toBe(false);
     expect(canTransitionAbandonedCheckout("open", "recovered", "staff")).toBe(false);
   });
 
@@ -213,6 +216,12 @@ describe("abandoned checkout lifecycle", () => {
       contacted_at: null,
     });
     expect(buildStaffActionPatch("dismissed", "contacted", now)).toBeNull();
+    expect(buildStaffActionPatch("dismissed", "open", now)).toEqual({
+      status: "open",
+      contacted_at: null,
+      resolved_at: null,
+      resolution: null,
+    });
   });
 });
 

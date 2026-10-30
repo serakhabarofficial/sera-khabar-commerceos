@@ -25,7 +25,8 @@ describe("OrderTablePagination", () => {
       />,
     );
 
-    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("order-pagination-page-input")).toHaveValue("1");
+    expect(screen.getByText("of 2")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
 
@@ -60,7 +61,7 @@ describe("OrderTablePagination", () => {
     const footer = screen.getByTestId("order-pagination-footer");
     expect(footer.children).toHaveLength(3);
     expect(footer.children[0]).toBe(screen.getByRole("button", { name: "Previous page" }));
-    expect(footer.children[1]).toBe(screen.getByText("Page 1 of 2"));
+    expect(footer.children[1]).toBe(screen.getByTestId("order-pagination-page-input").closest("form"));
     expect(footer.children[2]).toBe(screen.getByRole("button", { name: "Next page" }));
   });
 
