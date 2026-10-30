@@ -5,12 +5,12 @@ import { HoldPanel } from "@/components/orders/HoldPanel";
 
 function setup(overrides: Partial<Parameters<typeof HoldPanel>[0]> = {}) {
   const props = {
-    ageCounts: { new: 2, soon: 4, long: 1 },
+    attemptCounts: { 1: 2, 2: 4, 3: 1 },
     reasonCounts: { contact_later: 3 },
     listCount: 7,
-    age: null,
+    attempt: null,
     reason: null,
-    onAgeChange: vi.fn(),
+    onAttemptChange: vi.fn(),
     onReasonChange: vi.fn(),
     ...overrides,
   };
@@ -19,23 +19,23 @@ function setup(overrides: Partial<Parameters<typeof HoldPanel>[0]> = {}) {
 }
 
 describe("HoldPanel", () => {
-  it("shows one card per hold age with its count", () => {
+  it("shows one card per call attempt with its count", () => {
     setup();
-    expect(screen.getByTestId("hold-age-new")).toHaveTextContent("On hold 0–1 days2New holds");
-    expect(screen.getByTestId("hold-age-soon")).toHaveTextContent("4");
-    expect(screen.getByTestId("hold-age-long")).toHaveTextContent("Held too long. Call now.");
+    expect(screen.getByTestId("hold-attempt-1")).toHaveTextContent("1st attemptNo answer on the 1st call2");
+    expect(screen.getByTestId("hold-attempt-2")).toHaveTextContent("No answer on the 2nd call4");
+    expect(screen.getByTestId("hold-attempt-3")).toHaveTextContent("Final call. Confirm or cancel.");
     expect(screen.getByText("7 held orders")).toBeInTheDocument();
   });
 
   it("filters by a card and clears it on a second click", async () => {
     const user = userEvent.setup();
     const props = setup();
-    await user.click(screen.getByTestId("hold-age-long"));
-    expect(props.onAgeChange).toHaveBeenCalledWith("long");
+    await user.click(screen.getByTestId("hold-attempt-3"));
+    expect(props.onAttemptChange).toHaveBeenCalledWith(3);
 
-    const active = setup({ age: "long" });
-    await user.click(screen.getAllByTestId("hold-age-long")[1]);
-    expect(active.onAgeChange).toHaveBeenCalledWith(null);
+    const active = setup({ attempt: 3 });
+    await user.click(screen.getAllByTestId("hold-attempt-3")[1]);
+    expect(active.onAttemptChange).toHaveBeenCalledWith(null);
   });
 
   it("picks a hold reason from the same list as the order editor", async () => {
@@ -51,7 +51,7 @@ describe("HoldPanel", () => {
     expect(setup() && screen.queryByRole("button", { name: "Show all" })).toBeNull();
     const props = setup({ reason: "contact_later" });
     await user.click(screen.getByRole("button", { name: "Show all" }));
-    expect(props.onAgeChange).toHaveBeenCalledWith(null);
+    expect(props.onAttemptChange).toHaveBeenCalledWith(null);
     expect(props.onReasonChange).toHaveBeenCalledWith(null);
   });
 });

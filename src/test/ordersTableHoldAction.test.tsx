@@ -87,3 +87,55 @@ describe("OrdersTable individual hold action", () => {
     expect(onStatusUpdate).toHaveBeenCalledWith("order-1", "on_hold");
   });
 });
+
+describe("OrdersTable hold call attempts", () => {
+  const held = (attempt: number | null): Order => ({ ...order, status: "on_hold", hold_reason_code: "contact_later", hold_call_attempt: attempt });
+
+  function renderHeld(heldOrder: Order) {
+    const onOrderUpdate = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <MemoryRouter>
+            <OrdersTable orders={[heldOrder]} loading={false} onStatusUpdate={vi.fn()} onOrderUpdate={onOrderUpdate} showHoldDetails />
+          </MemoryRouter>
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+    return { onOrderUpdate };
+  }
+
+  beforeEach(() => {
+    apiFetch.mockReset();
+    apiFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+  });
+
+  it("moves an order from the 1st to the 2nd attempt", async () => {
+    const user = userEvent.setup();
+    const { onOrderUpdate } = renderHeld(held(null));
+    const attempt = screen.getByTestId("hold-attempt");
+    expect(attempt).toHaveTextContent("1st attempt");
+
+    await user.click(within(attempt).getByRole("button", { name: "Move to 2nd" }));
+
+    expect(onOrderUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: "order-1", hold_call_attempt: 2 }));
+    const patch = apiFetch.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(patch?.[0]).toBe("/api/orders/order-1");
+    expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ hold_call_attempt: 2 });
+  });
+
+  it("offers Confirm and Cancel on the final attempt", async () => {
+    const user = userEvent.setup();
+    renderHeld(held(3));
+    const attempt = screen.getByTestId("hold-attempt");
+    expect(attempt).toHaveTextContent("3rd attempt");
+    expect(within(attempt).queryByRole("button", { name: /Move to/ })).toBeNull();
+
+    await user.click(within(attempt).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      const patch = apiFetch.mock.calls.find(([, init]) => init?.method === "PATCH");
+      expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ status: "confirmed" });
+    });
+  });
+});

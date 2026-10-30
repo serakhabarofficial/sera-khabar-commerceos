@@ -11493,7 +11493,7 @@ app.patch("/api/orders/:id", async (req, res) => {
     const supabase = getServiceSupabase();
     const { orgId } = await getUserOrg(supabase, user.id);
     const activityGroupId = normalizeActivityGroupId(req.body?.activity_group_id);
-    const allowed = ["status", "notes", "courier_status", "consignment_id", "tracking_code", "courier_message", "sent_to_courier", "fraud_checked", "fraud_data", "price", "delivery_rate", "discount", "customer_name", "phone", "address", "warehouse_id", "weight_kg", "source", "advanced_payment", "advance_payment_method", "advance_payment_reference", "payment_method", "hold_reason_code", "hold_reason_detail", "hold_until_date"];
+    const allowed = ["status", "notes", "courier_status", "consignment_id", "tracking_code", "courier_message", "sent_to_courier", "fraud_checked", "fraud_data", "price", "delivery_rate", "discount", "customer_name", "phone", "address", "warehouse_id", "weight_kg", "source", "advanced_payment", "advance_payment_method", "advance_payment_reference", "payment_method", "hold_reason_code", "hold_reason_detail", "hold_until_date", "hold_call_attempt"];
     const update = {};
     for (const k of allowed) { if (req.body[k] !== undefined) update[k] = req.body[k]; }
     if (update.source !== undefined && !isCanonicalOrderSource(update.source)) {
@@ -11552,6 +11552,17 @@ app.patch("/api/orders/:id", async (req, res) => {
     let holdActivity = null;
     if (holdMetadataTouched && !toOnHold) {
       return res.status(400).json({ error: "Hold details can only be changed while an order is On Hold", code: "hold_metadata_requires_hold" });
+    }
+    if (update.hold_call_attempt !== undefined) {
+      if (!toOnHold) {
+        return res.status(400).json({ error: "Call attempts can only be changed while an order is On Hold", code: "hold_metadata_requires_hold" });
+      }
+      if (![1, 2, 3].includes(update.hold_call_attempt)) {
+        return res.status(400).json({ error: "Call attempt must be 1, 2 or 3", code: "invalid_hold_call_attempt" });
+      }
+    } else if (toOnHold && !fromOnHold) {
+      // Every new hold starts at the 1st call attempt.
+      update.hold_call_attempt = 1;
     }
     if (toOnHold && (!fromOnHold || holdMetadataTouched)) {
       const holdReasonCode = update.hold_reason_code !== undefined ? update.hold_reason_code : orderCheck.hold_reason_code;

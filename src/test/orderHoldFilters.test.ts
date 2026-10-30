@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countHoldAges, countHoldReasons, filterHeldOrders, holdAgeKey, holdDays } from "@/lib/orderHoldFilters";
+import { countHoldAttempts, countHoldReasons, filterHeldOrders, holdAttempt, holdDays } from "@/lib/orderHoldFilters";
 
 // 21 Oct 2026, 6 pm in Dhaka.
 const NOW = new Date("2026-10-21T12:00:00Z");
@@ -23,29 +23,30 @@ describe("holdDays", () => {
   });
 });
 
-describe("holdAgeKey", () => {
-  it("groups days into 0–1, 2–4 and 5+", () => {
-    expect([0, 1, 2, 4, 5, 30].map(holdAgeKey)).toEqual(["new", "new", "soon", "soon", "long", "long"]);
+describe("holdAttempt", () => {
+  it("reads the stored call attempt and treats a missing one as the 1st", () => {
+    expect([1, 2, 3, null, undefined, 7].map((hold_call_attempt) => holdAttempt({ hold_call_attempt }))).toEqual([1, 2, 3, 1, 1, 1]);
   });
 });
 
 describe("filterHeldOrders and counts", () => {
+  const held = (id: string, attempt: number | null, code: string | null) => ({ ...order(id, "2026-10-21T05:00:00Z", code), hold_call_attempt: attempt });
   const orders = [
-    order("new", "2026-10-21T05:00:00Z", "contact_later"),
-    order("soon", "2026-10-18T05:00:00Z", "contact_later"),
-    order("long", "2026-10-13T05:00:00Z", "advance_payment_pending"),
-    order("none", "2026-10-12T05:00:00Z", null),
+    held("first", 1, "contact_later"),
+    held("second", 2, "contact_later"),
+    held("final", 3, "advance_payment_pending"),
+    held("legacy", null, null),
   ];
 
-  it("filters by reason and by hold age together", () => {
-    expect(filterHeldOrders(orders, { reason: null, age: null }, NOW)).toHaveLength(4);
-    expect(filterHeldOrders(orders, { reason: "contact_later", age: null }, NOW).map((o) => o.id)).toEqual(["new", "soon"]);
-    expect(filterHeldOrders(orders, { reason: null, age: "long" }, NOW).map((o) => o.id)).toEqual(["long", "none"]);
-    expect(filterHeldOrders(orders, { reason: "contact_later", age: "soon" }, NOW).map((o) => o.id)).toEqual(["soon"]);
+  it("filters by reason and by call attempt together", () => {
+    expect(filterHeldOrders(orders, { reason: null, attempt: null })).toHaveLength(4);
+    expect(filterHeldOrders(orders, { reason: "contact_later", attempt: null }).map((o) => o.id)).toEqual(["first", "second"]);
+    expect(filterHeldOrders(orders, { reason: null, attempt: 1 }).map((o) => o.id)).toEqual(["first", "legacy"]);
+    expect(filterHeldOrders(orders, { reason: "contact_later", attempt: 2 }).map((o) => o.id)).toEqual(["second"]);
   });
 
-  it("counts each age group and each reason", () => {
-    expect(countHoldAges(orders, NOW)).toEqual({ new: 1, soon: 1, long: 2 });
+  it("counts each call attempt and each reason", () => {
+    expect(countHoldAttempts(orders)).toEqual({ 1: 2, 2: 1, 3: 1 });
     expect(countHoldReasons(orders)).toEqual({ contact_later: 2, advance_payment_pending: 1 });
   });
 });

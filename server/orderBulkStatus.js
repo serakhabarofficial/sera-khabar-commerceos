@@ -63,6 +63,7 @@ export function buildBulkStatusPatch({ fromStatus, targetStatus, actorId, now, h
     patch.hold_reason_detail = holdDetails.reasonDetail ?? null;
     patch.hold_until_date = holdDetails.holdUntilDate ?? null;
   }
+  if (isOnHold(to) && !isOnHold(from)) patch.hold_call_attempt = 1;
 
   if (to === "cancelled" && from !== "cancelled") {
     patch.cancellation_reason_code = cancellationReason?.code ?? null;
