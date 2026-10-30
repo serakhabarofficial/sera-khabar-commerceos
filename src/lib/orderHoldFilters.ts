@@ -1,20 +1,22 @@
 import { getBangladeshDateKey } from "../../shared/orderHold.js";
 
-export type HoldAgeKey = "new" | "soon" | "long";
+export type HoldAttempt = 1 | 2 | 3;
 
-export const HOLD_AGE_GROUPS: { key: HoldAgeKey; label: string; min: number; max: number }[] = [
-  { key: "new", label: "0–1 days", min: 0, max: 1 },
-  { key: "soon", label: "2–4 days", min: 2, max: 4 },
-  { key: "long", label: "5+ days", min: 5, max: Number.POSITIVE_INFINITY },
+/** Unanswered call stages; staff move a held order forward by hand. */
+export const HOLD_ATTEMPTS: { attempt: HoldAttempt; label: string }[] = [
+  { attempt: 1, label: "1st attempt" },
+  { attempt: 2, label: "2nd attempt" },
+  { attempt: 3, label: "3rd attempt" },
 ];
 
 type HeldOrder = {
   hold_started_at?: string | null;
   updated_at?: string | null;
   hold_reason_code?: string | null;
+  hold_call_attempt?: number | null;
 };
 
-export type HoldFilters = { reason: string | null; age: HoldAgeKey | null };
+export type HoldFilters = { reason: string | null; attempt: HoldAttempt | null };
 
 const dayNumber = (dateKey: string) => Date.parse(`${dateKey}T00:00:00Z`) / 86_400_000;
 
@@ -26,20 +28,22 @@ export function holdDays(order: HeldOrder, now: Date = new Date()): number {
   return Math.max(0, Math.round(dayNumber(getBangladeshDateKey(now)) - dayNumber(getBangladeshDateKey(new Date(time)))));
 }
 
-export function holdAgeKey(days: number): HoldAgeKey {
-  return HOLD_AGE_GROUPS.find((group) => days >= group.min && days <= group.max)?.key ?? "long";
+/** The call attempt a held order is on; orders held before attempts existed read as the 1st. */
+export function holdAttempt(order: HeldOrder): HoldAttempt {
+  const attempt = order.hold_call_attempt;
+  return attempt === 2 || attempt === 3 ? attempt : 1;
 }
 
-export function filterHeldOrders<T extends HeldOrder>(orders: T[], filters: HoldFilters, now: Date = new Date()): T[] {
+export function filterHeldOrders<T extends HeldOrder>(orders: T[], filters: HoldFilters): T[] {
   return orders.filter((order) => (
     (!filters.reason || order.hold_reason_code === filters.reason)
-    && (!filters.age || holdAgeKey(holdDays(order, now)) === filters.age)
+    && (!filters.attempt || holdAttempt(order) === filters.attempt)
   ));
 }
 
-export function countHoldAges(orders: HeldOrder[], now: Date = new Date()): Record<HoldAgeKey, number> {
-  const counts: Record<HoldAgeKey, number> = { new: 0, soon: 0, long: 0 };
-  for (const order of orders) counts[holdAgeKey(holdDays(order, now))] += 1;
+export function countHoldAttempts(orders: HeldOrder[]): Record<HoldAttempt, number> {
+  const counts: Record<HoldAttempt, number> = { 1: 0, 2: 0, 3: 0 };
+  for (const order of orders) counts[holdAttempt(order)] += 1;
   return counts;
 }
 

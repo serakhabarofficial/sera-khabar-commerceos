@@ -73,7 +73,7 @@ import { DATE_FILTER_TABS, filterOrdersByDateRange, orderDateRangeBounds } from 
 import { CancellationInsights } from "@/components/orders/CancellationInsights";
 import { FollowUpPanel, sortFollowUpNewestFirst } from "@/components/orders/FollowUpPanel";
 import { HoldPanel } from "@/components/orders/HoldPanel";
-import { countHoldAges, countHoldReasons, filterHeldOrders, type HoldAgeKey } from "@/lib/orderHoldFilters";
+import { countHoldAttempts, countHoldReasons, filterHeldOrders, type HoldAttempt } from "@/lib/orderHoldFilters";
 import {
   cancellationDate,
   filterCancelledByDate,
@@ -187,6 +187,7 @@ interface Order {
   hold_reason_detail?: string | null;
   hold_until_date?: string | null;
   hold_started_at?: string | null;
+  hold_call_attempt?: number | null;
   fulfillment_status: string | null;
   sent_to_courier?: boolean | null;
   courier_status?: string | null;
@@ -1132,7 +1133,7 @@ export default function Dashboard() {
   const isFollowUpTab = activeOrderStatusFilter === "stuck";
   const [followUpReasons, setFollowUpReasons] = useState<ReadonlySet<FollowUpReasonKey>>(new Set());
   const isHoldTab = activeOrderStatusFilter === "on_hold";
-  const [holdAge, setHoldAge] = useState<HoldAgeKey | null>(null);
+  const [holdAttempt, setHoldAttempt] = useState<HoldAttempt | null>(null);
   const [holdReason, setHoldReason] = useState<string | null>(null);
   // Each of the Processing and Delivered tabs keeps its own order-date range; both clear when leaving them.
   const [ordersDateRanges, setOrdersDateRanges] = useState<Partial<Record<OrderStatusFilter, DateRange | null>>>({});
@@ -1284,11 +1285,11 @@ export default function Dashboard() {
     if (!isHoldTab) return [];
     return showOrdersDateFilter ? filterOrdersByDateRange(filteredOrders, ordersDateRange) : filteredOrders;
   }, [filteredOrders, isHoldTab, ordersDateRange, showOrdersDateFilter]);
-  const holdAgeCounts = useMemo(() => countHoldAges(holdBaseOrders), [holdBaseOrders]);
+  const holdAttemptCounts = useMemo(() => countHoldAttempts(holdBaseOrders), [holdBaseOrders]);
   const holdReasonCounts = useMemo(() => countHoldReasons(holdBaseOrders), [holdBaseOrders]);
   const holdListOrders = useMemo(
-    () => filterHeldOrders(holdBaseOrders, { reason: holdReason, age: holdAge }),
-    [holdAge, holdBaseOrders, holdReason],
+    () => filterHeldOrders(holdBaseOrders, { reason: holdReason, attempt: holdAttempt }),
+    [holdAttempt, holdBaseOrders, holdReason],
   );
 
   const dateFilteredOrders = useMemo(() => {
@@ -1931,7 +1932,7 @@ export default function Dashboard() {
             if (nextTab === "abandoned" || nextTab === "board" || !DATE_FILTER_TABS.includes(nextTab)) setOrdersDateRanges({});
             if (nextTab !== "cancelled") setCancelReasons(new Set());
             if (nextTab !== "stuck") setFollowUpReasons(new Set());
-            if (nextTab !== "on_hold") { setHoldAge(null); setHoldReason(null); }
+            if (nextTab !== "on_hold") { setHoldAttempt(null); setHoldReason(null); }
             setSelectedAbandonedIds(new Set());
             if (nextTab === "abandoned") setSelectedOrderIds(new Set());
           }}
@@ -2055,12 +2056,12 @@ export default function Dashboard() {
             )}
             {isHoldTab && (
               <HoldPanel
-                ageCounts={holdAgeCounts}
+                attemptCounts={holdAttemptCounts}
                 reasonCounts={holdReasonCounts}
                 listCount={holdListOrders.length}
-                age={holdAge}
+                attempt={holdAttempt}
                 reason={holdReason}
-                onAgeChange={(age) => { setHoldAge(age); setOrderPage(0); }}
+                onAttemptChange={(attempt) => { setHoldAttempt(attempt); setOrderPage(0); }}
                 onReasonChange={(reason) => { setHoldReason(reason); setOrderPage(0); }}
               />
             )}

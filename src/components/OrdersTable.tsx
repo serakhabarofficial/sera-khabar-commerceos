@@ -41,7 +41,7 @@ import { formatProductLine } from "@/lib/orderItemDisplay";
 import { formatTooltipProductLine } from "@/lib/orderItemDisplay";
 import { splitProductLines } from "@/lib/orderProducts";
 import { canEnterPrint, courierSendBlockReason, displayStatusLabel, isOnHoldStatus, isPrintStatus, normalizeBusinessStatus } from "@/lib/orderTransitions";
-import { holdDays } from "@/lib/orderHoldFilters";
+import { HOLD_ATTEMPTS, holdAttempt, holdDays, type HoldAttempt } from "@/lib/orderHoldFilters";
 import { ORDER_HOLD_REASONS } from "../../shared/orderHold.js";
 import { useOrgName } from "@/hooks/useOrgName";
 import { CANCELLATION_DIALOG_REASON_OPTIONS, createActivityGroupId, type CancellationReason } from "@/lib/orderActivity";
@@ -58,7 +58,7 @@ import {
 import { Spinner } from "@/components/ui/ios-spinner";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { MagnifyingGlass, Warning } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, MagnifyingGlass, Warning } from "@phosphor-icons/react";
 import { DELIVERY_TIER_STYLES, KNOWN_COURIER_LOGOS, courierLogoFor, courierRows, deliveryTier } from "@/lib/fraudRisk";
 import { fraudLookupQuery, useFraudLookup } from "@/hooks/useFraudCheck";
 import { PopButton } from "@/components/ui/pop-button";
@@ -280,6 +280,7 @@ export interface Order {
   hold_reason_detail?: string | null;
   hold_until_date?: string | null;
   hold_started_at?: string | null;
+  hold_call_attempt?: number | null;
   cancelled_at?: string | null;
   cancellation_reason_code?: string | null;
   cancellation_reason_note?: string | null;
@@ -315,6 +316,12 @@ interface OrdersTableProps {
   /** Confirmed tab: clicking a row selects it, and an Open button under the order id opens it. */
   rowClickSelects?: boolean;
 }
+
+const ATTEMPT_BADGE: Record<HoldAttempt, string> = {
+  1: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  2: "bg-amber-50 text-amber-700 ring-amber-200",
+  3: "bg-red-50 text-red-600 ring-red-200",
+};
 
 // Logos the browser already holds paint at full opacity on the first frame.
 const loadedLogos = new Set<string>();
@@ -729,6 +736,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
   const [cancellationReasonCode, setCancellationReasonCode] = useState<CancellationReason | "">("");
   const [cancellationReasonNote, setCancellationReasonNote] = useState("");
   const [holdTarget, setHoldTarget] = useState<Order | null>(null);
+  const [attemptSavingIds, setAttemptSavingIds] = useState<Set<string>>(new Set());
   const warehouseNames = Object.fromEntries(warehouses.map((warehouse) => [warehouse.id, warehouse.name]));
 
   const handleWarehouseChange = async (order: Order, warehouseId: string) => {
@@ -812,6 +820,30 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
         </DarkToast>
       ), { fit: true });
       return false;
+    }
+  };
+
+  // Moves a held order between the 1st, 2nd and 3rd call attempts.
+  const handleHoldAttemptChange = async (order: Order, attempt: HoldAttempt) => {
+    setAttemptSavingIds((prev) => new Set(prev).add(order.id));
+    onOrderUpdate?.({ ...order, hold_call_attempt: attempt });
+    try {
+      const res = await apiFetch(`/api/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hold_call_attempt: attempt, activity_group_id: createActivityGroupId() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save call attempt");
+    } catch (error) {
+      onOrderUpdate?.(order);
+      toast.error(error instanceof Error ? error.message : "Could not save call attempt");
+    } finally {
+      setAttemptSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(order.id);
+        return next;
+      });
     }
   };
 
@@ -1691,11 +1723,61 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                       {showHoldDetails && isOnHoldStatus(order.status) && (() => {
                         const days = holdDays(order);
                         const reason = ORDER_HOLD_REASONS.find((option) => option.code === order.hold_reason_code)?.label;
+                        const attempt = holdAttempt(order);
+                        const saving = attemptSavingIds.has(order.id);
                         return (
-                          <p data-testid="hold-details" className="flex max-w-[160px] items-center gap-1 text-[11px] text-black/60" title={reason ?? undefined}>
-                            <span className="min-w-0 truncate">{reason ?? "No reason"}</span>
-                            <span className={cn("shrink-0", days >= 5 && "font-semibold text-red-600")}>· {days}d</span>
-                          </p>
+                          <>
+                            <p data-testid="hold-details" className="flex max-w-[160px] items-center gap-1 text-[11px] text-black/60" title={reason ?? undefined}>
+                              <span className="min-w-0 truncate">{reason ?? "No reason"}</span>
+                              <span className={cn("shrink-0", days >= 5 && "font-semibold text-red-600")}>· {days}d</span>
+                            </p>
+                            <div data-testid="hold-attempt" className="mt-1 flex items-center gap-1.5 text-[11px]">
+                              {attempt > 1 && (
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  aria-label={`Back to ${HOLD_ATTEMPTS[attempt - 2].label}`}
+                                  title={`Back to ${HOLD_ATTEMPTS[attempt - 2].label}`}
+                                  onClick={(event) => { event.stopPropagation(); void handleHoldAttemptChange(order, (attempt - 1) as HoldAttempt); }}
+                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-black/60 ring-1 ring-black/[0.12] transition-[background-color,color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-black/[0.05] hover:text-black active:scale-[0.92] disabled:opacity-50"
+                                >
+                                  <ArrowLeft weight="bold" size={12} aria-hidden />
+                                </button>
+                              )}
+                              <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 font-semibold ring-1", ATTEMPT_BADGE[attempt])}>{HOLD_ATTEMPTS[attempt - 1].label}</span>
+                              {attempt < 3 ? (
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={(event) => { event.stopPropagation(); void handleHoldAttemptChange(order, (attempt + 1) as HoldAttempt); }}
+                                  className={cn(
+                                    "group/move inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold text-white shadow-sm transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.96] disabled:opacity-50",
+                                    attempt === 1 ? "bg-amber-500 hover:bg-amber-600" : "bg-red-500 hover:bg-red-600",
+                                  )}
+                                >
+                                  Move to {HOLD_ATTEMPTS[attempt].label.split(" ")[0]}
+                                  <ArrowRight weight="bold" size={11} aria-hidden className="transition-transform duration-150 group-hover/move:translate-x-0.5" />
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => { event.stopPropagation(); void handleStatusChange(order, "confirmed"); }}
+                                    className="inline-flex h-6 items-center rounded-full bg-emerald-600 px-2.5 font-semibold text-white shadow-sm transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-emerald-700 active:scale-[0.96]"
+                                  >
+                                    Confirm
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => { event.stopPropagation(); void handleStatusChange(order, "cancelled"); }}
+                                    className="inline-flex h-6 items-center rounded-full bg-white px-2.5 font-semibold text-red-600 ring-1 ring-red-200 transition-[background-color,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-red-50 active:scale-[0.96]"
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </>
                         );
                       })()}
                       </div>

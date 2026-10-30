@@ -83,7 +83,7 @@ describe("bulk status patch", () => {
 
   it("writes the hold details when moving to On Hold", () => {
     expect(buildBulkStatusPatch({ fromStatus: "pending", targetStatus: "on_hold", actorId, now, holdDetails: { reasonCode: "other", reasonDetail: "Call after Friday", holdUntilDate: null } })).toEqual({
-      status: "on_hold", hold_reason_code: "other", hold_reason_detail: "Call after Friday", hold_until_date: null, updated_at: now,
+      status: "on_hold", hold_reason_code: "other", hold_reason_detail: "Call after Friday", hold_until_date: null, hold_call_attempt: 1, updated_at: now,
     });
   });
 });
