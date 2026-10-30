@@ -67,7 +67,8 @@ export type BoardSearchOrder = {
   price: number | null;
   quantity: number | null;
   created_at: string;
-  items?: Array<{ quantity: number }>;
+  product?: string | null;
+  items?: Array<{ quantity: number; product_name?: string | null }>;
 };
 
 export function cardsInList(cards: BoardCard[], listId: string): BoardCard[] {

@@ -1,6 +1,6 @@
 import { memo, startTransition, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQueries, useQueryClient, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { OrdersSyncError, syncOrders } from "@/lib/ordersSync";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +11,7 @@ import { useVisibleInterval } from "@/hooks/useVisibleInterval";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { Select, SelectItem } from "@/components/base/select/select";
 import { getDhakaGreeting } from "@/lib/greeting";
-import { matchesOrderSearch } from "@/lib/orderSearch";
+import { matchesOrderSearch, singleProductOrdersFirst } from "@/lib/orderSearch";
 import { buildPendingOrdersByPhone } from "@/lib/abandonedPendingMatch";
 import { DottedGlobe } from "@/components/home/DottedGlobe";
 import { RISE_EASE, Rise } from "@/components/home/Rise";
@@ -25,7 +25,7 @@ import {
   OrderStatusSegmentedControl,
   type FulfillmentQueueTab,
 } from "@/components/orders/OrderStatusSegmentedControl";
-import { AbandonedCheckoutQueue } from "@/components/orders/AbandonedCheckoutQueue";
+import { AbandonedCheckoutQueue, DismissedCheckoutList } from "@/components/orders/AbandonedCheckoutQueue";
 import { OrderBoard } from "@/components/orders/board/OrderBoard";
 import { useOrderBoard } from "@/hooks/useOrderBoard";
 import { OrderHoldDialog } from "@/components/orders/OrderHoldDialog";
@@ -34,7 +34,7 @@ import {
   type AbandonedCheckoutConvertOverrides,
   type AbandonedCheckoutConvertStatus,
 } from "@/lib/abandonedCheckouts";
-import { toast, DarkToast } from "@/components/ui/sonner";
+import { toast, DarkToast, dismiss as dismissToast } from "@/components/ui/sonner";
 import { savePendingOrderQueue, saveTabOrderQueue } from "@/lib/pendingOrderQueue";
 import {
   Search, AlertTriangle,
@@ -101,6 +101,7 @@ import {
   matchesAbandonedCheckoutSearch,
   type AbandonedCheckout,
   type AbandonedCheckoutResponse,
+  type DismissedCheckout,
 } from "@/lib/abandonedCheckouts";
 
 function toYMD(d: Date): string {
@@ -481,6 +482,7 @@ function rangeOrdersDataOf(results: UseQueryResult<Order[]>[]) {
 
 // Filters inside the orders toolbar capsule: a thin divider between segments,
 // and borderless full-height triggers so they read as one control.
+const DISMISSED_CHECKOUTS_KEY = ["/api/abandoned-checkouts/dismissed"] as const;
 const CAPSULE_SEGMENT = "flex items-stretch border-l border-black/[0.07] max-md:border-l-0 max-md:border-t";
 const CAPSULE_SEGMENT_TRIGGER = "h-full rounded-none border-0 bg-transparent px-3 text-[12px] font-medium text-black/70 shadow-none hover:border-0 hover:bg-black/[0.035] hover:text-black focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:bg-black/[0.05] max-md:w-full";
 
@@ -502,6 +504,7 @@ export default function Dashboard() {
   const [abandonedLoading, setAbandonedLoading] = useState(() => !cachedAbandonedResponse);
   const [abandonedError, setAbandonedError] = useState<string | null>(null);
   const [abandonedActionInFlightId, setAbandonedActionInFlightId] = useState<string | null>(null);
+  const [abandonedView, setAbandonedView] = useState<"active" | "dismissed">("active");
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [selectedAbandonedIds, setSelectedAbandonedIds] = useState<Set<string>>(new Set());
   const [bulkAbandonedRunning, setBulkAbandonedRunning] = useState(false);
@@ -888,6 +891,57 @@ export default function Dashboard() {
     return data.checkout as AbandonedCheckout;
   };
 
+  // Puts a dismissed checkout back in the active queue (Undo, Restore, or a customer who calls back).
+  const restoreAbandonedCheckout = async (checkoutId: string): Promise<boolean> => {
+    try {
+      const res = await apiFetch(`/api/abandoned-checkouts/${checkoutId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "open" }),
+      });
+      if (!res.ok) throw new Error("restore failed");
+      // Reload the active list first, so its detail page can open the restored checkout.
+      await fetchAbandonedCheckouts(true);
+      return true;
+    } catch {
+      toast.error("Could not restore checkout");
+      return false;
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: DISMISSED_CHECKOUTS_KEY });
+    }
+  };
+
+  const restoreFromList = async (checkoutId: string, then?: () => void) => {
+    if (abandonedActionInFlightId) return;
+    setAbandonedActionInFlightId(checkoutId);
+    try {
+      if (!(await restoreAbandonedCheckout(checkoutId))) return;
+      if (then) then();
+      else toast.success("Checkout restored");
+    } finally {
+      setAbandonedActionInFlightId(null);
+    }
+  };
+
+  const showDismissUndo = (checkoutId: string) => {
+    toast.custom((toastId) => (
+      <DarkToast className="flex items-center gap-4">
+        <span className="text-sm font-medium text-white">Checkout dismissed</span>
+        <button
+          type="button"
+          data-testid="undo-dismiss"
+          onClick={() => {
+            dismissToast(toastId);
+            void restoreAbandonedCheckout(checkoutId).then((restored) => { if (restored) toast.success("Checkout restored"); });
+          }}
+          className="ml-auto rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black transition-transform duration-150 active:scale-[0.97]"
+        >
+          Undo
+        </button>
+      </DarkToast>
+    ), { duration: 6000, fit: true });
+  };
+
   const updateAbandonedCheckout = async (checkoutId: string, action: "contacted" | "dismissed" | "open") => {
     if (abandonedActionInFlightId) return;
     setAbandonedActionInFlightId(checkoutId);
@@ -900,7 +954,8 @@ export default function Dashboard() {
         toast.success("Checkout marked as not contacted");
       } else {
         await runAbandonedDismissed(checkoutId);
-        toast.success("Checkout dismissed");
+        void queryClient.invalidateQueries({ queryKey: DISMISSED_CHECKOUTS_KEY });
+        showDismissUndo(checkoutId);
       }
     } catch {
       toast.error("Could not update incomplete order");
@@ -1054,6 +1109,7 @@ export default function Dashboard() {
       setSelectedAbandonedIds(new Set(failed));
       setBulkDismissCount(0);
       void fetchAbandonedCheckouts(true);
+      void queryClient.invalidateQueries({ queryKey: DISMISSED_CHECKOUTS_KEY });
     } finally {
       setBulkAbandonedRunning(false);
     }
@@ -1062,7 +1118,10 @@ export default function Dashboard() {
   const isAbandonedQueue = fulfillmentTab === "abandoned";
   const isBoardQueue = fulfillmentTab === "board";
   const activeOrderStatusFilter: OrderStatusFilter = fulfillmentTab === "abandoned" || fulfillmentTab === "board" ? "all" : fulfillmentTab;
-  const boardCount = useOrderBoard().data?.cards?.length ?? 0;
+  const boardCards = useOrderBoard().data?.cards;
+  const boardCount = boardCards?.length ?? 0;
+  // An order on the Board lives only there; it returns to its status tab once it leaves the Board.
+  const boardOrderIds = useMemo(() => new Set((boardCards ?? []).map((card) => card.order_id)), [boardCards]);
   // Cancelled tab: date range, which date it applies to, and the reasons picked in the breakdown.
   const isCancelledTab = activeOrderStatusFilter === "cancelled";
   const [cancelPreset, setCancelPreset] = useState<CancellationPreset>("30d");
@@ -1094,8 +1153,8 @@ export default function Dashboard() {
     combine: rangeOrdersDataOf,
   });
   const warehouseOrders = useMemo(
-    () => orders.filter((order) => warehouseFilter === "all" || order.warehouse_id === warehouseFilter),
-    [orders, warehouseFilter],
+    () => orders.filter((order) => !boardOrderIds.has(order.id) && (warehouseFilter === "all" || order.warehouse_id === warehouseFilter)),
+    [boardOrderIds, orders, warehouseFilter],
   );
   // Per date tab: the orders in its picked range (preferring live-edited copies), or null with no range.
   // Until the server range arrives, the already loaded orders are filtered locally.
@@ -1110,11 +1169,11 @@ export default function Dashboard() {
         : loaded
           ? loaded
             .map((order) => liveById.get(order.id) ?? order)
-            .filter((order) => warehouseFilter === "all" || order.warehouse_id === warehouseFilter)
+            .filter((order) => !boardOrderIds.has(order.id) && (warehouseFilter === "all" || order.warehouse_id === warehouseFilter))
           : filterOrdersByDateRange(warehouseOrders, range);
     });
     return byTab;
-  }, [orders, ordersDateRanges, rangeOrdersData, warehouseFilter, warehouseOrders]);
+  }, [boardOrderIds, orders, ordersDateRanges, rangeOrdersData, warehouseFilter, warehouseOrders]);
   const listOrders = (showOrdersDateFilter && rangeOrdersByTab[activeOrderStatusFilter]) || warehouseOrders;
 
   // While searching (e.g. a district or thana), every tab counts only the matching orders.
@@ -1129,7 +1188,7 @@ export default function Dashboard() {
   );
   const displayedOrderStatusCounts = useMemo(() => {
     const counts = warehouseFilter === "all" && totalOrdersCount !== null && !isSearching
-      ? { ...orderStatusCounts, all: totalOrdersCount }
+      ? { ...orderStatusCounts, all: Math.max(0, totalOrdersCount - boardOrderIds.size) }
       : { ...orderStatusCounts };
     // A date tab with a picked range counts only orders placed in that range.
     for (const tab of DATE_FILTER_TABS) {
@@ -1137,7 +1196,7 @@ export default function Dashboard() {
       if (rangeOrders) counts[tab] = countOrdersByStatus(searchOrders(rangeOrders))[tab];
     }
     return counts;
-  }, [isSearching, orderStatusCounts, rangeOrdersByTab, searchOrders, totalOrdersCount, warehouseFilter]);
+  }, [boardOrderIds, isSearching, orderStatusCounts, rangeOrdersByTab, searchOrders, totalOrdersCount, warehouseFilter]);
 
   // Full pending + print queues (ignores search text and table pagination) so the
   // order editor can offer Previous/Next navigation through the whole tab.
@@ -1156,17 +1215,20 @@ export default function Dashboard() {
   }, [fulfillmentTab, pendingOrderIds, printOrderIds]);
 
   const filteredOrders = useMemo(() => {
-    return filterOrdersByStatus(listOrders, activeOrderStatusFilter).filter((order) =>
+    const matches = filterOrdersByStatus(listOrders, activeOrderStatusFilter).filter((order) =>
       matchesOrderSearch(order, debouncedSearch),
     );
+    // A product search lists orders of only that product before mixed orders that include it.
+    return debouncedSearch.trim() ? singleProductOrdersFirst(matches) : matches;
   }, [activeOrderStatusFilter, debouncedSearch, listOrders]);
 
   const cancelledRangeOrders = useMemo(() => {
     if (!isCancelledTab) return [];
     const inRange = filterCancelledByDate(filteredOrders, cancelCustomRange ?? presetRange(cancelPreset), cancelBasis);
     // Most recently cancelled (or ordered) first.
-    return [...inRange].sort((a, b) => Date.parse(cancellationDate(b, cancelBasis)) - Date.parse(cancellationDate(a, cancelBasis)));
-  }, [cancelBasis, cancelCustomRange, cancelPreset, filteredOrders, isCancelledTab]);
+    const byDate = [...inRange].sort((a, b) => Date.parse(cancellationDate(b, cancelBasis)) - Date.parse(cancellationDate(a, cancelBasis)));
+    return debouncedSearch.trim() ? singleProductOrdersFirst(byDate) : byDate;
+  }, [cancelBasis, cancelCustomRange, cancelPreset, debouncedSearch, filteredOrders, isCancelledTab]);
   const cancelledListOrders = useMemo(
     () => filterCancelledByReasons(cancelledRangeOrders, cancelReasons),
     [cancelReasons, cancelledRangeOrders],
@@ -1209,8 +1271,8 @@ export default function Dashboard() {
     fetchOrders({ fresh: true });
   };
   const allCancelledOrders = useMemo(
-    () => (isCancelledTab ? filterOrdersByStatus(orders, "cancelled") : []),
-    [isCancelledTab, orders],
+    () => (isCancelledTab ? filterOrdersByStatus(orders, "cancelled").filter((order) => !boardOrderIds.has(order.id)) : []),
+    [boardOrderIds, isCancelledTab, orders],
   );
   const selectedCancelledOrders = useMemo(
     () => cancelledListOrders.filter((order) => selectedOrderIds.has(order.id)),
@@ -1240,6 +1302,20 @@ export default function Dashboard() {
   const filteredAbandonedCheckouts = useMemo(
     () => abandonedCheckouts.filter((checkout) => matchesAbandonedCheckoutSearch(checkout, debouncedSearch)),
     [abandonedCheckouts, debouncedSearch],
+  );
+  const dismissedQuery = useQuery({
+    queryKey: DISMISSED_CHECKOUTS_KEY,
+    enabled: isAbandonedQueue && Boolean(user?.id),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const res = await apiFetch("/api/abandoned-checkouts/dismissed");
+      if (!res.ok) throw new Error("Could not load dismissed checkouts");
+      return ((await res.json()).checkouts || []) as DismissedCheckout[];
+    },
+  });
+  const filteredDismissedCheckouts = useMemo(
+    () => (dismissedQuery.data ?? []).filter((checkout) => matchesAbandonedCheckoutSearch(checkout, debouncedSearch)),
+    [debouncedSearch, dismissedQuery.data],
   );
 
   const pendingOrdersByPhone = useMemo(() => buildPendingOrdersByPhone(orders), [orders]);
@@ -1781,7 +1857,7 @@ export default function Dashboard() {
 
           {/* One filter capsule: search, then each filter as a segment. Picking a
               date only tints its segment, so the row never reflows. */}
-          <div data-testid="dashboard-order-actions" className={cn("flex h-10 items-stretch overflow-hidden rounded-lg bg-[#F4F4F2] ring-1 ring-inset ring-black/[0.06] transition-shadow focus-within:ring-black/15 max-md:h-auto max-md:flex-col", isBoardQueue && "hidden")}>
+          <div data-testid="dashboard-order-actions" className={cn("flex h-10 items-stretch overflow-hidden rounded-lg bg-[#F4F4F2] ring-1 ring-inset ring-black/[0.06] transition-shadow focus-within:ring-black/15 max-md:h-auto max-md:flex-col", (isBoardQueue || isAbandonedQueue) && "hidden")}>
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -1862,8 +1938,60 @@ export default function Dashboard() {
         />
 
         {isBoardQueue ? (
-          <OrderBoard orders={orders} />
+          <OrderBoard orders={orders} onOrderStatusChange={handleStatusUpdate} />
         ) : isAbandonedQueue ? (
+          <>
+          {/* Active | Dismissed with its search beside it, so a callback is found in one place. */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3 sm:px-6">
+            <div className="relative w-full max-w-[340px] max-md:max-w-none">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-black/45" />
+              <Input
+                placeholder="Search name, phone, address or cart…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search incomplete orders"
+                className="h-11 w-full rounded-[11px] border-0 bg-white pl-9 text-[13px] shadow-[0_0_0_1px_rgba(0,0,0,0.1)] placeholder:text-black/40 focus-visible:shadow-[0_0_0_1px_rgba(0,0,0,0.25),0_0_0_4px_rgba(0,0,0,0.05)] focus-visible:ring-0 focus-visible:ring-offset-0"
+                data-testid="input-search-abandoned"
+              />
+            </div>
+            <div className="inline-flex shrink-0 gap-1 rounded-[11px] bg-black/[0.07] p-1 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]" role="tablist" aria-label="Incomplete order list">
+              {([
+                { id: "active", label: "Active", count: filteredAbandonedCheckouts.length },
+                { id: "dismissed", label: "Dismissed", count: filteredDismissedCheckouts.length },
+              ] as const).map((view) => (
+                <button
+                  key={view.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={abandonedView === view.id}
+                  onClick={() => setAbandonedView(view.id)}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-2 rounded-[8px] px-4 text-[13.5px] font-semibold transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.97]",
+                    abandonedView === view.id ? "bg-white text-black shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.08)]" : "text-black/55 hover:bg-white/50 hover:text-black",
+                  )}
+                >
+                  {view.label}
+                  <span className={cn(
+                    "min-w-[22px] rounded-full px-1.5 py-px text-center text-[11.5px] font-semibold tabular-nums",
+                    abandonedView === view.id ? "bg-black text-white" : "bg-black/[0.08] text-black/60",
+                  )}>{view.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {abandonedView === "dismissed" ? (
+            <DismissedCheckoutList
+              checkouts={filteredDismissedCheckouts}
+              loading={dismissedQuery.isPending}
+              error={dismissedQuery.isError ? "Could not load dismissed checkouts" : null}
+              actionInFlightId={abandonedActionInFlightId}
+              onRestore={(checkoutId) => void restoreFromList(checkoutId)}
+              onCreateOrder={(checkoutId) => void restoreFromList(checkoutId, () => navigate(`/abandoned/${checkoutId}`))}
+              onRetry={() => void dismissedQuery.refetch()}
+              emptyText={isSearching ? "No dismissed checkouts match this search" : undefined}
+            />
+          ) : (
+          <>
           <AbandonedCheckoutQueue
             checkouts={filteredAbandonedCheckouts}
             loading={abandonedLoading}
@@ -1879,13 +2007,25 @@ export default function Dashboard() {
               else next.add(checkoutId);
               return next;
             })}
-            onSelectAll={() => setSelectedAbandonedIds((prev) => (
-              prev.size === filteredAbandonedCheckouts.length && filteredAbandonedCheckouts.length > 0
-                ? new Set()
-                : new Set(filteredAbandonedCheckouts.map((checkout) => checkout.id))
-            ))}
             onOpenCheckout={(checkoutId) => navigate(`/abandoned/${checkoutId}`)}
           />
+          {/* A customer calling back: searching also finds the checkouts dismissed earlier. */}
+          {isSearching && filteredDismissedCheckouts.length > 0 && (
+            <div className="border-t border-black/[0.08]" data-testid="dismissed-search-matches">
+              <p className="px-4 pt-4 text-[9px] font-medium uppercase tracking-[0.3em] text-black/50 sm:px-6">Dismissed</p>
+              <DismissedCheckoutList
+                checkouts={filteredDismissedCheckouts}
+                loading={false}
+                error={null}
+                actionInFlightId={abandonedActionInFlightId}
+                onRestore={(checkoutId) => void restoreFromList(checkoutId)}
+                onCreateOrder={(checkoutId) => void restoreFromList(checkoutId, () => navigate(`/abandoned/${checkoutId}`))}
+              />
+            </div>
+          )}
+          </>
+          )}
+          </>
         ) : (
           <>
             {isCancelledTab && (
@@ -1955,6 +2095,7 @@ export default function Dashboard() {
               selectedIds={selectedOrderIds}
               onSelectionChange={setSelectedOrderIds}
               enableOrderIdLinks
+              rowClickSelects={fulfillmentTab === "approved"}
               orderLinkState={
                 fulfillmentTab === "pending"
                   ? { fulfillmentTab, pendingOrderIds }
@@ -1978,7 +2119,7 @@ export default function Dashboard() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Dismiss {bulkDismissCount} checkouts?</AlertDialogTitle>
-            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>You can restore them from Dismissed for up to 30 days.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep checkouts</AlertDialogCancel>

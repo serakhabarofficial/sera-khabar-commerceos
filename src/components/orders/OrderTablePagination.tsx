@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -63,6 +64,22 @@ export function OrderTablePagination({
 }: OrderTablePaginationProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(Math.max(page, 0), totalPages - 1);
+  const [pageInput, setPageInput] = useState(String(safePage + 1));
+
+  useEffect(() => {
+    setPageInput(String(safePage + 1));
+  }, [safePage]);
+
+  const jumpToTypedPage = () => {
+    const typed = Number(pageInput);
+    if (!pageInput || !Number.isFinite(typed)) {
+      setPageInput(String(safePage + 1));
+      return;
+    }
+    const target = Math.min(Math.max(typed, 1), totalPages) - 1;
+    setPageInput(String(target + 1));
+    if (target !== safePage) onPageChange(target);
+  };
 
   return (
     <div data-testid="order-pagination-footer" className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-black/10 px-4 py-3">
@@ -76,9 +93,27 @@ export function OrderTablePagination({
         Previous
       </button>
 
-      <span className="text-center text-[11px] font-medium tabular-nums text-black/55">
-        Page {safePage + 1} of {totalPages}
-      </span>
+      <form
+        className="flex items-center justify-center gap-1.5 text-[11px] font-medium tabular-nums text-black/55"
+        onSubmit={(event) => {
+          event.preventDefault();
+          jumpToTypedPage();
+        }}
+      >
+        <span>Page</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label="Go to page"
+          data-testid="order-pagination-page-input"
+          value={pageInput}
+          onChange={(event) => setPageInput(event.target.value.replace(/\D/g, ""))}
+          onFocus={(event) => event.target.select()}
+          onBlur={jumpToTypedPage}
+          className="h-7 w-12 rounded-md border border-black/15 bg-white text-center text-[12px] font-medium text-black outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+        />
+        <span>of {totalPages}</span>
+      </form>
 
       <button
         type="button"

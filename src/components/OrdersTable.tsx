@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { classifyOrderStatus, canShowConsignmentCopy, followUpDetails } from "@/lib/orderStatusFilters";
 import { formatProductLine } from "@/lib/orderItemDisplay";
 import { formatTooltipProductLine } from "@/lib/orderItemDisplay";
+import { splitProductLines } from "@/lib/orderProducts";
 import { canEnterPrint, courierSendBlockReason, displayStatusLabel, isOnHoldStatus, isPrintStatus, normalizeBusinessStatus } from "@/lib/orderTransitions";
 import { holdDays } from "@/lib/orderHoldFilters";
 import { ORDER_HOLD_REASONS } from "../../shared/orderHold.js";
@@ -144,33 +145,6 @@ function ConsignmentIdButton({ id }: { id: string | number }) {
         : <Copy className="h-3 w-3 shrink-0 opacity-70" />}
     </PopButton>
   );
-}
-
-function splitProductLines(product: string | null): string[] {
-  if (!product) return [];
-
-  const lines: string[] = [];
-  let current = "";
-  let parenthesesDepth = 0;
-  for (let index = 0; index < product.length; index += 1) {
-    const character = product[index];
-    if (character === "(") parenthesesDepth += 1;
-    if (character === ")") parenthesesDepth = Math.max(0, parenthesesDepth - 1);
-
-    const plusSeparator = character === "+" &&
-      /\s/.test(product[index - 1] || "") &&
-      /\s/.test(product[index + 1] || "");
-    if ((character === "," || plusSeparator) && parenthesesDepth === 0) {
-      if (current.trim()) lines.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += character;
-  }
-  if (current.trim()) lines.push(current.trim());
-  return lines.map((line, index) => index === 0
-    ? line.replace(/^cart checkout\s*-\s*/i, "")
-    : line);
 }
 
 function OrderStatusIcon({ status }: { status: string }) {
@@ -338,6 +312,8 @@ interface OrdersTableProps {
   onSelectionChange?: (ids: Set<string>) => void;
   orderLinkState?: Record<string, unknown>;
   enableOrderIdLinks?: boolean;
+  /** Confirmed tab: clicking a row selects it, and an Open button under the order id opens it. */
+  rowClickSelects?: boolean;
 }
 
 // Logos the browser already holds paint at full opacity on the first frame.
@@ -702,7 +678,7 @@ function NotesPopover({ order, onOrderUpdate }: { order: Order; onOrderUpdate?: 
   );
 }
 
-export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, showHoldDetails = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false }: OrdersTableProps) {
+export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, showHoldDetails = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false, rowClickSelects = false }: OrdersTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -1151,12 +1127,18 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
     }
   };
 
+  // Selection is kept across pages, so the header checkbox only adds or removes this page's rows.
+  const pageSelectedCount = displayOrders.filter((order) => selectedIds.has(order.id)).length;
+  const allPageSelected = displayOrders.length > 0 && pageSelectedCount === displayOrders.length;
   const toggleSelectAll = () => {
-    if (selectedIds.size === displayOrders.length && displayOrders.length > 0) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(displayOrders.map(o => o.id)));
-    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const order of displayOrders) {
+        if (allPageSelected) next.delete(order.id);
+        else next.add(order.id);
+      }
+      return next;
+    });
   };
 
   const toggleSelectOrder = (id: string) => {
@@ -1421,16 +1403,16 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                 data-testid="checkbox-orders-all"
                 className={cn(
                   "w-[18px] h-[18px] rounded-[5px] border-[1.5px] flex items-center justify-center cursor-pointer transition-all duration-200",
-                  selectedIds.size === displayOrders.length && displayOrders.length > 0
+                  allPageSelected
                     ? "bg-[#0285F7] border-[#0285F7]"
-                    : selectedIds.size > 0
+                    : pageSelectedCount > 0
                       ? "bg-[#0285F7] border-[#0285F7]"
                       : "border-black/20 bg-white hover:border-black/40"
                 )}
               >
-                {selectedIds.size === displayOrders.length && displayOrders.length > 0 ? (
+                {allPageSelected ? (
                   <Check className="w-3 h-3 text-white" />
-                ) : selectedIds.size > 0 ? (
+                ) : pageSelectedCount > 0 ? (
                   <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none">
                     <path d="M3 6H9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
@@ -1459,26 +1441,27 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                   : ["pending", "confirmed", "on_hold", "cancelled"];
               const sendBlockReason = courierSendBlockReason(order.status);
               const openOrder = () => navigate(`/orders/${order.id}`, orderLinkState ? { state: orderLinkState } : undefined);
+              const activateRow = rowClickSelects ? () => toggleSelectOrder(order.id) : openOrder;
               const rowBackground = selectedIds.has(order.id) ? "bg-blue-50/60" : "";
 
               return (
                 <Fragment key={order.id}>
                 <TableRow
                   tabIndex={0}
-                  aria-label={`Open order ${order.order_number}`}
+                  aria-label={rowClickSelects ? `Select order ${order.order_number}` : `Open order ${order.order_number}`}
                   onMouseEnter={() => prefetchOrder(order.id)}
                   onFocus={() => prefetchOrder(order.id)}
                   onClick={(event) => {
                     const target = event.target as HTMLElement;
                     if (target.closest("button, a, input, textarea, select, [role='button'], [data-row-interactive='true']")) return;
-                    openOrder();
+                    activateRow();
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     const target = event.target as HTMLElement;
                     if (target.closest("button, a, input, textarea, select, [role='button'], [data-row-interactive='true']")) return;
                     event.preventDefault();
-                    openOrder();
+                    activateRow();
                   }}
                   className={cn(
                     "border-b-0 transition-all duration-200 group relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-inset",
@@ -1543,6 +1526,16 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                       <span className="whitespace-nowrap text-[10px] text-black font-semibold uppercase tracking-wider">{format(new Date(order.created_at), "MMM dd, yyyy")}</span>
                       <span className="whitespace-nowrap text-[10px] text-black font-semibold uppercase tracking-wider">{format(new Date(order.created_at), "h:mm a")}</span>
                     </div>
+                    {rowClickSelects && (
+                      <button
+                        type="button"
+                        onClick={openOrder}
+                        data-testid={`button-open-order-${order.id}`}
+                        className="mt-1.5 flex w-fit items-center rounded-md border border-black/10 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-black transition-colors hover:bg-black/[0.04]"
+                      >
+                        Open
+                      </button>
+                    )}
                   </TableCell>
                   <TableCell className="max-w-[150px] py-3">
                     <div className="flex flex-col gap-0.5">
@@ -1827,7 +1820,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                   onClick={(event) => {
                     const target = event.target as HTMLElement;
                     if (target.closest("button, a, input, textarea, select, [role='button'], [data-row-interactive='true']")) return;
-                    openOrder();
+                    activateRow();
                   }}
                   className={cn(
                     "border-b border-[#F1F1F2] cursor-pointer transition-all duration-200",

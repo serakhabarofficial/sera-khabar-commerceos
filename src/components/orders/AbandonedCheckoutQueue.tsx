@@ -6,6 +6,7 @@ import {
   CaretDown,
   Check,
   Copy,
+  ArrowUUpLeft,
   PencilSimple,
   Phone,
   Trash,
@@ -38,6 +39,7 @@ import {
   abandonedCheckoutTelHref,
   abandonedCheckoutWhatsAppHref,
   type AbandonedCheckout,
+  type DismissedCheckout,
 } from "@/lib/abandonedCheckouts";
 import {
   pendingOrderLabel,
@@ -109,7 +111,6 @@ export type AbandonedCheckoutQueueProps = {
   onRetry?: () => void;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
-  onSelectAll?: () => void;
   onOpenCheckout?: (id: string) => void;
   pendingOrdersByPhone?: Map<string, PendingOrderMatch[]>;
 };
@@ -136,7 +137,6 @@ export function AbandonedCheckoutQueue({
   onRetry,
   selectedIds = new Set(),
   onToggleSelect = () => {},
-  onSelectAll = () => {},
   onOpenCheckout = () => {},
   pendingOrdersByPhone = NO_PENDING_MATCHES,
 }: AbandonedCheckoutQueueProps) {
@@ -222,45 +222,8 @@ export function AbandonedCheckoutQueue({
     );
   }
 
-  const allSelected = checkouts.length > 0 && checkouts.every((checkout) => selectedIds.has(checkout.id));
-
   return (
     <>
-      <div className="flex items-center gap-2 px-4 py-2 sm:px-6">
-        <div
-          data-testid="checkbox-abandoned-all"
-          role="checkbox"
-          aria-checked={allSelected}
-          aria-label="Select all checkouts"
-          tabIndex={0}
-          onClick={() => onSelectAll()}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" && event.key !== " ") return;
-            event.preventDefault();
-            onSelectAll();
-          }}
-          className={cn(
-            "w-[18px] h-[18px] rounded-[5px] border-[1.5px] flex items-center justify-center cursor-pointer transition-all duration-200",
-            allSelected
-              ? "bg-[#0285F7] border-[#0285F7] scale-105 shadow-sm"
-              : "border-black/20 bg-white hover:border-black/40 active:scale-95"
-          )}
-        >
-          {allSelected && (
-            <motion.svg
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 500, damping: 25 }}
-              viewBox="0 0 12 12"
-              className="w-3 h-3"
-              fill="none"
-            >
-              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </motion.svg>
-          )}
-        </div>
-        <span className="text-xs text-black">{selectedIds.size} selected</span>
-      </div>
       <div className="divide-y divide-black/[0.08]" data-testid="abandoned-checkout-queue">
         {checkouts.map((checkout) => {
           const callHref = abandonedCheckoutTelHref(checkout.phone);
@@ -519,7 +482,7 @@ export function AbandonedCheckoutQueue({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Dismiss checkout?</AlertDialogTitle>
-            <AlertDialogDescription>Dismiss this checkout from the recovery queue? This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>Dismiss this checkout from the recovery queue? You can restore it from Dismissed for up to 30 days.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep checkout</AlertDialogCancel>
@@ -534,5 +497,144 @@ export function AbandonedCheckoutQueue({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+function dismissedLabel(checkout: DismissedCheckout) {
+  const date = checkout.resolved_at ? new Date(checkout.resolved_at) : null;
+  const when = date && !Number.isNaN(date.getTime()) ? format(date, "d MMM, h:mm a") : null;
+  const who = checkout.resolution === "already_ordered" ? "auto: already ordered" : checkout.dismissed_by ? `by ${checkout.dismissed_by}` : null;
+  return ["Dismissed", when, who].filter(Boolean).join(" · ");
+}
+
+export type DismissedCheckoutListProps = {
+  checkouts: DismissedCheckout[];
+  loading: boolean;
+  error: string | null;
+  actionInFlightId: string | null;
+  onRestore: (checkoutId: string) => void;
+  onCreateOrder: (checkoutId: string) => void;
+  onRetry?: () => void;
+  emptyText?: string;
+};
+
+/** Dismissed checkouts, kept for 30 days so a customer who calls back can still be found. */
+export function DismissedCheckoutList({
+  checkouts,
+  loading,
+  error,
+  actionInFlightId,
+  onRestore,
+  onCreateOrder,
+  onRetry,
+  emptyText = "No dismissed checkouts in the last 30 days",
+}: DismissedCheckoutListProps) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState("");
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
+
+  const copyPhone = async (checkout: DismissedCheckout) => {
+    if (!checkout.phone) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(checkout.phone);
+      setCopyStatus("Phone number copied");
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      setCopiedId(checkout.id);
+      copiedTimer.current = setTimeout(() => setCopiedId(null), 1600);
+    } catch {
+      setCopyStatus("Could not copy phone number");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-32 items-center justify-center gap-2 px-6 py-10 text-sm text-black" role="status">
+        <Spinner size="sm" className="text-black" />
+        Loading dismissed checkouts…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-32 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+        <p className="text-sm text-black">{error}</p>
+        {onRetry && (
+          <button type="button" onClick={onRetry} className="rounded-lg px-3 py-2 text-xs font-medium text-black transition-colors hover:bg-black/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30">
+            Try again
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (!checkouts.length) {
+    return <p className="px-6 py-10 text-center text-sm text-black/55">{emptyText}</p>;
+  }
+
+  return (
+    <div className="divide-y divide-black/[0.08]" data-testid="dismissed-checkout-list">
+      {checkouts.map((checkout) => {
+        const isUpdating = actionInFlightId === checkout.id;
+        return (
+          <article key={checkout.id} className="grid gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-sm font-medium text-black">{checkout.customer_name || "Customer name not provided"}</span>
+                <span className="rounded-md bg-black/[0.05] px-1.5 py-0.5 text-[10.5px] font-medium text-black/70">{dismissedLabel(checkout)}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-black">
+                <span>{abandonedCheckoutSourceLabel(checkout.source, checkout.source_path)}</span>
+                <span aria-hidden>·</span>
+                <span>{captureTime(checkout.created_at)}</span>
+                <Chip variant="subtle" color="gray" className="tabular-nums">{formatEstimatedTotal(checkout.total)}</Chip>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-black">{abandonedCheckoutCartSummary(checkout.cart)}</p>
+              {checkout.phone && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-black">
+                  <Chip variant="subtle" color="gray" className="tabular-nums">{checkout.phone}</Chip>
+                  <button
+                    type="button"
+                    aria-label="Copy phone number"
+                    data-testid={`copy-dismissed-phone-${checkout.id}`}
+                    onClick={() => void copyPhone(checkout)}
+                    className="inline-flex items-center rounded-md p-1 text-black transition-all duration-200 ease-out active:scale-[0.97] hover:bg-black/[0.05] hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/30"
+                  >
+                    <CopyGlyph copied={copiedId === checkout.id} />
+                  </button>
+                </p>
+              )}
+              {checkout.address && <p className="mt-1 text-xs leading-5 text-black/70">{checkout.address}</p>}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onRestore(checkout.id)}
+                aria-label={`Restore checkout from ${checkout.customer_name || "customer"}`}
+                className={cn(actionChip, actionChipNeutral, "active:scale-[0.97]")}
+              >
+                {isUpdating ? <Spinner size="sm" /> : <ArrowUUpLeft size={13} weight="bold" aria-hidden />}
+                Restore
+              </button>
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onCreateOrder(checkout.id)}
+                aria-label={`Create order from ${checkout.customer_name || "customer"}`}
+                className={cn(actionChip, "bg-black text-white hover:bg-black/85 focus-visible:ring-black/30 active:scale-[0.97]")}
+              >
+                Create order
+              </button>
+            </div>
+          </article>
+        );
+      })}
+      <p className="sr-only" aria-live="polite">{copyStatus}</p>
+    </div>
   );
 }

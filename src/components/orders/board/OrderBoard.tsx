@@ -8,6 +8,8 @@ import { useOrderBoard } from "@/hooks/useOrderBoard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { pickerPrimaryButtonClassName } from "@/components/base/date-picker/shared";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/sonner";
+import { matchesOrderSearch } from "@/lib/orderSearch";
 import { displayStatusLabel } from "@/lib/orderTransitions";
 import {
   BOARD_COLORS,
@@ -339,7 +341,7 @@ function OrderRow({ card, list, today, selected, onSelect }: {
   );
 }
 
-export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
+export function OrderBoard({ orders, onOrderStatusChange }: { orders: BoardSearchOrder[]; onOrderStatusChange?: (orderId: string, status: string) => void }) {
   const board = useOrderBoard();
   const isMobile = useIsMobile();
   const reduceMotion = useReducedMotion();
@@ -355,6 +357,7 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
   // Phones have no room for the detail pane, so a picked order opens in a dialog there.
   const [dialogCardId, setDialogCardId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [rowQuery, setRowQuery] = useState("");
 
   const lists = board.data?.lists ?? NO_LISTS;
   const cards = board.data?.cards ?? NO_CARDS;
@@ -371,7 +374,15 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
   // (deleted, removed from the board, or moved to another list).
   const activeList = (pickedListId ? listById.get(pickedListId) : undefined) ?? lists[0];
   const listCards = useMemo(() => (activeList ? cardsInList(cards, activeList.id) : NO_CARDS), [cards, activeList]);
-  const activeCard = listCards.find((c) => c.id === pickedCardId) ?? listCards[0] ?? null;
+  // The search above the rows narrows the selected list by order number, name, phone, address or note.
+  const visibleCards = useMemo(() => {
+    const trimmed = rowQuery.trim();
+    if (!trimmed) return listCards;
+    return listCards.filter((card) =>
+      (card.order && matchesOrderSearch({ ...card.order, consignment_id: null, tracking_code: null }, trimmed))
+      || card.note.toLowerCase().includes(trimmed.toLowerCase()));
+  }, [listCards, rowQuery]);
+  const activeCard = listCards.find((c) => c.id === pickedCardId) ?? visibleCards[0] ?? null;
   const dialogCard = cards.find((c) => c.id === dialogCardId) ?? null;
 
   const showCard = (card: BoardCard) => {
@@ -385,6 +396,7 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
     setPickedCardId(null);
     setListSearch(null);
     setRenaming(null);
+    setRowQuery("");
   };
 
   // Up and down arrows walk the order list, like a mail inbox.
@@ -392,8 +404,9 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     if (!activeCard) return;
     e.preventDefault();
-    const index = listCards.findIndex((c) => c.id === activeCard.id);
-    const next = listCards[Math.min(listCards.length - 1, Math.max(0, index + (e.key === "ArrowDown" ? 1 : -1)))];
+    const index = visibleCards.findIndex((c) => c.id === activeCard.id);
+    const next = visibleCards[Math.min(visibleCards.length - 1, Math.max(0, index + (e.key === "ArrowDown" ? 1 : -1)))];
+    if (!next) return;
     setPickedCardId(next.id);
     rowsRef.current?.querySelector<HTMLElement>(`[data-board-row="${next.id}"]`)?.focus();
   };
@@ -442,6 +455,16 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
     onUpdate: (cardId: string, patch: Partial<Pick<BoardCard, "note" | "remind_on">>) => void board.updateCard(cardId, patch),
     onMove: (cardId: string, listId: string) => void board.updateCard(cardId, { list_id: listId, position: dropPosition(cards, cardId, listId, 0) }),
     onRemove: (cardId: string) => { setDialogCardId(null); void board.removeCard(cardId); },
+    // Moving to Print takes the order off the Board, so it shows in the Print tab.
+    onMoveToPrint: (cardId: string, orderId: string) => {
+      void board.setOrderStatus(orderId, "print").then((saved) => {
+        if (!saved) return;
+        setDialogCardId(null);
+        void board.removeCard(cardId);
+        onOrderStatusChange?.(orderId, "print");
+        toast.success("Moved to Print");
+      });
+    },
   };
 
   if (board.isLoading) {
@@ -542,7 +565,7 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
         </div>
       </div>
 
-      <div className="mx-3 mb-4 grid min-h-[560px] flex-1 overflow-hidden rounded-2xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.07)] md:h-[min(760px,calc(100dvh-240px))] md:grid-cols-[200px_300px_minmax(0,1fr)] max-md:grid-rows-[auto_minmax(0,1fr)]">
+      <div className="mx-3 mb-4 grid h-[min(760px,calc(100dvh-240px))] min-h-[560px] shrink-0 overflow-hidden rounded-2xl bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.07)] md:grid-cols-[200px_300px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] max-md:grid-rows-[auto_minmax(0,1fr)]">
         {/* Lists */}
         <nav aria-label="Board lists" className="flex gap-0.5 bg-[#FAFAF8] p-2.5 md:flex-col md:border-r md:border-black/[0.07] max-md:overflow-x-auto max-md:border-b max-md:border-black/[0.07]">
           <span className="px-2 pb-2 pt-1 text-[9px] font-medium uppercase tracking-[0.3em] text-black/40 max-md:hidden">Lists</span>
@@ -696,8 +719,35 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
                 )}
               </AnimatePresence>
 
+              {listCards.length > 0 && (
+                <div className="shrink-0 border-b border-black/[0.07] px-3 py-2">
+                <label className="flex h-9 items-center gap-2 rounded-lg border border-black/10 bg-black/[0.03] px-3 text-black/55 transition-[border-color,background-color,box-shadow] duration-150 focus-within:border-black/25 focus-within:bg-white focus-within:ring-[3px] focus-within:ring-black/[0.06]">
+                  <MagnifyingGlass weight="light" className="size-4 shrink-0" />
+                  <input
+                    value={rowQuery}
+                    onChange={(e) => setRowQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Escape") setRowQuery(""); }}
+                    placeholder="Search this list"
+                    aria-label={`Search orders in ${activeList.name}`}
+                    data-testid="board-list-filter"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] text-black outline-none placeholder:text-black/50"
+                  />
+                  {rowQuery && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => setRowQuery("")}
+                      className="grid size-5 shrink-0 place-items-center rounded-md hover:bg-black/[0.04] hover:text-black"
+                    >
+                      <X weight="light" className="size-3" />
+                    </button>
+                  )}
+                </label>
+                </div>
+              )}
+
               <div ref={rowsRef} onKeyDown={walkRows} className="min-h-0 flex-1 divide-y divide-black/[0.05] overflow-y-auto">
-                {listCards.map((card) => (
+                {visibleCards.map((card) => (
                   <OrderRow
                     key={card.id}
                     card={card}
@@ -707,6 +757,9 @@ export function OrderBoard({ orders }: { orders: BoardSearchOrder[] }) {
                     onSelect={() => showCard(card)}
                   />
                 ))}
+                {listCards.length > 0 && visibleCards.length === 0 && (
+                  <div className="px-6 py-12 text-center text-[12.5px] text-black/40">No orders in this list match “{rowQuery.trim()}”.</div>
+                )}
                 {listCards.length === 0 && (
                   <div className="px-6 py-12 text-center text-[12.5px] text-black/40">
                     এই লিস্টে কোনো অর্ডার নেই।

@@ -144,6 +144,28 @@ describe("dashboard order status filter", () => {
     expect(screen.getByTestId("dashboard-orders")).not.toHaveTextContent("Cancelled Customer");
   });
 
+  it("hides orders that are on the Board from every status tab", async () => {
+    const user = userEvent.setup();
+    const fallback = apiFetch.getMockImplementation()!;
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => (
+      url === "/api/order-board"
+        ? jsonResponse({ lists: [], cards: [{ id: "card-1", list_id: "l1", order_id: "pending", note: "", remind_on: null, position: 0, updated_at: "", order: null }] })
+        : fallback(url, init)
+    ));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter><Dashboard /></MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole("radio", { name: /All Orders.*2/ })).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-orders")).not.toHaveTextContent("Pending Customer");
+    expect(screen.getByTestId("dashboard-orders")).toHaveTextContent("Delivered Customer");
+    await user.click(screen.getByRole("radio", { name: /Pending/ }));
+    expect(screen.getByTestId("dashboard-orders")).not.toHaveTextContent("Pending Customer");
+  });
+
   it("loads the picked date range from the server so orders beyond the dashboard's loaded list still appear", async () => {
     const user = userEvent.setup();
     // Older than anything in the main /api/orders load (the server caps that list).
@@ -405,14 +427,14 @@ describe("dashboard order status filter", () => {
     pageSize.focus();
     await user.keyboard("{Enter}{Home}{Enter}");
 
-    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("order-pagination-page-input")).toHaveValue("1");
     expect(screen.getByTestId("dashboard-orders")).toHaveTextContent("Dashboard Customer 20");
     expect(screen.getByTestId("dashboard-orders")).not.toHaveTextContent("Dashboard Customer 21");
     expect(localStorage.getItem("dashboard-order-page-size")).toBe("20");
 
     await user.click(screen.getByRole("button", { name: "Next page" }));
 
-    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    expect(screen.getByTestId("order-pagination-page-input")).toHaveValue("2");
     expect(screen.getByTestId("dashboard-orders")).not.toHaveTextContent("Dashboard Customer 1");
     expect(screen.getByTestId("dashboard-orders")).toHaveTextContent("Dashboard Customer 21");
   });
@@ -936,6 +958,6 @@ describe("dashboard order status filter", () => {
 
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByRole("heading")).toHaveTextContent("Dismiss 2 checkouts?");
-    expect(within(dialog).getByText("This cannot be undone.")).toBeInTheDocument();
+    expect(within(dialog).getByText("You can restore them from Dismissed for up to 30 days.")).toBeInTheDocument();
   });
 });

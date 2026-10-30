@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ElementType } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpRight, Phone } from "@phosphor-icons/react";
+import { ArrowUpRight, Check, Copy, Phone, Printer } from "@phosphor-icons/react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Calendar } from "react-aria-components";
 import { parseDate, type CalendarDate } from "@internationalized/date";
@@ -11,7 +11,7 @@ import { MonthPanel, pickerPrimaryButtonClassName, pickerSecondaryButtonClassNam
 import { toast } from "@/components/ui/sonner";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { displayStatusLabel } from "@/lib/orderTransitions";
+import { canEnterPrint, displayStatusLabel } from "@/lib/orderTransitions";
 import {
   addDaysToDateKey,
   BOARD_COLOR_CLASSES,
@@ -39,6 +39,7 @@ export type BoardCardActions = {
   onUpdate: (cardId: string, patch: Partial<Pick<BoardCard, "note" | "remind_on">>) => void;
   onMove: (cardId: string, listId: string) => void;
   onRemove: (cardId: string) => void;
+  onMoveToPrint: (cardId: string, orderId: string) => void;
 };
 
 /**
@@ -52,6 +53,7 @@ export function BoardCardDetail({
   onUpdate,
   onMove,
   onRemove,
+  onMoveToPrint,
   Title = "h2",
   className,
 }: {
@@ -144,6 +146,7 @@ export function BoardCardDetail({
   const order = card.order;
   const items = order?.items ?? [];
   const heavy = isHeavyParcel(items);
+
   const quickDates = [
     { label: "Today", value: today },
     { label: "Tomorrow", value: addDaysToDateKey(today, 1) },
@@ -154,10 +157,16 @@ export function BoardCardDetail({
     <div className={cn("flex flex-col", className)}>
       <div className="border-b border-black/[0.07] px-6 pb-4 pr-12 pt-5">
         <Title className="text-[22px] font-semibold leading-snug tracking-[-0.02em]">{order?.customer_name || "Unnamed customer"}</Title>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-black/50">
-          <span className="font-mono text-[11.5px]">#{order?.order_number ?? "—"}</span>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {order ? (
+            <CopyChip value={String(order.order_number).replace(/^#+/, "")} label={`#${String(order.order_number).replace(/^#+/, "")}`} name="order number" />
+          ) : (
+            <span className="font-mono text-[13px] text-black/50">#—</span>
+          )}
+          {order?.phone && <CopyChip value={order.phone} label={order.phone} name="phone number" />}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-black/50">
           {order && <span className="tabular-nums">{fmtTaka(order.price)}</span>}
-          {order?.phone && <span className="select-all font-mono text-[11.5px]">{order.phone}</span>}
           {order && <span className="rounded-md bg-black/[0.05] px-2 py-0.5 text-[11px] font-medium text-black/60">{displayStatusLabel(order.status)}</span>}
           {heavy && <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">Heavy · {itemCount(items)} items</span>}
         </div>
@@ -279,6 +288,15 @@ export function BoardCardDetail({
         >
           Open order <ArrowUpRight weight="light" className="h-3.5 w-3.5" />
         </button>
+        {order && canEnterPrint(order.status) && (
+          <button
+            type="button"
+            onClick={() => { flushNote(); onMoveToPrint(cardId, order.id); }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white px-3 text-[12px] font-medium shadow-[0_0_0_1px_rgba(0,0,0,0.08)] transition-transform duration-150 ease-out active:scale-[0.97]"
+          >
+            Move to Print <Printer weight="light" className="h-3.5 w-3.5" />
+          </button>
+        )}
         <div className="ml-auto">
           {confirmRemove ? (
             <span className="flex items-center gap-1.5 text-[12.5px]">
@@ -294,6 +312,54 @@ export function BoardCardDetail({
         </div>
       </div>
     </div>
+  );
+}
+
+/** A highlighted value (order number, phone) that copies on click and flashes a tick. */
+function CopyChip({ value, label, name }: { value: string; label: string; name: string }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  const copy = () => {
+    void navigator.clipboard?.writeText(value).catch(() => {});
+    setCopied(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={copied ? `${name} copied` : `Copy ${name} ${label}`}
+      data-testid={`board-copy-${name.split(" ")[0]}`}
+      className={cn(
+        "inline-flex h-8 items-center gap-2 rounded-lg px-2.5 font-mono text-[14px] font-semibold tabular-nums tracking-tight transition-[background-color,color,box-shadow,transform] duration-200 ease-out active:scale-[0.97]",
+        copied
+          ? "bg-emerald-50 text-emerald-700 shadow-[0_0_0_1px_rgba(16,185,129,0.35)]"
+          : "bg-black/[0.05] text-black shadow-[0_0_0_1px_rgba(0,0,0,0.06)] hover:bg-black/[0.08]",
+      )}
+    >
+      <span>{label}</span>
+      <span className="relative grid size-3.5 place-items-center" aria-hidden="true">
+        <Check
+          weight="bold"
+          className={cn(
+            "size-3.5 transition-[transform,opacity] duration-100",
+            copied ? "scale-100 opacity-100 animate-[copy-tick-pop_140ms_ease-out]" : "scale-50 opacity-0",
+          )}
+        />
+        <Copy
+          weight="light"
+          className={cn(
+            "absolute size-3.5 transition-[transform,opacity] duration-100 ease-in",
+            copied ? "scale-50 opacity-0" : "scale-100 opacity-60",
+          )}
+        />
+      </span>
+      <span role="status" className="sr-only">{copied ? "Copied" : ""}</span>
+    </button>
   );
 }
 

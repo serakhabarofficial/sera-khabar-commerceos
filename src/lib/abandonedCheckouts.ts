@@ -29,6 +29,15 @@ export type AbandonedCheckout = {
   protection_review_id?: string | null;
 };
 
+/** A dismissed checkout, kept until its expiry so staff can restore it. */
+export type DismissedCheckout = Omit<AbandonedCheckout, "status"> & {
+  status: "dismissed";
+  resolved_at: string | null;
+  /** "dismissed" by staff, or "already_ordered" when the customer had a pending order. */
+  resolution: string | null;
+  dismissed_by: string | null;
+};
+
 export type AbandonedCheckoutResponse = {
   checkouts: AbandonedCheckout[];
   activeCount: number;
@@ -84,7 +93,10 @@ export function abandonedCheckoutCartSummary(cart: AbandonedCheckoutCartItem[]) 
     .join(", ");
 }
 
-export function matchesAbandonedCheckoutSearch(checkout: AbandonedCheckout, query: string) {
+export function matchesAbandonedCheckoutSearch(
+  checkout: Pick<AbandonedCheckout, "customer_name" | "phone" | "address" | "source" | "source_path" | "cart">,
+  query: string,
+) {
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) return true;
 
