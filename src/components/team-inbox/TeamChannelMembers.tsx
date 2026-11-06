@@ -55,9 +55,9 @@ export function TeamChannelMembers({ channelId, channelName, memberIds, staff, v
 
   return (
     <Popover>
-      <PopoverTrigger className="ml-auto inline-flex h-8 items-center gap-2 rounded-lg px-2 text-[12px] text-black/60 outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-black/[0.05] hover:text-black focus-visible:ring-2 focus-visible:ring-black/15 active:scale-[0.97]">
-        <span className="flex -space-x-1.5">
-          {members.slice(0, 3).map((member) => <Avatar key={member.user_id} name={member.display_name} size="sm" className="ring-2 ring-[#FAFAF8]" />)}
+      <PopoverTrigger className="ml-auto inline-flex h-8 shrink-0 items-center gap-2 rounded-lg px-2 text-[12px] max-md:h-10 max-md:px-2.5 text-black/60 outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-black/[0.05] hover:text-black focus-visible:ring-2 focus-visible:ring-black/15 active:scale-[0.97]">
+        <span className="flex -space-x-1.5 max-md:hidden">
+          {members.slice(0, 3).map((member) => <Avatar key={member.user_id} name={member.display_name} size="sm" className="ring-2 ring-white" />)}
         </span>
         <span className="tabular-nums">{memberIds.length}</span>
         <UsersThree weight="light" size={15} />

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { ArrowLeft, Hash, Package, Plus } from "@phosphor-icons/react";
+import { CaretLeft, Package, PencilSimpleLine } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/arc/avatar/avatar";
 import { ChatThread, type ChatAttachment, type ChatDraft, type ChatMessage, type ChatParticipant } from "@/components/arc/chat-thread/chat-thread";
 import { TeamOrderPanel } from "@/components/team-inbox/TeamOrderPanel";
 import { TeamOrderCard, TeamOrderCardPlaceholder } from "@/components/team-inbox/TeamOrderCard";
+import { TeamChannelAvatar } from "@/components/team-inbox/TeamChannelAvatar";
 import { TeamChannelMembers } from "@/components/team-inbox/TeamChannelMembers";
 import { TeamNewChannelDialog } from "@/components/team-inbox/TeamNewChannelDialog";
 import { useOrderMention } from "@/components/team-inbox/TeamOrderMention";
@@ -14,12 +15,36 @@ import "@/components/team-inbox/team-inbox.css";
 import { cn } from "@/lib/utils";
 import { formatTaka } from "@/lib/orderEditor";
 import {
-  TEAM_CHAT_ACCEPT, TEAM_CHAT_ATTACHMENTS_PER_MESSAGE, TEAM_CHAT_CHANNELS_KEY, TEAM_CHAT_REACTIONS, TEAM_CHAT_UNREAD_KEY, TEAM_CHAT_VOICE_MAX_MS, channelTitle, defaultTeamConversation,
+  TEAM_CHAT_ACCEPT, TEAM_CHAT_ATTACHMENTS_PER_MESSAGE, TEAM_CHAT_CHANNELS_KEY, TEAM_CHAT_REACTIONS, TEAM_CHAT_UNREAD_KEY, TEAM_CHAT_VOICE_MAX_MS, channelMembersLine, channelTitle, defaultTeamConversation,
   extractOrderNumbers, getTeamChatThread, postTeamChat, splitOrderMentions, stableAttachmentUrl, teamChatFileProblem, teamChatThreadKey, uploadTeamChatFile, useTeamChatChannels, useTeamChatThread,
   type TeamChatAttachment, type TeamChatMessage, type TeamChatOrder, type TeamChatStaff, type TeamChatThread, type TeamChatUploaded,
 } from "@/lib/teamChat";
 
-const label = "text-[8px] font-medium uppercase tracking-[0.3em] text-black/45";
+// Section headings in the conversation list, in sentence case like Messenger's.
+// On a phone the open chat is full-screen and sized to what is actually visible, so the message box rides above the
+// on-screen keyboard instead of being covered by it. These variables feed the thread's mobile classes below.
+function useVisibleViewport(active: boolean) {
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!active || !viewport) return;
+    const root = document.documentElement;
+    const update = () => {
+      root.style.setProperty("--team-vvh", `${viewport.height}px`);
+      root.style.setProperty("--team-vvt", `${viewport.offsetTop}px`);
+    };
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+      root.style.removeProperty("--team-vvh");
+      root.style.removeProperty("--team-vvt");
+    };
+  }, [active]);
+}
+
+const sectionLabel = "px-2.5 pb-1 text-[13px] font-semibold text-black/45";
 // Typing is reported at most this often while someone keeps typing.
 const TYPING_EVERY_MS = 3000;
 
@@ -39,7 +64,7 @@ function ListPlaceholder() {
     <div aria-hidden="true" className="team-skeleton space-y-0.5">
       {[0.9, 0.7, 0.8, 0.6, 0.75].map((width, index) => (
         <div key={index} className="flex items-center gap-3 px-2.5 py-2">
-          <span className={cn("h-9 w-9 shrink-0 bg-black/[0.05]", index < 2 ? "rounded-[11px]" : "rounded-full")} />
+          <span className="h-12 w-12 shrink-0 rounded-full bg-black/[0.05]" />
           <span className="flex-1 space-y-1.5">
             <span className="block h-2.5 rounded-full bg-black/[0.06]" style={{ width: `${width * 60}%` }} />
             <span className="block h-2 rounded-full bg-black/[0.04]" style={{ width: `${width * 90}%` }} />
@@ -359,7 +384,10 @@ export default function TeamInbox() {
     || Number(b.online) - Number(a.online) || a.display_name.localeCompare(b.display_name));
   const title = channel ? channelTitle(channel, staff) : currentThread ? channelTitle({ ...currentThread.channel, other_user_id: null }, staff) : "";
   const dmPerson = channel?.kind === "dm" ? staff.find((member) => member.user_id === channel.other_user_id) : undefined;
+  // The open thread knows its members first; the list's copy covers the moment before it loads.
+  const channelMembers = currentThread?.members ?? channel?.members;
   const showThreadOnMobile = !!params.get("c");
+  useVisibleViewport(showThreadOnMobile);
   const nameOf = (id: string | null) => id === viewerId ? "You" : staff.find((member) => member.user_id === id)?.display_name.split(/\s+/)[0] || "Someone";
 
   // Resting on a conversation loads it, so clicking switches without waiting.
@@ -372,51 +400,52 @@ export default function TeamInbox() {
     key: string; active: boolean; unread: number; avatar: ReactNode; name: string; preview: string | null; at: string | null; onClick: () => void; preloadId?: string | null;
   }) => (
     <button key={key} type="button" onClick={onClick} onPointerEnter={() => preload(preloadId)} onFocus={() => preload(preloadId)} aria-current={active || undefined}
-      className={cn("group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors duration-150 ease-out",
-        active ? "bg-white shadow-[0_0_0_1px_#ecebe7,0_1px_2px_rgba(0,0,0,0.03)]" : "hover:bg-black/[0.035]")}>
+      className={cn("group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-[background-color,transform] duration-150 ease-out active:scale-[0.99]",
+        active ? "bg-black/[0.06]" : "hover:bg-black/[0.035] active:bg-black/[0.06]")}>
       {avatar}
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
-          <span className={cn("min-w-0 flex-1 truncate text-[13px]", unread && !active ? "font-semibold" : "font-medium")}>{name}</span>
-          {at && <span className={cn("shrink-0 text-[10.5px] tabular-nums", unread && !active ? "font-medium text-black" : "text-black/40")}>{shortTime(at)}</span>}
+          <span className={cn("min-w-0 flex-1 truncate text-[15px]", unread && !active ? "font-bold" : "font-medium")}>{name}</span>
+          {at && <span className={cn("shrink-0 text-[12px] tabular-nums", unread && !active ? "font-semibold text-[#0a7cff]" : "text-black/40")}>{shortTime(at)}</span>}
         </span>
         <span className="mt-0.5 flex items-center gap-2">
-          <span className={cn("min-w-0 flex-1 truncate text-[11.5px]", unread && !active ? "text-black/70" : "text-black/45")}>{preview || "No messages yet"}</span>
-          {unread > 0 && !active && <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-[#0b0b0a] px-1.5 text-[10px] font-semibold tabular-nums text-white">{unread > 99 ? "99+" : unread}</span>}
+          <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", unread && !active ? "font-semibold text-black" : "text-black/50")}>{preview || "No messages yet"}</span>
+          {unread > 0 && !active && <span className="inline-flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full bg-[#0a7cff] px-1.5 text-[11px] font-semibold tabular-nums text-white">{unread > 99 ? "99+" : unread}</span>}
         </span>
       </span>
     </button>
   );
 
   return (
-    <div data-testid="team-inbox" className="relative flex h-[calc(100dvh-4.5rem)] max-h-[calc(100dvh-4.5rem)] min-h-0 overflow-hidden bg-[#FAFAF8] text-[#0b0b0a] max-md:h-[calc(100dvh-8rem)] max-md:max-h-[calc(100dvh-8rem)]">
-      <nav aria-label="Conversations" className={cn("team-chat-theme w-[272px] shrink-0 overflow-y-auto border-r border-[#ecebe7] px-2 py-4 max-md:w-full max-md:border-r-0", showThreadOnMobile && "max-md:hidden")}>
-        <div className="flex items-center justify-between px-2.5 pb-2">
-          <p className={label}>Channels</p>
+    <div data-testid="team-inbox" className="relative flex h-[calc(100dvh-3.5rem-2px)] max-h-[calc(100dvh-3.5rem-2px)] min-h-0 overflow-hidden bg-white text-[#0b0b0a]">
+      <nav aria-label="Conversations" className={cn("team-chat-theme w-[340px] shrink-0 overflow-y-auto border-r border-[#ecebe7] px-2 pb-2 pt-3 max-md:w-full max-md:border-r-0 max-md:pb-32 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden lg:w-[380px]", showThreadOnMobile && "max-md:hidden")}>
+        <div className="flex items-center justify-between px-2.5 pb-2 pt-1">
+          <h2 className="text-[26px] font-bold tracking-tight">Chats</h2>
           {list?.can_create_channels && (
             <button type="button" aria-label="New channel" onClick={() => setCreating(true)}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-black/50 transition-[background-color,transform] duration-150 ease-out hover:bg-black/[0.05] hover:text-black active:scale-[0.92]">
-              <Plus weight="light" size={13} />
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/[0.06] text-black transition-[background-color,transform] duration-150 ease-out hover:bg-black/10 active:scale-[0.94]">
+              <PencilSimpleLine weight="fill" size={18} />
             </button>
           )}
         </div>
         {!list && !listError && <ListPlaceholder />}
+        {channels.length > 0 && <p className={sectionLabel}>Channels</p>}
         <div className="space-y-0.5">
           {channels.map((item) => conversation({
             key: item.id, active: item.id === channelId, unread: item.unread, name: item.name || "",
-            avatar: <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-[#e6e5e0] bg-[#efeee9] text-black/60"><Hash weight="light" size={16} /></span>,
+            avatar: <TeamChannelAvatar members={item.members} staff={staff} viewerId={viewerId} lastAuthor={item.last_author} size={48} />,
             preview: item.last_body ? `${nameOf(item.last_author)}: ${item.last_body}` : item.topic, at: item.last_at,
             onClick: () => select(item.id), preloadId: item.id,
           }))}
         </div>
-        <p className={cn(label, "px-2.5 pb-2 pt-6")}>Direct messages</p>
+        <p className={cn(sectionLabel, "pt-4")}>Direct messages</p>
         <div className="space-y-0.5">
           {teammates.map((member) => {
             const dm = dms.get(member.user_id);
             return conversation({
               key: member.user_id, active: !!dm && dm.id === channelId, unread: dm?.unread || 0, name: member.display_name,
-              avatar: <Avatar name={member.display_name} status={member.online ? "online" : "offline"} />,
-              preview: dm?.last_body ? `${dm.last_author === viewerId ? "You: " : ""}${dm.last_body}` : member.online ? "Online" : null,
+              avatar: <Avatar name={member.display_name} size="lg" status={member.online ? "online" : "offline"} />,
+              preview: dm?.last_body ? `${dm.last_author === viewerId ? "You: " : ""}${dm.last_body}` : member.online ? "Active now" : null,
               at: dm?.last_at || null, onClick: () => void openDm(member), preloadId: dm?.id,
             });
           })}
@@ -425,22 +454,23 @@ export default function TeamInbox() {
         {listError && <p className="px-2.5 pt-3 text-[11px] text-[#c2410c]">{listError.message}</p>}
       </nav>
 
-      <section ref={threadPane} onScrollCapture={markVisibleRead} className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !showThreadOnMobile && "max-md:hidden")}
+      <section ref={threadPane} onScrollCapture={markVisibleRead} className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !showThreadOnMobile && "max-md:hidden",
+          showThreadOnMobile && "max-md:fixed max-md:inset-x-0 max-md:top-[var(--team-vvt,0px)] max-md:z-50 max-md:h-[var(--team-vvh,100dvh)] max-md:bg-white")}
         onInput={(event) => { onTyping(); orderMention.onInput(event); }} onKeyDownCapture={orderMention.onKeyDownCapture}>
-        <header className="team-chat-theme flex items-center gap-3 border-b border-[#ecebe7] px-4 py-3">
-          <button type="button" aria-label="Back to conversations" className="md:hidden -ml-1 inline-flex h-7 w-7 items-center justify-center rounded-lg text-black/60"
+        <header className="team-chat-theme flex items-center gap-2.5 border-b border-[#ecebe7] bg-white px-2 py-2.5 md:gap-3 md:px-4">
+          <button type="button" aria-label="Back to conversations" className="md:hidden inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[#0a7cff] transition-transform duration-150 ease-out active:scale-[0.94]"
             onClick={() => setParams((current) => { const next = new URLSearchParams(current); next.delete("c"); return next; })}>
-            <ArrowLeft weight="light" size={16} />
+            <CaretLeft weight="bold" size={22} />
           </button>
           {dmPerson
-            ? <Avatar name={dmPerson.display_name} size="sm" status={dmPerson.online ? "online" : "offline"} />
-            : channel && <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border border-[#e6e5e0] bg-[#efeee9] text-black/60"><Hash weight="light" size={13} /></span>}
+            ? <Avatar name={dmPerson.display_name} size="md" status={dmPerson.online ? "online" : "offline"} />
+            : channel && <TeamChannelAvatar members={channelMembers} staff={staff} viewerId={viewerId} lastAuthor={channel.last_author} size={40} />}
           <div className="min-w-0">
             {title
-              ? <h1 className="truncate text-[13.5px] font-semibold">{channel?.kind === "channel" ? channel.name : title}</h1>
+              ? <h1 style={{ fontFamily: "inherit" }} className="truncate text-[16px] font-semibold leading-tight">{channel?.kind === "channel" ? channel.name : title}</h1>
               : <span aria-hidden="true" className="my-[3px] block h-3 w-28 rounded-full bg-black/[0.06]" />}
-            <p className="truncate text-[11px] text-black/45">
-              {dmPerson ? (dmPerson.online ? "Online" : "Offline") : channel?.topic || "Type @ to tag an order by name, phone or number"}
+            <p className="truncate text-[12.5px] text-black/45">
+              {dmPerson ? (dmPerson.online ? "Active now" : "Offline") : channelMembersLine(channelMembers, staff, viewerId) || channel?.topic || "Type @ to tag an order by name, phone or number"}
             </p>
           </div>
           {channel?.kind === "channel" && currentThread?.members && (
@@ -466,9 +496,10 @@ export default function TeamInbox() {
                 allowAttachments
                 accept={TEAM_CHAT_ACCEPT}
                 allowVoice
+                allowClipboardPaste
                 maxVoiceMs={TEAM_CHAT_VOICE_MAX_MS}
                 onVoiceError={onVoiceError}
-                placeholder={channel?.kind === "channel" ? `Message #${channel.name}` : `Message ${title}`}
+                placeholder="Message"
                 label={title}
                 renderText={renderText}
                 renderAfter={renderAfter}
@@ -477,7 +508,7 @@ export default function TeamInbox() {
                 dmPerson
                   ? <EmptyConversation avatar={<Avatar name={dmPerson.display_name} size="lg" status={dmPerson.online ? "online" : "offline"} />}
                       title={dmPerson.display_name} line={`This is the start of your messages with ${dmPerson.display_name.split(/\s+/)[0]}. Only the two of you can see them.`} />
-                  : <EmptyConversation avatar={<span className="inline-flex h-12 w-12 items-center justify-center rounded-[14px] border border-[#e6e5e0] bg-[#efeee9] text-black/60"><Hash weight="light" size={20} /></span>}
+                  : <EmptyConversation avatar={<TeamChannelAvatar members={channelMembers} staff={staff} viewerId={viewerId} lastAuthor={null} size={64} />}
                       title={`#${channel?.name ?? ""}`} line={channel?.topic ? `${channel.topic}. Be the first to post.` : "No messages yet. Be the first to post."} />
               )}
             </div>

@@ -34,7 +34,7 @@ describe("team inbox transitions", () => {
 
     state.ready = true;
     rerender(<QueryClientProvider client={client}><MemoryRouter><TeamInbox /></MemoryRouter></QueryClientProvider>);
-    expect(screen.getByTestId("team-inbox")).toHaveClass("h-[calc(100dvh-4.5rem)]", "overflow-hidden");
+    expect(screen.getByTestId("team-inbox")).toHaveClass("h-[calc(100dvh-3.5rem-2px)]", "overflow-hidden");
     expect(screen.getByRole("log", { name: "# general" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /dispatch/ }));
     expect(screen.getByRole("log", { name: "# dispatch" })).toBeVisible();
@@ -70,5 +70,27 @@ describe("team inbox transitions", () => {
     expect(state.post).not.toHaveBeenCalled();
     state.incoming = false;
     client.clear();
+  });
+});
+
+describe("team inbox on a phone", () => {
+  const open = (entry: string) => render(
+    <QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[entry]}><TeamInbox /></MemoryRouter></QueryClientProvider>,
+  );
+
+  it("takes the whole screen once a conversation is open, so no tab bar can cover the message box", () => {
+    state.ready = true;
+    state.removed = false;
+    state.incoming = false;
+    open("/team-inbox?c=general");
+    expect(screen.getByRole("log", { name: "# general" }).closest("section")).toHaveClass("max-md:fixed", "max-md:inset-x-0", "max-md:z-50");
+  });
+
+  it("keeps the conversation list in the normal page flow", () => {
+    state.ready = true;
+    state.removed = false;
+    state.incoming = false;
+    open("/team-inbox");
+    expect(screen.getByRole("log", { name: "# general" }).closest("section")).not.toHaveClass("max-md:fixed");
   });
 });

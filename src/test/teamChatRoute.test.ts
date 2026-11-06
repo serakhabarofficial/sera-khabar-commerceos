@@ -120,6 +120,16 @@ describe("team inbox", () => {
     expect((await http(app, "GET", `/api/team-chat/channels/${DM_RAFI_NUSRAT}/messages`, undefined, as(RAFI))).status).toBe(200);
   });
 
+  it("lists who is in each channel, and nobody for a DM, so the list can draw group avatars", async () => {
+    const { app } = fixture();
+    const list = await http(app, "GET", "/api/team-chat/channels", undefined, as(ME));
+    const dispatch = list.body.channels.find((c: { id: string }) => c.id === DISPATCH);
+    expect([...dispatch.members].sort()).toEqual([ME, RAFI, NUSRAT].sort());
+    const rafi = await http(app, "GET", "/api/team-chat/channels", undefined, as(RAFI));
+    const dm = rafi.body.channels.find((c: { id: string }) => c.id === DM_RAFI_NUSRAT);
+    expect(dm.members).toBeNull();
+  });
+
   it("opens one DM per pair, whoever starts it", async () => {
     const { app, db } = fixture();
     const first = await http(app, "POST", "/api/team-chat/dms", { user_id: RAFI }, as(ME));
