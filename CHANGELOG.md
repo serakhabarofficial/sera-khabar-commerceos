@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.1.0] - 2026-11-06
+
+### Added
+
+- Team Inbox now looks and feels like Messenger: blue bubbles for you and grey for everyone else, a "Chats" list with round avatars and a blue unread badge, and channels shown as group chats with two member faces and the members' names under the title.
+- On a phone an open chat takes the whole screen, so the message box is never hidden behind the bottom bar, and it rides above the on-screen keyboard.
+- A one-tap Paste button in the message box lets a moderator paste raw customer messages, several in a row, into a channel such as #whatsapp-orders. The text is posted as it was copied.
+- The mobile dock is a frosted floating pill. Inbox is the raised, glowing centre button with the live unread count and opens Team Inbox. Home uses the new house-and-smile icon.
+- Home is easier to use on a phone: metrics as tiles, centred live visitors, full-width quick actions, a 16px Ask Edith field and readable rows on the attention cards.
+
+### Changed
+
+- On a phone, team members get Orders and Team Inbox only: no Home, Products or More. They land on Orders. Admins keep every page, and desktop is unchanged.
+- The page header reads "Team Inbox" on the inbox instead of "Overview".
+- The channel list now returns each channel's members.
+
+### Fixed
+
+- A grey strip no longer shows under the Team Inbox message box.
+
 ## [0.2.0.0] - 2026-10-24
 
 ### Added

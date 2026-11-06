@@ -284,7 +284,7 @@ export function DottedGlobe({ visitors, onLand, className = HOME_PLACEMENT }: {
               {!flying && (
                 <motion.div
                   key={place.key}
-                  className="rounded-[14px] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(17,17,16,0.04),0_8px_24px_rgba(17,17,16,0.05)]"
+                  className="rounded-[14px] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(17,17,16,0.04),0_8px_24px_rgba(17,17,16,0.05)] max-md:hidden"
                   initial={reduceMotion ? false : { opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }}
                   exit={{ opacity: 0, transition: { duration: 0.18, ease: "easeIn" } }}

@@ -59,7 +59,7 @@ export function HomeScopeControls({ range, onRangeChange, channel, onChannelChan
     );
   };
   return (
-    <div className="flex items-center pt-0.5 text-[14px] text-[#6F6D68]">
+    <div className="flex items-center pt-0.5 text-[14px] text-[#6F6D68] max-md:pt-0 max-md:[&_button]:min-h-10 max-md:[&_button]:px-3">
       <DateRangePicker value={range} onChange={onRangeChange} variant="plain" placement="bottom start" />
       <span aria-hidden="true">·</span>
       <Dropdown isOpen={open} onOpenChange={setOpen}>

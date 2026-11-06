@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Dashboard from "@/pages/Dashboard";
 
 const apiFetch = vi.hoisted(() => vi.fn());
@@ -89,6 +89,7 @@ function jsonResponse(body: unknown) {
 }
 
 describe("dashboard order status filter", () => {
+  afterEach(() => { vi.useRealTimers(); });
   beforeEach(() => {
     sessionStorage.setItem("autosync_done_user-1", "1");
     sessionStorage.removeItem("dashboard-fulfillment-tab");
@@ -167,6 +168,10 @@ describe("dashboard order status filter", () => {
   });
 
   it("loads the picked date range from the server so orders beyond the dashboard's loaded list still appear", async () => {
+    // The date picker opens on the current month and this test picks days in September 2026. Only this test needs that
+    // month: other fixtures are stamped with the real time, so the rest of the file keeps the real clock.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-11T12:00:00.000Z"));
     const user = userEvent.setup();
     // Older than anything in the main /api/orders load (the server caps that list).
     const olderDelivered = {

@@ -154,7 +154,7 @@ function MetricTrend({ metricKey, metric, unit, range, children }: {
   return (
     <HoverCard openDelay={150} closeDelay={100} {...(metric ? {} : { open: false })}>
       <HoverCardTrigger asChild>
-        <div className="cursor-default">{children}</div>
+        <div className="cursor-default max-md:min-w-0">{children}</div>
       </HoverCardTrigger>
       {metric && (
         <HoverCardContent sideOffset={12} className="w-[min(560px,calc(100vw-24px))] rounded-2xl border-[#ECEAE4] bg-white p-6">
@@ -191,21 +191,21 @@ function MetricItem({ label, metric, loading, prefix, suffix, format, locked, sp
 }) {
   const tone = toneOf(metric?.change ?? null);
   return (
-    <div className="flex flex-col items-center gap-2" data-testid={`home-metric-${label}`}>
-      <span className="text-[13px] text-[#55534E]">{label}</span>
+    <div className="flex flex-col items-center gap-2 max-md:h-full max-md:items-start max-md:gap-1 max-md:rounded-2xl max-md:border max-md:border-[#ECEAE4] max-md:bg-white max-md:px-3.5 max-md:py-3" data-testid={`home-metric-${label}`}>
+      <span className="text-[13px] text-[#55534E] max-md:text-[12px]">{label}</span>
       {locked ? (
-        <span title="Admins only" aria-label={`${label}: admins only`} className="select-none text-[14px] font-medium text-[#111110] blur-[6px]">
+        <span title="Admins only" aria-label={`${label}: admins only`} className="select-none text-[14px] font-medium text-[#111110] blur-[6px] max-md:text-[22px]">
           ৳00,000
         </span>
       ) : (
-        <div className="flex items-center gap-2 text-[14px]">
+        <div className="flex items-center gap-2 text-[14px] max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-0.5">
           {loading || metric ? (
             <MetricNumberFlow
               value={metric?.value ?? 0}
               prefix={prefix}
               suffix={suffix}
               format={format}
-              className={`font-medium tabular-nums text-[#111110] transition-opacity duration-300 ${loading ? "opacity-30" : ""}`}
+              className={`font-medium tabular-nums text-[#111110] transition-opacity duration-300 max-md:w-full max-md:text-[22px] max-md:leading-tight ${loading ? "opacity-30" : ""}`}
             />
           ) : (
             <b className="font-medium text-[#111110]">—</b>
@@ -225,7 +225,7 @@ function MetricItem({ label, metric, loading, prefix, suffix, format, locked, sp
 function LiveIndicator({ count, loading, pulse }: { count: number | null; loading: boolean; pulse: number }) {
   const reduceMotion = useReducedMotion();
   return (
-    <div className="flex items-center gap-2 pt-1.5 text-[13px] text-[#55534E]" aria-live="polite">
+    <div className="flex items-center gap-2 pt-1.5 text-[13px] text-[#55534E] max-md:self-center max-md:rounded-full max-md:border max-md:border-[#ECEAE4] max-md:bg-white max-md:px-3.5 max-md:py-2" aria-live="polite">
       Live visitors {count === null && !loading
         ? <b className="font-medium text-[#111110]">—</b>
         : <MetricNumberFlow value={count ?? 0} prefix="" className={`font-medium tabular-nums text-[#111110] transition-opacity duration-300 ${loading ? "opacity-30" : ""}`} />}
@@ -261,9 +261,9 @@ export function HomeMetricStrip({ metrics, loading, liveCount, livePulse = 0, is
   scope: ReactNode;
 }) {
   return (
-    <header className="relative z-[3] flex items-start justify-between gap-6 px-3 pt-4 max-md:flex-col max-md:px-3 max-md:pt-4">
+    <header className="relative z-[3] flex items-start justify-between gap-6 px-3 pt-4 max-md:flex-col max-md:gap-3 max-md:px-3 max-md:pt-3">
       {scope}
-      <div className="flex flex-wrap justify-center gap-x-9 gap-y-4 max-[1360px]:gap-x-6">
+      <div className="flex flex-wrap justify-center gap-x-9 gap-y-4 max-[1360px]:gap-x-6 max-md:grid max-md:w-full max-md:grid-cols-2 max-md:gap-2.5">
         {METRICS.map(({ key, label, prefix, suffix, format, adminOnly }) => (
           <MetricTrend key={key} metricKey={key} metric={adminOnly && !isAdmin ? null : metrics?.[key] ?? null} unit={unit} range={range}>
             <MetricItem label={label} metric={metrics?.[key] ?? null} loading={loading} prefix={prefix} suffix={suffix} format={format} locked={adminOnly && !isAdmin} sparkValues={sparkValuesOf(metrics?.[key] ?? null, unit, range?.until)} />

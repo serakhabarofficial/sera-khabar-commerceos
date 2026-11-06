@@ -21,6 +21,7 @@ describe("DashboardLayout breadcrumb header", () => {
   it("covers every authenticated route from App.tsx", () => {
     const protectedRoutes = [
       "/",
+      "/team-inbox",
       "/returns",
       "/products",
       "/customers",
@@ -43,6 +44,7 @@ describe("DashboardLayout breadcrumb header", () => {
 
     expect(layoutSource).toContain('"/": "Home"');
     expect(layoutSource).toContain('"/orders": "Orders"');
+    expect(layoutSource).toContain('"/team-inbox": "Team Inbox"');
     expect(layoutSource).toContain('"/returns": "Returns"');
     expect(layoutSource).toContain('"/products": "Products"');
     expect(layoutSource).toContain('"/customers": "Customers"');

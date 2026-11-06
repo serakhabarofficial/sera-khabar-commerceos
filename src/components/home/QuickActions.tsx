@@ -5,13 +5,13 @@ import type { HomeQuickAction } from "./types";
 export function QuickActions({ actions }: { actions: HomeQuickAction[] }) {
   if (!actions.length) return null;
   return (
-    <nav aria-label="Quick actions" className="relative z-[2] mt-[26px] flex flex-wrap justify-center gap-2.5">
+    <nav aria-label="Quick actions" className="relative z-[2] mt-[26px] flex flex-wrap justify-center gap-2.5 max-md:mt-5 max-md:flex-col max-md:items-stretch">
       {actions.map((action) => (
         <Link
           key={action.key}
           to={action.to}
           state={action.state}
-          className="flex items-center gap-3 rounded-full border border-[#ECEAE4] bg-white py-1.5 pl-4 pr-2 text-[14px] font-normal text-[#111110] transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-px hover:shadow-[0_1px_2px_rgba(17,17,16,0.04),0_8px_24px_rgba(17,17,16,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+          className="flex items-center gap-3 rounded-full border border-[#ECEAE4] bg-white py-1.5 pl-4 pr-2 text-[14px] font-normal text-[#111110] max-md:min-h-12 max-md:justify-between max-md:pl-5 max-md:pr-3 max-md:text-[15px] max-md:active:scale-[0.98] transition-[transform,box-shadow] duration-150 ease-out hover:-translate-y-px hover:shadow-[0_1px_2px_rgba(17,17,16,0.04),0_8px_24px_rgba(17,17,16,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
         >
           {action.label}
           <span

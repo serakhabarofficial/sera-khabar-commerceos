@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from "react";
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from "motion/react";
 import type { Transition } from "motion/react";
-import { ArrowDown, ArrowUp, FileText, Mic, Paperclip, Pause, Play, RotateCw, SmilePlus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ClipboardPaste, FileText, Mic, Paperclip, Pause, Play, RotateCw, SmilePlus, X } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./chat-thread.module.css";
 
@@ -64,6 +64,8 @@ export interface ChatComposerLabels {
   send?: string;
   /** Accessible name of the attach button. */
   attach?: string;
+  /** Accessible name of the button that pastes the clipboard's text into the message box. */
+  pasteFromClipboard?: string;
   /** Accessible name of the list of files waiting to send. */
   attachments?: string;
   /** Accessible name of the button that takes a file back out. */
@@ -114,6 +116,7 @@ export interface ChatThreadLabels extends ChatComposerLabels {
 const COMPOSER_LABELS: Required<ChatComposerLabels> = {
   send: "Send",
   attach: "Attach files",
+  pasteFromClipboard: "Paste from clipboard",
   attachments: "Attachments",
   removeFile: name => `Remove ${name}`,
   recordVoice: "Record a voice message",
@@ -184,6 +187,8 @@ export interface ChatThreadProps {
   accept?: string;
   /** Offer a microphone button that records a voice message, where the browser can record. */
   allowVoice?: boolean;
+  /** Offer a one-tap button that pastes the clipboard's text into the message box, where the browser allows reading it. */
+  allowClipboardPaste?: boolean;
   /** Recordings stop and send at this length, in ms. Defaults to five minutes. */
   maxVoiceMs?: number;
   /** Called when recording cannot start, usually because the microphone was refused. */
@@ -378,6 +383,7 @@ export interface ChatComposerProps {
   allowAttachments?: boolean;
   accept?: string;
   allowVoice?: boolean;
+  allowClipboardPaste?: boolean;
   maxVoiceMs?: number;
   onVoiceError?: (error: unknown) => void;
   disabled?: boolean;
@@ -389,7 +395,7 @@ export interface ChatComposerProps {
 export interface ChatComposerHandle { focus: () => void }
 
 /** The message box on its own: autosizing text, attachments by button, paste, or drop, a microphone for voice messages, and a send button that morphs when there is something to send. */
-export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({ onSend, placeholder = "Message", allowAttachments = true, accept, allowVoice = false, maxVoiceMs = 5 * 60_000, onVoiceError, disabled, labels, className }, ref) {
+export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({ onSend, placeholder = "Message", allowAttachments = true, accept, allowVoice = false, allowClipboardPaste = false, maxVoiceMs = 5 * 60_000, onVoiceError, disabled, labels, className }, ref) {
   const t = withDefaults(COMPOSER_LABELS, labels);
   const reduced = !!useReducedMotion();
   const [text, setText] = useState("");
@@ -404,6 +410,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const counter = useRef(0);
   const hydrated = useHydrated();
   const voice = allowVoice && hydrated && canRecord();
+  // Reading the clipboard needs a secure page and the browser's say-so, so the button only shows where it can work.
+  const clipboard = allowClipboardPaste && hydrated && typeof navigator !== "undefined" && typeof navigator.clipboard?.readText === "function";
   const recorder = useVoiceRecorder(maxVoiceMs, (file, durationMs) => {
     onSend({ text: "", files: [], voice: { file, durationMs } });
     setSent(count => count + 1);
@@ -442,6 +450,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       event.preventDefault();
       send();
     }
+  };
+  // Appends on a new line so several customers' messages can be pasted in a row. If the browser refuses, the box is
+  // focused so the system's own paste menu is one long-press away.
+  const pasteFromClipboard = async () => {
+    try {
+      const value = (await navigator.clipboard.readText()).replace(/\r\n/g, "\n").trim();
+      if (value) setText(current => current.trim() ? `${current.replace(/\s+$/, "")}\n${value}` : value);
+    } catch { /* refused or empty: fall through to focusing the box */ }
+    areaRef.current?.focus();
   };
   const onPaste = (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
     if (!allowAttachments || !event.clipboardData.files.length) return;
@@ -494,6 +511,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         <button type="button" className={styles.attach} aria-label={t.attach} disabled={disabled} onClick={() => pickerRef.current?.click()}><Paperclip size={18} strokeWidth={1.75} /></button>
         <input ref={pickerRef} type="file" multiple accept={accept} hidden onChange={event => { add(event.target.files); event.target.value = ""; }} />
       </>}
+      {clipboard && <button type="button" className={styles.attach} aria-label={t.pasteFromClipboard} disabled={disabled} onClick={() => void pasteFromClipboard()}><ClipboardPaste size={18} strokeWidth={1.75} /></button>}
       <div className={styles.box}>
       <motion.div className={styles.field} style={{ height }}>
         <div ref={mirrorRef} className={styles.mirror} aria-hidden="true">{text}{"\u200b"}</div>
@@ -522,7 +540,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
  */
 export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function ChatThread({
   participants, currentUserId, messages: messagesProp, defaultMessages, typing = [], readBy, onSend, onReact, onRetry,
-  reactions = DEFAULT_REACTIONS, placeholder = "Message", composer = true, allowAttachments = true, accept, allowVoice = false, maxVoiceMs, onVoiceError,
+  reactions = DEFAULT_REACTIONS, placeholder = "Message", composer = true, allowAttachments = true, accept, allowVoice = false, allowClipboardPaste = false, maxVoiceMs, onVoiceError,
   groupWindow = 5 * 60_000, locale = "en-US", label = "Conversation", labels, renderText, renderAfter, className,
 }, ref) {
   const t = useMemo(() => withDefaults({ ...THREAD_LABELS, today: relativeDay(locale, 0), yesterday: relativeDay(locale, -1) }, labels), [labels, locale]);
@@ -840,7 +858,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
       </AnimatePresence>
     </div>
     {composer && <ChatComposer ref={composerRef} onSend={send} placeholder={placeholder} allowAttachments={allowAttachments} accept={accept}
-      allowVoice={allowVoice} maxVoiceMs={maxVoiceMs} onVoiceError={onVoiceError} labels={t} />}
+      allowVoice={allowVoice} allowClipboardPaste={allowClipboardPaste} maxVoiceMs={maxVoiceMs} onVoiceError={onVoiceError} labels={t} />}
     <AnimatePresence>
       {preview?.url && <AttachmentPreview key={preview.id} attachment={preview} reduced={reduced} onClose={() => setPreview(null)} />}
     </AnimatePresence>

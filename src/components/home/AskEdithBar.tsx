@@ -16,8 +16,8 @@ export function AskEdithBar() {
 
   return (
     // Brand glow: a hairline Sera Khabar green edge with a soft glow that deepens on focus.
-    <div className="relative z-[2] mt-[34px] w-full max-w-[860px] rounded-full bg-[linear-gradient(100deg,rgba(247,135,30,0.75),rgba(1,81,40,0.55)_35%,#E2E0DA_70%)] p-[1.5px] shadow-[0_14px_34px_-16px_rgba(1,81,40,0.3)] transition-shadow duration-300 ease-out focus-within:shadow-[0_16px_40px_-14px_rgba(1,81,40,0.45)]">
-      <form onSubmit={submit} className="flex items-center gap-3.5 rounded-full bg-white py-2.5 pl-3 pr-2.5">
+    <div className="relative z-[2] mt-[34px] w-full max-w-[860px] max-md:mt-6 rounded-full bg-[linear-gradient(100deg,rgba(247,135,30,0.75),rgba(1,81,40,0.55)_35%,#E2E0DA_70%)] p-[1.5px] shadow-[0_14px_34px_-16px_rgba(1,81,40,0.3)] transition-shadow duration-300 ease-out focus-within:shadow-[0_16px_40px_-14px_rgba(1,81,40,0.45)]">
+      <form onSubmit={submit} className="flex items-center gap-3.5 rounded-full bg-white py-2.5 pl-3 pr-2.5 max-md:gap-2 max-md:py-2 max-md:pr-2">
         {/* Beveled brand-green badge, raised on hover. */}
         <span
           aria-hidden="true"
@@ -30,14 +30,14 @@ export function AskEdithBar() {
           onChange={(event) => setQuestion(event.target.value)}
           placeholder="Ask Edith — which orders are risky today?"
           aria-label="Ask Edith"
-          className="min-w-0 flex-1 bg-transparent text-[15px] text-[#111110] outline-none placeholder:text-[#8C8A84]"
+          className="min-w-0 flex-1 text-ellipsis bg-transparent text-[15px] text-[#111110] outline-none placeholder:text-[#8C8A84] max-md:h-10 max-md:text-[16px]"
         />
         <button
           type="button"
           onClick={() => navigate("/order-chat")}
           title="Open Ask Edith"
           aria-label="Open Ask Edith"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-[#55534E] transition-colors hover:bg-[#F2F1EC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] text-[#55534E] max-md:h-10 max-md:w-10 transition-colors hover:bg-[#F2F1EC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
         >
           <Plus weight="light" size={20} />
         </button>
@@ -48,7 +48,7 @@ export function AskEdithBar() {
           aria-label="Ask"
           // The Edith badge's bevel in black: faded until there's a question,
           // raised on hover, pressed in on click or keyboard focus.
-          className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full border border-black bg-[linear-gradient(to_top,#000_0%,#1F1F1E_80%,#3A3A38_100%)] text-white transition-[box-shadow,opacity] duration-200 ease-out disabled:opacity-40 enabled:hover:shadow-[0_4px_3px_1px_#FCFCFC,0_6px_8px_#D6D7D9,0_-4px_4px_#CECFD1,0_-6px_4px_#FEFEFE,inset_0_0_3px_3px_#2C2C2A] enabled:active:shadow-[0_4px_3px_1px_#FCFCFC,0_6px_8px_#D6D7D9,0_-4px_4px_#CECFD1,0_-6px_4px_#FEFEFE,inset_0_0_5px_3px_#000,inset_0_0_30px_#000] focus-visible:outline-none focus-visible:shadow-[0_4px_3px_1px_#FCFCFC,0_6px_8px_#D6D7D9,0_-4px_4px_#CECFD1,0_-6px_4px_#FEFEFE,inset_0_0_5px_3px_#000,inset_0_0_30px_#000]"
+          className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full border border-black bg-[linear-gradient(to_top,#000_0%,#1F1F1E_80%,#3A3A38_100%)] max-md:h-10 max-md:w-10 text-white transition-[box-shadow,opacity] duration-200 ease-out disabled:opacity-40 enabled:hover:shadow-[0_4px_3px_1px_#FCFCFC,0_6px_8px_#D6D7D9,0_-4px_4px_#CECFD1,0_-6px_4px_#FEFEFE,inset_0_0_3px_3px_#2C2C2A] enabled:active:shadow-[0_4px_3px_1px_#FCFCFC,0_6px_8px_#D6D7D9,0_-4px_4px_#CECFD1,0_-6px_4px_#FEFEFE,inset_0_0_5px_3px_#000,inset_0_0_30px_#000] focus-visible:outline-none focus-visible:shadow-[0_4px_3px_1px_#FCFCFC,0_6px_8px_#D6D7D9,0_-4px_4px_#CECFD1,0_-6px_4px_#FEFEFE,inset_0_0_5px_3px_#000,inset_0_0_30px_#000]"
         >
           <ArrowUp weight="light" size={18} className="drop-shadow-[0_1px_0_rgba(0,0,0,0.6)]" />
         </button>

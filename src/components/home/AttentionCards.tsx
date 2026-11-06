@@ -18,11 +18,11 @@ const ORDER_ROWS_SHOWN = 3;
 
 function OrderRows({ rows }: { rows: HomeOrderRow[] }) {
   return (
-    <div className="flex flex-col gap-2 rounded-[18px] border border-[#ECEAE4] bg-[#F6F5F1] p-3">
+    <div className="flex flex-col gap-2 rounded-[18px] border border-[#ECEAE4] bg-[#F6F5F1] p-3 max-md:p-2">
       {rows.slice(0, ORDER_ROWS_SHOWN).map((row) => (
-        <div key={row.title} className="grid grid-cols-[1.3fr_1fr_0.8fr] items-center gap-2.5 rounded-[10px] bg-white px-3.5 py-2.5 text-[13px] shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+        <div key={row.title} className="grid grid-cols-[1.3fr_1fr_0.8fr] items-center gap-2.5 rounded-[10px] bg-white px-3.5 py-2.5 text-[13px] shadow-[0_1px_2px_rgba(0,0,0,0.03)] max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-y-1 max-md:px-3">
           <span className="truncate text-[#111110]">{row.title}</span>
-          <span className="truncate text-[#8C8A84]">{row.detail}</span>
+          <span className="truncate text-[#8C8A84] max-md:order-last max-md:col-span-2 max-md:text-[12px]">{row.detail}</span>
           <span className={cn("justify-self-start whitespace-nowrap rounded-full px-2 py-[3px] text-[11px] font-medium", TAG_TONES[row.tag.tone])}>
             {row.tag.label}
           </span>
@@ -112,20 +112,20 @@ export function AttentionCards({ cards }: { cards: HomeAttentionCard[] }) {
         <motion.article
           key={card.kind}
           data-testid={`home-card-${card.kind}`}
-          className="relative flex flex-col overflow-hidden rounded-[26px] border border-[#ECEAE4] bg-white p-7"
+          className="relative flex flex-col overflow-hidden rounded-[26px] border border-[#ECEAE4] bg-white p-7 max-md:rounded-[22px] max-md:p-5"
           initial={reduceMotion ? false : { opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 + index * 0.08, ease: RISE_EASE }}
         >
           <h3 className="max-w-[440px] text-[17px] font-normal leading-[1.35] tracking-[-0.01em] text-[#111110]">{card.title}</h3>
           <p className="mt-2 max-w-[470px] text-[13.5px] leading-[1.6] text-[#55534E]">{card.body}</p>
-          <div className="mb-6 mt-5">
+          <div className="mb-6 mt-5 max-md:mb-5 max-md:mt-4">
             <Preview preview={card.preview} kind={card.kind} />
           </div>
           <Link
             to={card.cta.to}
             state={card.cta.state}
-            className="mt-auto block w-full rounded-full border border-[#ECEAE4] bg-white px-[18px] py-2 text-center text-[13px] font-medium text-[#111110] transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+            className="mt-auto block w-full rounded-full border border-[#ECEAE4] bg-white px-[18px] py-2 text-center text-[13px] font-medium text-[#111110] max-md:py-3.5 max-md:text-[14px] transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
           >
             {card.cta.label}
           </Link>

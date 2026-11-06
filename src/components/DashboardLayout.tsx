@@ -13,6 +13,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MobileBottomNav } from "./MobileBottomNav";
+import { MobileTeamGate } from "./MobileTeamGate";
+import { isTeamChatThreadOpen } from "@/lib/teamChat";
 import { IncomingCallWatcher } from "./IncomingCallWatcher";
 import { ConfirmedPill } from "./orders/ConfirmedPill";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,6 +31,7 @@ const routeBreadcrumbLabels: Record<string, string> = {
     "/": "Home",
     "/orders": "Orders",
     "/overview": "Overview",
+    "/team-inbox": "Team Inbox",
     "/returns": "Returns",
     "/products": "Products",
     "/customers": "Customers",
@@ -59,6 +62,10 @@ export function DashboardLayout() {
     const { data: me } = useMe();
     const navigate = useNavigate();
     const location = useLocation();
+    // An open Team Inbox chat is full-screen on a phone, so the bottom tab bar and its padding step aside.
+    const chatOpen = isTeamChatThreadOpen(location.pathname, location.search);
+    // Team Inbox fills the screen and lets its list scroll under the floating dock, so it reserves no grey band for it.
+    const underDock = location.pathname === "/team-inbox";
 
     const { initials } = useAccountIdentity();
     const mainRef = useRef<HTMLElement>(null);
@@ -155,15 +162,17 @@ export function DashboardLayout() {
                             </DropdownMenu>
                         </div>
                     </header>
-                    <main ref={mainRef} className="isolate mx-3 mb-3 min-w-0 flex-1 overflow-auto rounded-[18px] border border-black/10 bg-[#f3f3f3] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] max-md:pb-16">
+                    <main ref={mainRef} className={`isolate mx-3 mb-3 min-w-0 flex-1 overflow-auto rounded-[18px] border border-black/10 bg-[#f3f3f3] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]${underDock ? "" : " max-md:pb-24"}`}>
                         {/* Only the page area waits for a page that isn't downloaded yet;
                             the sidebar and header stay. */}
                         <Suspense fallback={<div className="flex h-full min-h-[50vh] items-center justify-center"><Spinner size="lg" className="text-muted-foreground" /></div>}>
-                            <Outlet />
+                            <MobileTeamGate>
+                                <Outlet />
+                            </MobileTeamGate>
                         </Suspense>
                     </main>
                 </SidebarInset>
-                <MobileBottomNav />
+                {!chatOpen && <MobileBottomNav />}
                 <IncomingCallWatcher />
                 <ConfirmedPill />
             </div>

@@ -1629,24 +1629,27 @@ app.get("/api/team-chat/channels", async (req, res) => {
     // One round of reads on the usual path; the first visit also seeds the
     // default channels, and a new teammate joins #general.
     const load = async () => {
-      const [{ data: channels, error: channelsError }, staff, { data: presence, error: presenceError }, summaries] = await Promise.all([
+      const [{ data: channels, error: channelsError }, staff, { data: presence, error: presenceError }, summaries, { data: memberRows, error: membersError }] = await Promise.all([
         supabase.from("team_channels").select("id, kind, name, topic, dm_key, created_at").eq("org_id", orgId).order("created_at", { ascending: true }),
         getActiveOrgStaff(supabase, orgId),
         supabase.from("team_presence").select("user_id, seen_at").eq("org_id", orgId),
         teamChatSummaries(supabase, orgId, user.id),
+        // Who is in each channel, so the list can draw a group avatar from real people.
+        supabase.from("team_channel_members").select("channel_id, user_id").eq("org_id", orgId),
       ]);
       if (channelsError) throw channelsError;
       if (presenceError) throw presenceError;
-      return { channels: channels || [], staff: staff || [], presence: presence || [], summaries };
+      if (membersError) throw membersError;
+      return { channels: channels || [], staff: staff || [], presence: presence || [], summaries, memberRows: memberRows || [] };
     };
-    let [{ channels, staff, presence, summaries }] = await Promise.all([load(), markTeamPresence(supabase, orgId, user.id)]);
+    let [{ channels, staff, presence, summaries, memberRows }] = await Promise.all([load(), markTeamPresence(supabase, orgId, user.id)]);
     if (!channels.some((channel) => channel.kind === "channel")) {
       const { data: created, error } = await supabase.from("team_channels")
         .insert(TEAM_CHAT_DEFAULT_CHANNELS.map((channel) => ({ org_id: orgId, kind: "channel", ...channel }))).select("id");
       if (error && error.code !== "23505") throw error;
       const everyone = staff.map((row) => row.user_id);
       for (const channel of created || []) await addTeamChatMembers(supabase, orgId, channel.id, everyone);
-      ({ channels, staff, presence, summaries } = await load());
+      ({ channels, staff, presence, summaries, memberRows } = await load());
     }
     const general = channels.find((channel) => channel.kind === "channel" && channel.name === TEAM_CHAT_EVERYONE_CHANNEL);
     if (general && !summaries.has(general.id)) {
@@ -1655,6 +1658,9 @@ app.get("/api/team-chat/channels", async (req, res) => {
     }
     const onlineSince = Date.now() - TEAM_CHAT_ONLINE_MS;
     const seen = new Map((presence || []).map((row) => [row.user_id, row.seen_at]));
+
+    const membersByChannel = new Map();
+    for (const row of memberRows) membersByChannel.set(row.channel_id, [...(membersByChannel.get(row.channel_id) || []), row.user_id]);
 
     const visible = (channels || []).filter((channel) => summaries.has(channel.id));
     return res.json({
@@ -1669,6 +1675,7 @@ app.get("/api/team-chat/channels", async (req, res) => {
         return {
           id: channel.id, kind: channel.kind, name: channel.name, topic: channel.topic,
           other_user_id: channel.kind === "dm" ? String(channel.dm_key).split(":").find((id) => id !== user.id) || user.id : null,
+          members: channel.kind === "channel" ? membersByChannel.get(channel.id) || [] : null,
           unread: summary?.unread || 0, last_body: summary?.last_body || null,
           last_author: summary?.last_author || null, last_at: summary?.last_at || null,
         };

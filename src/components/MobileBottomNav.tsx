@@ -1,82 +1,101 @@
 import { NavLink } from "react-router-dom";
+import { ChatCircleDots, ClipboardText, DotsThree, Package, type Icon, type IconWeight } from "@phosphor-icons/react";
 import { useSidebar } from "@/components/ui/sidebar";
-import { ClipboardText, ChatCircle, Package, DotsThree } from "@phosphor-icons/react";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useTeamChatUnread } from "@/lib/teamChat";
 import { cn } from "@/lib/utils";
 
-type MobileHomeIconProps = {
-  size?: number;
-  weight?: "light";
-  "aria-hidden"?: boolean;
-};
+// A frosted pill floating off the bottom edge. Home, Orders, Inbox (the raised, glowing centre), Products, More.
+// Only colour and transform change on press, with a strong ease-out, so it stays on the compositor.
+const press = "transition-[transform,color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.95] motion-reduce:transition-none";
+const tab = "flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-full text-[11px] font-medium leading-none";
+const ACTIVE = "text-[#0a6cff]";
+const IDLE = "text-[#7b8190]";
 
-function MobileHomeIcon({ size = 21, ...props }: MobileHomeIconProps) {
+type DockIcon = Icon | typeof HomeIcon;
+type Destination = { label: string; to: string; icon: DockIcon };
+
+// The supplied home icon, exactly as drawn: a house with a smile.
+const HOME_SMILE = "M9.44661 15.3975C9.11385 15.1508 8.64413 15.2206 8.39748 15.5534C8.15082 15.8862 8.22062 16.3559 8.55339 16.6025C9.5258 17.3233 10.715 17.75 12 17.75C13.285 17.75 14.4742 17.3233 15.4466 16.6025C15.7794 16.3559 15.8492 15.8862 15.6025 15.5534C15.3559 15.2206 14.8862 15.1508 14.5534 15.3975C13.825 15.9373 12.9459 16.25 12 16.25C11.0541 16.25 10.175 15.9373 9.44661 15.3975Z";
+const HOME_HOUSE = "M12 1.25C11.2919 1.25 10.6485 1.45282 9.95055 1.79224C9.27585 2.12035 8.49642 2.60409 7.52286 3.20832L5.45628 4.4909C4.53509 5.06261 3.79744 5.5204 3.2289 5.95581C2.64015 6.40669 2.18795 6.86589 1.86131 7.46263C1.53535 8.05812 1.38857 8.69174 1.31819 9.4407C1.24999 10.1665 1.24999 11.0541 1.25 12.1672V13.7799C1.24999 15.6837 1.24998 17.1866 1.4027 18.3616C1.55937 19.567 1.88856 20.5401 2.63236 21.3094C3.37958 22.0824 4.33046 22.4277 5.50761 22.5914C6.64849 22.75 8.10556 22.75 9.94185 22.75H14.0581C15.8944 22.75 17.3515 22.75 18.4924 22.5914C19.6695 22.4277 20.6204 22.0824 21.3676 21.3094C22.1114 20.5401 22.4406 19.567 22.5973 18.3616C22.75 17.1866 22.75 15.6838 22.75 13.7799V12.1672C22.75 11.0541 22.75 10.1665 22.6818 9.4407C22.6114 8.69174 22.4646 8.05812 22.1387 7.46263C21.8121 6.86589 21.3599 6.40669 20.7711 5.95581C20.2026 5.5204 19.4649 5.06262 18.5437 4.49091L16.4771 3.20831C15.5036 2.60409 14.7241 2.12034 14.0494 1.79224C13.3515 1.45282 12.7081 1.25 12 1.25ZM8.27953 4.50412C9.29529 3.87371 10.0095 3.43153 10.6065 3.1412C11.1882 2.85833 11.6002 2.75 12 2.75C12.3998 2.75 12.8118 2.85833 13.3935 3.14119C13.9905 3.43153 14.7047 3.87371 15.7205 4.50412L17.7205 5.74537C18.6813 6.34169 19.3559 6.76135 19.8591 7.1467C20.3487 7.52164 20.6303 7.83106 20.8229 8.18285C21.0162 8.53589 21.129 8.94865 21.1884 9.58104C21.2492 10.2286 21.25 11.0458 21.25 12.2039V13.725C21.25 15.6959 21.2485 17.1012 21.1098 18.1683C20.9736 19.2163 20.717 19.8244 20.2892 20.2669C19.8649 20.7058 19.2871 20.9664 18.2858 21.1057C17.2602 21.2483 15.9075 21.25 14 21.25H10C8.09247 21.25 6.73983 21.2483 5.71422 21.1057C4.71286 20.9664 4.13514 20.7058 3.71079 20.2669C3.28301 19.8244 3.02642 19.2163 2.89019 18.1683C2.75149 17.1012 2.75 15.6959 2.75 13.725V12.2039C2.75 11.0458 2.75076 10.2286 2.81161 9.58104C2.87103 8.94865 2.98385 8.53589 3.17709 8.18285C3.36965 7.83106 3.65133 7.52164 4.14092 7.1467C4.6441 6.76135 5.31869 6.34169 6.27953 5.74537L8.27953 4.50412Z";
+// The filled state keeps only the house's outer edge, solid, with the smile cut out of it.
+const HOME_OUTER = HOME_HOUSE.slice(0, HOME_HOUSE.indexOf("ZM") + 1);
+
+function HomeIcon({ weight, size = 24, ...props }: { weight?: IconWeight; size?: string | number; "aria-hidden"?: boolean }) {
+  const filled = weight === "fill";
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      {...props}
-    >
-      <path
-        d="M9 17.25C8.58579 17.25 8.25 17.5858 8.25 18C8.25 18.4142 8.58579 18.75 9 18.75H15C15.4142 18.75 15.75 18.4142 15.75 18C15.75 17.5858 15.4142 17.25 15 17.25H9Z"
-        fill="currentColor"
-      />
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M12 1.25C11.2919 1.25 10.6485 1.45282 9.95055 1.79224C9.27585 2.12035 8.49642 2.60409 7.52286 3.20832L5.45628 4.4909C4.53509 5.06261 3.79744 5.5204 3.2289 5.95581C2.64015 6.40669 2.18795 6.86589 1.86131 7.46263C1.53535 8.05812 1.38857 8.69174 1.31819 9.4407C1.24999 10.1665 1.24999 11.0541 1.25 12.1672V13.7799C1.24999 15.6837 1.24998 17.1866 1.4027 18.3616C1.55937 19.567 1.88856 20.5401 2.63236 21.3094C3.37958 22.0824 4.33046 22.4277 5.50761 22.5914C6.64849 22.75 8.10556 22.75 9.94185 22.75H14.0581C15.8944 22.75 17.3515 22.75 18.4924 22.5914C19.6695 22.4277 20.6204 22.0824 21.3676 21.3094C22.1114 20.5401 22.4406 19.567 22.5973 18.3616C22.75 17.1866 22.75 15.6838 22.75 13.7799V12.1672C22.75 11.0541 22.75 10.1665 22.6818 9.4407C22.6114 8.69174 22.4646 8.05812 22.1387 7.46263C21.8121 6.86589 21.3599 6.40669 20.7711 5.95581C20.2026 5.5204 19.4649 5.06262 18.5437 4.49091L16.4771 3.20831C15.5036 2.60409 14.7241 2.12034 14.0494 1.79224C13.3515 1.45282 12.7081 1.25 12 1.25ZM8.27953 4.50412C9.29529 3.87371 10.0095 3.43153 10.6065 3.1412C11.1882 2.85833 11.6002 2.75 12 2.75C12.3998 2.75 12.8118 2.85833 13.3935 3.14119C13.9905 3.43153 14.7047 3.87371 15.7205 4.50412L17.7205 5.74537C18.6813 6.34169 19.3559 6.76135 19.8591 7.1467C20.3487 7.52164 20.6303 7.83106 20.8229 8.18285C21.0162 8.53589 21.129 8.94865 21.1884 9.58104C21.2492 10.2286 21.25 11.0458 21.25 12.2039V13.725C21.25 15.6959 21.2485 17.1012 21.1098 18.1683C20.9736 19.2163 20.717 19.8244 20.2892 20.2669C19.8649 20.7058 19.2871 20.9664 18.2858 21.1057C17.2602 21.2483 15.9075 21.25 14 21.25H10C8.09247 21.25 6.73983 21.2483 5.71422 21.1057C4.71286 20.9664 4.13514 20.7058 3.71079 20.2669C3.28301 19.8244 3.02642 19.2163 2.89019 18.1683C2.75149 17.1012 2.75 15.6959 2.75 13.725V12.2039C2.75 11.0458 2.75076 10.2286 2.81161 9.58104C2.87103 8.94865 2.98385 8.53589 3.17709 8.18285C3.36965 7.83106 3.65133 7.52164 4.14092 7.1467C4.6441 6.76135 5.31869 6.34169 6.27953 5.74537L8.27953 4.50412Z"
-        fill="currentColor"
-      />
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" {...props}>
+      {filled
+        ? <path fillRule="evenodd" clipRule="evenodd" d={`${HOME_OUTER}${HOME_SMILE}`} fill="currentColor" />
+        : (
+          <>
+            <path d={HOME_SMILE} fill="currentColor" />
+            <path fillRule="evenodd" clipRule="evenodd" d={HOME_HOUSE} fill="currentColor" />
+          </>
+        )}
     </svg>
   );
 }
-
-const destinations = [
-  { label: "Home", to: "/", icon: MobileHomeIcon },
+const before: Destination[] = [
+  { label: "Home", to: "/", icon: HomeIcon },
   { label: "Orders", to: "/orders", icon: ClipboardText },
-  { label: "Inbox", to: "/inbox/facebook", icon: ChatCircle },
+];
+const after: Destination[] = [
   { label: "Products", to: "/products", icon: Package },
-] as const;
+];
+
+function SideTab({ label, to, icon: Glyph }: Destination) {
+  return (
+    <NavLink to={to} end={to === "/"} className={({ isActive }) => cn(tab, press, isActive ? ACTIVE : IDLE)}>
+      {({ isActive }) => (
+        <>
+          <Glyph weight={isActive ? "fill" : "regular"} size={26} aria-hidden />
+          <span>{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
 
 export function MobileBottomNav() {
   const { toggleSidebar } = useSidebar();
+  const unread = useTeamChatUnread().data?.unread ?? 0;
+  // Admins get all five. A team member on a phone gets Orders and Inbox only: no Home, Products or More.
+  const { isAdmin } = useUserRole();
+  const leading = isAdmin ? before : before.filter((item) => item.to === "/orders");
 
   return (
-    <nav
-      aria-label="Mobile navigation"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-[#dedede]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-1.5 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] backdrop-blur-xl md:hidden"
-    >
-      <div className="mx-auto flex h-14 max-w-md items-stretch justify-around">
-        {destinations.map(({ label, to, icon: Icon }) => (
-          <NavLink
-            key={label}
-            to={to}
-            end={to === "/"}
-            className={({ isActive }) => cn(
-              "flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-medium transition-colors",
-              isActive ? "text-black" : "text-black/45 hover:text-black/75",
-            )}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon weight="light" size={21} aria-hidden />
-                <span>{label}</span>
-                {isActive && <span className="h-0.5 w-4 rounded-full bg-black" aria-hidden="true" />}
-              </>
-            )}
-          </NavLink>
-        ))}
-        <button
-          type="button"
-          aria-label="More"
-          onClick={toggleSidebar}
-          className="flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-medium text-black/45 transition-colors hover:text-black/75"
-        >
-          <DotsThree weight="light" size={22} aria-hidden="true" />
-          <span>More</span>
-        </button>
+    <nav aria-label="Mobile navigation" className="fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-40 md:hidden">
+      <div className={cn("relative mx-auto grid h-[68px] items-center rounded-full border border-white/80 bg-white/60 px-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.14),0_2px_6px_rgba(15,23,42,0.06),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(255,255,255,0.4)] backdrop-blur-2xl backdrop-saturate-150", isAdmin ? "max-w-md grid-cols-5" : "max-w-[236px] grid-cols-2")}>
+        {leading.map((item) => <SideTab key={item.label} {...item} />)}
+
+        <NavLink to="/team-inbox" aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"} className="relative flex h-full items-center justify-center">
+          {({ isActive }) => (
+            <span className={cn(
+              "relative -mt-5 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_22%,#5bb0ff_0%,#1a85ff_45%,#0a62e6_100%)] text-white ring-[3px] ring-white/95",
+              "transition-[transform,box-shadow] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.95] motion-reduce:transition-none",
+              isActive
+                ? "shadow-[0_12px_30px_rgba(10,108,255,0.6),0_0_52px_rgba(10,124,255,0.5)]"
+                : "shadow-[0_10px_26px_rgba(10,108,255,0.45),0_0_38px_rgba(10,124,255,0.3)]",
+            )}>
+              <ChatCircleDots weight={isActive ? "fill" : "bold"} size={32} aria-hidden />
+              {unread > 0 && (
+                <span aria-hidden="true" className="absolute -right-0.5 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[11px] font-semibold tabular-nums leading-none text-white ring-2 ring-white">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+            </span>
+          )}
+        </NavLink>
+
+        {isAdmin && after.map((item) => <SideTab key={item.label} {...item} />)}
+
+        {isAdmin && (
+          <button type="button" aria-label="More" onClick={toggleSidebar} className={cn(tab, press, IDLE)}>
+            <DotsThree weight="bold" size={26} aria-hidden="true" />
+            <span>More</span>
+          </button>
+        )}
       </div>
     </nav>
   );

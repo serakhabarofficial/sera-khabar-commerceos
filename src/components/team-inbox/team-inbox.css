@@ -2,18 +2,19 @@
    with shadcn's (--accent, --border, --background hold HSL triples there).
    Scoping them to the thread keeps the rest of the dashboard untouched. */
 .team-chat-theme {
-  --background: #fafaf8;
+  --background: #ffffff;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-muted: #efeee9;
+  --surface-muted: #f0f0f0;
   --foreground: #0b0b0a;
   --text-secondary: rgba(11, 11, 10, 0.62);
   --text-muted: rgba(11, 11, 10, 0.45);
-  --border: #e6e5e0;
-  --border-subtle: #efeee9;
+  --border: #e4e6eb;
+  --border-subtle: #f0f0f0;
   --border-strong: #d3d2cd;
-  --accent: #0b0b0a;
-  --accent-subtle: rgba(11, 11, 10, 0.08);
+  /* Messenger blue: your bubbles, the send button, attach icons and the unread badge. */
+  --accent: #0a7cff;
+  --accent-subtle: rgba(10, 124, 255, 0.1);
   --accent-foreground: #ffffff;
   --danger: #c2410c;
   --success: #22a05b;

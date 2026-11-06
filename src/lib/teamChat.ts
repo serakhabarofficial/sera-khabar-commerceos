@@ -10,6 +10,8 @@ export type TeamChatChannel = {
   name: string | null;
   topic: string | null;
   other_user_id: string | null;
+  /** Who is in a channel (null for direct messages), so the list can draw a group avatar. */
+  members?: string[] | null;
   unread: number;
   last_body: string | null;
   last_author: string | null;
@@ -120,6 +122,22 @@ export function useTeamChatUnread() {
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
+}
+
+/**
+ * True while a conversation is open in Team Inbox. On a phone the open chat takes the whole screen like Messenger or
+ * WhatsApp: the bottom tab bar steps aside so the message box is never covered. The inbox and the layout both ask this.
+ */
+export const isTeamChatThreadOpen = (pathname: string, search: string) => pathname === "/team-inbox" && new URLSearchParams(search).has("c");
+
+/** "Anika, Tanvir, Mim +3": the other people in a channel, for under its name. Null until members are known. */
+export function channelMembersLine(members: string[] | null | undefined, staff: TeamChatStaff[], viewerId: string): string | null {
+  if (!members) return null;
+  const names = members.filter((id) => id !== viewerId)
+    .map((id) => staff.find((person) => person.user_id === id)?.display_name.split(/\s+/)[0])
+    .filter((name): name is string => !!name);
+  if (!names.length) return members.includes(viewerId) ? "Only you" : null;
+  return names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
 }
 
 export function channelTitle(channel: Pick<TeamChatChannel, "kind" | "name" | "other_user_id">, staff: TeamChatStaff[]) {

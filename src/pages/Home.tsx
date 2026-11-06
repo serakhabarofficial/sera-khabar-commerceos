@@ -86,10 +86,10 @@ export default function Home() {
         scope={<HomeScopeControls range={range} onRangeChange={setRange} channel={channel} onChannelChange={setChannel} />}
       />
 
-      <section className="relative -mt-20 flex min-h-[640px] flex-col items-center justify-center px-4 pb-20 pt-10 max-md:mt-0 max-md:min-h-[520px]">
+      <section className="relative -mt-20 flex min-h-[640px] flex-col items-center justify-center px-4 pb-20 pt-10 max-md:mt-2 max-md:min-h-[420px] max-md:pb-10 max-md:pt-6">
         <DottedGlobe visitors={data?.live.visitors ?? []} onLand={() => setPinLandings((count) => count + 1)} />
         <Rise className="relative z-[2]">
-          <h1 className="text-center text-[32px] font-medium leading-[1.2] tracking-[-0.02em] text-[#8C8A84] max-md:text-[24px]">
+          <h1 className="text-balance text-center text-[32px] font-medium leading-[1.2] tracking-[-0.02em] text-[#8C8A84] max-md:text-[24px]">
             {greeting}
             <span className="block text-[#111110]">Let's keep {orgName || "Sera Khabar"} growing.</span>
           </h1>
@@ -98,7 +98,7 @@ export default function Home() {
           <AskEdithBar />
         </Rise>
         {/* Space is held so the greeting doesn't shift when the actions arrive. */}
-        <div className="relative z-[2] min-h-[70px]">
+        <div className="relative z-[2] min-h-[70px] max-md:w-full">
           {data && (
             <Rise delay={0.16}>
               <QuickActions actions={data.quick_actions} />
