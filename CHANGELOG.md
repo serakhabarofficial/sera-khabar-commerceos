@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.2.0] - 2026-11-07
+
+### Changed
+
+- The Team Inbox message box is laid out like Messenger: attach, paste and the microphone sit to the left of a plain grey text box, and a blue Send button stands to its right. The microphone only shows while the box is empty.
+- Enter now adds a new line, on desktop and phone, so a multi-line message such as a customer's name, address and phone stays intact until you press Send. Send is always visible.
+
+### Fixed
+
+- On a phone the page no longer leaves a grey strip under the floating dock. The dashboard card runs to the bottom of the screen and the dock floats over it.
+- On iPhone, coming back to the chat list after typing no longer shows a grey band behind the dock or a page that scrolls. The page is now sized to the visible screen, not the screen with Safari's toolbar hidden, and returns to the top when you leave a chat.
+
 ## [0.2.1.0] - 2026-11-06
 
 ### Added

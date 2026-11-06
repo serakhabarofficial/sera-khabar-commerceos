@@ -120,12 +120,12 @@ export function DashboardLayout() {
         !sessionStorage.getItem("onboarding_skipped");
 
     if (isLoading || needsOnboarding) {
-        return <div className="min-h-screen w-full bg-[#FAFAF8]" />;
+        return <div className="min-h-dvh w-full bg-[#FAFAF8]" />;
     }
 
     return (
         <SidebarProvider defaultOpen={readSidebarOpenPreference(true)}>
-            <div data-dashboard-shell className="flex min-h-screen w-full bg-[#f4f3f1] text-[#202020]">
+            <div data-dashboard-shell className="flex min-h-dvh w-full bg-[#f4f3f1] text-[#202020]">
                 <AppSidebar />
                 <SidebarInset className="flex min-w-0 flex-col bg-transparent">
                     <header className="flex h-[44px] shrink-0 items-center justify-between px-5 text-[#202020]">
@@ -162,7 +162,7 @@ export function DashboardLayout() {
                             </DropdownMenu>
                         </div>
                     </header>
-                    <main ref={mainRef} className={`isolate mx-3 mb-3 min-w-0 flex-1 overflow-auto rounded-[18px] border border-black/10 bg-[#f3f3f3] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]${underDock ? "" : " max-md:pb-24"}`}>
+                    <main ref={mainRef} className={`isolate mx-3 mb-3 min-w-0 flex-1 overflow-auto rounded-[18px] border border-black/10 bg-[#f3f3f3] max-md:mb-0 max-md:rounded-b-none max-md:border-b-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]${underDock ? "" : " max-md:pb-24"}`}>
                         {/* Only the page area waits for a page that isn't downloaded yet;
                             the sidebar and header stay. */}
                         <Suspense fallback={<div className="flex h-full min-h-[50vh] items-center justify-center"><Spinner size="lg" className="text-muted-foreground" /></div>}>
