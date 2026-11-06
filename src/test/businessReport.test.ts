@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildBusinessReport,
+  buildAbandonedFacts,
   classifyBusinessReportOutcome,
   normalizeBusinessReportLandingPage,
   normalizeBusinessReportSource,
@@ -471,5 +472,48 @@ describe("business report previous period", () => {
   it("returns previous: null when no previous request is given", () => {
     const report = buildBusinessReport([order({ price: 100 })], dayRequest());
     expect(report.previous).toBeNull();
+  });
+});
+
+describe("order facts for the simplified source table", () => {
+  it("emits one compact fact per in-range order with source, products, courier, payment, outcome and hold", () => {
+    const report = buildBusinessReport([
+      order({
+        id: "o1",
+        source: "facebook",
+        status: "on_hold",
+        courier_name: "Steadfast",
+        payment_method: "cod",
+        order_items: [
+          { product_id: null, variant_id: null, product_name: "Pure Ghee", quantity: 1 },
+          { product_id: null, variant_id: null, product_name: "Honey", quantity: 2 },
+        ],
+      }),
+      order({ id: "o2", status: "returned" }),
+      order({ id: "o3", status: "confirmed", created_at: "2026-09-20T03:00:00.000Z" }),
+    ], dayRequest());
+
+    expect(report.order_facts).toEqual([
+      { source: "facebook", products: ["Pure Ghee", "Honey"], courier: "Steadfast", payment: "cod", outcome: "pending", held: true },
+      { source: "website", products: [], courier: null, payment: null, outcome: "returned", held: false },
+    ]);
+  });
+});
+
+describe("buildAbandonedFacts", () => {
+  it("maps checkout statuses to confirmed, dismissed and open, and keeps cart product names", () => {
+    expect(buildAbandonedFacts([
+      { status: "recovered", cart: [{ productName: "Honey", quantity: 1, unitPrice: 500 }] },
+      { status: "dismissed", cart: [] },
+      { status: "expired", cart: null },
+      { status: "open", cart: [{ productName: "Ghee" }, { productName: "Ghee" }] },
+      { status: "contacted", cart: [] },
+    ])).toEqual([
+      { status: "confirmed", products: ["Honey"] },
+      { status: "dismissed", products: [] },
+      { status: "dismissed", products: [] },
+      { status: "open", products: ["Ghee"] },
+      { status: "open", products: [] },
+    ]);
   });
 });

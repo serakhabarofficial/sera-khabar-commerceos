@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { BusinessReportSource, Metrics, ProductWeight } from "@/components/business-report/types";
 import {
-  buildProductOutcomeRows,
-  buildSourceRows,
   groupSourceMix,
   maxIndex,
   percentChange,
   pointChange,
   rate,
-  sortSourceRows,
 } from "@/lib/businessReportMetrics";
 
 function metrics(overrides: Partial<Metrics> = {}): Metrics {
@@ -59,28 +56,6 @@ describe("rate helpers", () => {
   });
 });
 
-describe("buildSourceRows", () => {
-  it("derives rates and flags sources more than 3 points worse than the average", () => {
-    const [web, fb] = buildSourceRows([website, facebook], summary);
-
-    expect(web).toMatchObject({ key: "website", label: "Website", orders: 100, value: 100000, approvalRate: 85, lossRate: 8, aov: 1000, kg: 250, netPerOrder: 15 });
-    expect(web.share).toBeCloseTo(55.56, 1);
-    expect(web.flags).toEqual({ approval: false, loss: false });
-    expect(fb).toMatchObject({ approvalRate: 65, lossRate: 22.5, netPerOrder: -5 });
-    expect(fb.flags).toEqual({ approval: true, loss: true });
-    expect(fb.mix).toEqual({ approved: 58000, pending: 4000, cancelled: 12000, returned: 6000 });
-  });
-});
-
-describe("sortSourceRows", () => {
-  it("sorts by a numeric key in either direction and by label alphabetically", () => {
-    const rows = buildSourceRows([website, facebook], summary);
-    expect(sortSourceRows(rows, "lossRate", -1).map((row) => row.key)).toEqual(["facebook", "website"]);
-    expect(sortSourceRows(rows, "lossRate", 1).map((row) => row.key)).toEqual(["website", "facebook"]);
-    expect(sortSourceRows(rows, "label", 1).map((row) => row.key)).toEqual(["facebook", "website"]);
-  });
-});
-
 describe("groupSourceMix", () => {
   it("keeps the top slices by value and folds the rest into Other", () => {
     const sources = [
@@ -91,26 +66,6 @@ describe("groupSourceMix", () => {
       { label: "A", value: 50 }, { label: "B", value: 40 }, { label: "C", value: 30 }, { label: "D", value: 20 }, { label: "Other", value: 10 },
     ]);
     expect(groupSourceMix(sources.slice(0, 2), 4)).toHaveLength(2);
-  });
-});
-
-describe("buildProductOutcomeRows", () => {
-  it("builds per-product outcome kg with loss rate, a total row and loss flags", () => {
-    const table = buildProductOutcomeRows([
-      product("Himsagar", { kg: 100, packs: 20, approved_kg: 90, pending_kg: 4, cancelled_kg: 4, returned_kg: 2 }),
-      product("Fazli", { kg: 50, packs: 10, approved_kg: 35, pending_kg: 3, cancelled_kg: 8, returned_kg: 4 }),
-    ]);
-
-    expect(table.rows.map((row) => [row.name, row.lossRate, row.flagged])).toEqual([
-      ["Himsagar", 6, false],
-      ["Fazli", 24, true],
-    ]);
-    expect(table.total).toMatchObject({ name: "All products", kg: 150, packs: 30, approvedKg: 125, cancelledKg: 12, returnedKg: 6, lossRate: 12, flagged: false });
-  });
-
-  it("does not flag products with no recorded weight", () => {
-    const table = buildProductOutcomeRows([product("Langra", { packs: 3, approved_packs: 3 })]);
-    expect(table.rows[0]).toMatchObject({ kg: 0, lossRate: 0, flagged: false, packs: 3 });
   });
 });
 

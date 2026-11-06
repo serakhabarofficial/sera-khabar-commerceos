@@ -76,5 +76,22 @@ export type BusinessReportResponse = {
   hourly_profile: SeriesBucket[];
   sources: BusinessReportSource[];
   products: ProductWeight[];
+  order_facts: OrderFact[];
+  abandoned_facts: AbandonedFact[];
   missing_weight_products: Array<{ id: string; name: string }>;
+};
+
+/** One in-range order, compact, so the source table can filter client-side. */
+export type OrderFact = {
+  source: string;
+  products: string[];
+  courier: string | null;
+  payment: string | null;
+  outcome: "approved" | "pending" | "cancelled" | "returned";
+  held: boolean;
+};
+
+export type AbandonedFact = {
+  status: "confirmed" | "dismissed" | "open";
+  products: string[];
 };

@@ -162,6 +162,17 @@ function reportResponse(overrides: Partial<BusinessReportResponse> = {}): Busine
       },
     ],
     products: [],
+    order_facts: [
+      { source: "website", products: ["Ghee"], courier: "Steadfast", payment: "cod", outcome: "approved", held: false },
+      { source: "website", products: ["Honey"], courier: null, payment: "cod", outcome: "cancelled", held: false },
+      { source: "manual_other", products: ["Ghee"], courier: "Pathao", payment: "bkash", outcome: "returned", held: false },
+      { source: "manual_other", products: ["Honey"], courier: null, payment: "cod", outcome: "pending", held: true },
+    ],
+    abandoned_facts: [
+      { status: "confirmed", products: ["Ghee"] },
+      { status: "dismissed", products: ["Honey"] },
+      { status: "open", products: ["Honey"] },
+    ],
     missing_weight_products: [],
     previous: null,
     hourly_profile: hourlyBuckets().map((bucket, hour) => ({ ...bucket, key: `hour-${hour}` })),
@@ -376,42 +387,55 @@ describe("BusinessReport", () => {
     expect(screen.getByTestId("business-report-summary-approved")).toHaveTextContent("5 kg");
   });
 
-  it("compares sources in a table with rates and flags the weaker source", async () => {
+  it("shows got, confirmed, hold and cancelled per source with RTO folded into cancelled", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse(reportResponse()));
 
     renderPage();
 
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    const website = within(table).getByTestId("business-report-source-website");
-    const manual = within(table).getByTestId("business-report-source-manual_other");
-    expect(within(website).getByText("50%")).toBeInTheDocument(); // approval 1 of 2
-    expect(within(website).getByText("28.6%")).toBeInTheDocument(); // loss 400 of 1,400
-    expect(within(manual).getByText("0%")).toBeInTheDocument(); // approval 0 of 2 → flagged
-    expect(within(manual).getByText("0%")).toHaveAttribute("data-flag", "worse");
-    expect(within(manual).getByText("−৳25")).toBeInTheDocument(); // net −50 over 2 orders
-    expect(screen.getByText("Courier fees recorded on 3 of 4 orders · weight on 0 of 4")).toBeInTheDocument();
+    const table = await screen.findByRole("grid", { name: "Source performance" });
+    const cells = (name: string) => within(within(table).getByRole("row", { name: new RegExp(`^${name}`) })).getAllByRole("gridcell").map((cell) => cell.textContent);
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Source", "Got", "Confirmed", "Hold", "Cancelled"]);
+    expect(cells("Website")).toEqual(["2", "150%", "00%", "150%"]);
+    expect(cells("Manual / Other")).toEqual(["2", "00%", "150%", "150%"]);
+    expect(cells("All sources")).toEqual(["4", "125%", "125%", "250%"]);
   });
 
-  it("prints a rounded-to-zero net delivery position as ৳0 without a sign or red", async () => {
+  it("switches to a product view and filters by product", async () => {
     const user = userEvent.setup();
-    const base = reportResponse();
-    apiFetchMock.mockResolvedValue(jsonResponse({
-      ...base,
-      sources: [{ ...base.sources[0], net_delivery_position: -0.4 }, base.sources[1]],
-    }));
+    apiFetchMock.mockResolvedValue(jsonResponse(reportResponse()));
 
     renderPage();
 
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    const website = within(table).getByTestId("business-report-source-website");
-    const netCell = within(website).getAllByRole("cell").at(-1);
-    expect(netCell).toHaveTextContent(/^৳0$/);
-    expect(netCell).not.toHaveClass("text-[#B4473A]");
+    await screen.findByRole("grid", { name: "Source performance" });
+    await user.click(screen.getByRole("button", { name: "By product" }));
+    const products = screen.getByRole("grid", { name: "Product performance" });
+    expect(within(products).getByRole("row", { name: /^Ghee/ })).toBeInTheDocument();
+    expect(within(products).getByRole("row", { name: /^Honey/ })).toBeInTheDocument();
 
-    await user.click(within(table).getByRole("button", { name: "Show products for Website" }));
-    const net = within(table).getByText("Net").nextElementSibling;
-    expect(net).toHaveTextContent(/^৳0$/);
-    expect(net).not.toHaveClass("text-[#B4473A]");
+    await user.click(screen.getByRole("button", { name: /^Product:/ }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: /Honey/ }));
+    await user.keyboard("{Escape}");
+
+    const filtered = screen.getByRole("grid", { name: "Product performance" });
+    expect(within(filtered).queryByRole("row", { name: /^Ghee/ })).not.toBeInTheDocument();
+    const abandoned = screen.getByRole("grid", { name: "Abandoned orders" });
+    expect(within(abandoned).getByRole("row", { name: /^Abandoned/ })).toHaveTextContent("2");
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(within(screen.getByRole("grid", { name: "Product performance" })).getByRole("row", { name: /^Ghee/ })).toBeInTheDocument();
+  });
+
+  it("counts abandoned checkouts by confirmed, dismissed and still open", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse(reportResponse()));
+
+    renderPage();
+
+    const table = await screen.findByRole("grid", { name: "Abandoned orders" });
+    const cells = (name: string) => within(within(table).getByRole("row", { name: new RegExp(`^${name}`) })).getAllByRole("gridcell").map((cell) => cell.textContent);
+    expect(cells("Abandoned")).toEqual(["3", "100%"]);
+    expect(cells("Confirmed")).toEqual(["1", "33%"]);
+    expect(cells("Dismissed")).toEqual(["1", "33%"]);
+    expect(cells("Still open")).toEqual(["1", "33%"]);
   });
 
   it("counts only sources and outcomes that carry order value in the outcome badge", async () => {
@@ -428,113 +452,6 @@ describe("BusinessReport", () => {
     renderPage();
     const single = await screen.findByRole("region", { name: "Where each channel's orders end up" });
     expect(within(single).getByText("1 source · 1 outcome")).toBeInTheDocument();
-  });
-
-  it("sorts sources when a column header is clicked", async () => {
-    const user = userEvent.setup();
-    apiFetchMock.mockResolvedValue(jsonResponse(reportResponse()));
-
-    renderPage();
-
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    const firstSource = () => within(table).getAllByTestId(/^business-report-source-/)[0];
-    expect(firstSource()).toHaveAttribute("data-testid", "business-report-source-website"); // default: order value desc
-
-    await user.click(within(table).getByRole("button", { name: /^Loss/ }));
-    expect(firstSource()).toHaveAttribute("data-testid", "business-report-source-manual_other"); // 70% loss first
-  });
-
-  it("expands a source to show landing pages and products by outcome with kg", async () => {
-    const user = userEvent.setup();
-    const outcomeDefaults = { pending_packs: 0, pending_kg: 0 };
-    const himsagar = { ...outcomeDefaults, product_id: "p-1", product_name: "Himsagar", packs: 4, kg: 20, approved_packs: 3, approved_kg: 18, cancelled_packs: 1, cancelled_kg: 2, returned_packs: 0, returned_kg: 0, order_count: 2 };
-    const fazli = { ...outcomeDefaults, product_id: "p-2", product_name: "Fazli", packs: 2, kg: 10, approved_packs: 1, approved_kg: 6, cancelled_packs: 0, cancelled_kg: 1, returned_packs: 1, returned_kg: 3, order_count: 2 };
-    const base = reportResponse();
-    apiFetchMock.mockResolvedValue(jsonResponse({ ...base, sources: [{ ...base.sources[0], products: [himsagar, fazli] }, base.sources[1]] }));
-
-    renderPage();
-
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    expect(within(table).queryByRole("table", { name: "Website products by outcome" })).not.toBeInTheDocument();
-
-    await user.click(within(table).getByRole("button", { name: "Show products for Website" }));
-
-    expect(within(table).getByRole("button", { name: "Hide products for Website" })).toHaveAttribute("aria-expanded", "true");
-    expect(within(table).getByText("/step/katimon-mango")).toBeInTheDocument();
-    expect(within(table).getByText("1 order · ৳1,000")).toBeInTheDocument();
-    const products = within(table).getByRole("table", { name: "Website products by outcome" });
-    const fazliRow = within(products).getByRole("row", { name: /Fazli/ });
-    expect(within(fazliRow).getByText("10 kg")).toBeInTheDocument();
-    expect(within(fazliRow).getByText("6")).toBeInTheDocument(); // approved kg
-    expect(within(fazliRow).getByText("3")).toBeInTheDocument(); // RTO kg
-    expect(within(fazliRow).getByText("40%")).toHaveAttribute("data-flag", "worse"); // loss 4/10 = 40% vs all products 6/30 = 20%
-    const himsagarRow = within(products).getByRole("row", { name: /Himsagar/ });
-    expect(himsagarRow.querySelector("[data-flag]")).toBeNull(); // loss 2/20 = 10%, not flagged
-    expect(within(products).getByRole("row", { name: /All products/ })).toHaveTextContent("30 kg");
-  });
-
-  it("shows a dash instead of 0% loss for a product with no recorded weight", async () => {
-    const user = userEvent.setup();
-    const langra = { product_id: "p-3", product_name: "Langra", packs: 3, kg: 0, approved_packs: 3, approved_kg: 0, cancelled_packs: 0, cancelled_kg: 0, returned_packs: 0, returned_kg: 0, pending_packs: 0, pending_kg: 0, order_count: 1 };
-    const base = reportResponse();
-    apiFetchMock.mockResolvedValue(jsonResponse({ ...base, sources: [{ ...base.sources[0], products: [langra] }, base.sources[1]] }));
-
-    renderPage();
-
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    await user.click(within(table).getByRole("button", { name: "Show products for Website" }));
-
-    const products = within(table).getByRole("table", { name: "Website products by outcome" });
-    const langraRow = within(products).getByRole("row", { name: /Langra/ });
-    expect(within(langraRow).getByText("3 packs")).toBeInTheDocument();
-    const langraCells = within(langraRow).getAllByRole("cell");
-    expect(langraCells[langraCells.length - 1]).toHaveTextContent(/^—$/);
-    expect(within(langraRow).queryByText("0%")).not.toBeInTheDocument();
-    const totalCells = within(within(products).getByRole("row", { name: /All products/ })).getAllByRole("cell");
-    expect(totalCells[totalCells.length - 1]).toHaveTextContent(/^—$/);
-    expect(products.querySelector("[data-flag]")).toBeNull();
-  });
-
-  it("expands and collapses a source when any part of its row is clicked", async () => {
-    const user = userEvent.setup();
-    apiFetchMock.mockResolvedValue(jsonResponse(reportResponse()));
-
-    renderPage();
-
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    const website = within(table).getByTestId("business-report-source-website");
-
-    await user.click(within(website).getByText("৳1,400"));
-    expect(within(table).getByRole("button", { name: "Hide products for Website" })).toHaveAttribute("aria-expanded", "true");
-    expect(within(table).getByText("/step/katimon-mango")).toBeInTheDocument();
-
-    await user.click(within(website).getByText("৳1,400"));
-    expect(within(table).getByRole("button", { name: "Show products for Website" })).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("toggles a source once when its name button is clicked", async () => {
-    const user = userEvent.setup();
-    apiFetchMock.mockResolvedValue(jsonResponse(reportResponse()));
-
-    renderPage();
-
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    await user.click(within(table).getByRole("button", { name: "Show products for Website" }));
-    expect(within(table).getByRole("button", { name: "Hide products for Website" })).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("expands and collapses every source at once", async () => {
-    const user = userEvent.setup();
-    apiFetchMock.mockResolvedValue(jsonResponse(reportResponse()));
-
-    renderPage();
-
-    const table = await screen.findByRole("table", { name: "Source performance" });
-    await user.click(screen.getByRole("button", { name: "Expand all" }));
-    expect(within(table).getByRole("button", { name: "Hide products for Website" })).toBeInTheDocument();
-    expect(within(table).getByRole("button", { name: "Hide products for Manual / Other" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Collapse all" }));
-    expect(within(table).getByRole("button", { name: "Show products for Website" })).toBeInTheDocument();
   });
 
   it("removes date parameters when the user chooses All Time", async () => {

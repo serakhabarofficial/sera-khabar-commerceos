@@ -139,7 +139,7 @@ import {
   isCancelledStatus,
 } from "./orderAttribution.js";
 import { buildStaffReport, resolveStaffReportRequest } from "./reports.js";
-import { buildBusinessReport, normalizeBusinessReportSource, resolveBusinessReportRequest, resolvePreviousBusinessReportRequest } from "./businessReport.js";
+import { buildAbandonedFacts, buildBusinessReport, normalizeBusinessReportSource, resolveBusinessReportRequest, resolvePreviousBusinessReportRequest } from "./businessReport.js";
 import { buildDataHealth, normalizeWebsiteReport, resolveAnalyticsReportRequest } from "./analyticsReport.js";
 import {
   ACTIVITY_LOG_PAGE_SIZE,
@@ -5569,9 +5569,9 @@ app.get("/api/reports/business", async (req, res) => {
       to: req.query.to,
     });
     const previousRequest = resolvePreviousBusinessReportRequest(request);
-    const fields = "id, created_at, source, landing_page_path, status, fulfillment_status, price, weight_kg, delivery_rate, courier_fee, courier_status, return_status, order_items(product_id, variant_id, product_name, quantity)";
+    const fields = "id, created_at, source, landing_page_path, status, fulfillment_status, price, weight_kg, delivery_rate, courier_fee, courier_status, courier_name, payment_method, return_status, order_items(product_id, variant_id, product_name, quantity)";
     const previousFields = "id, created_at, status, fulfillment_status, price, weight_kg, delivery_rate, courier_fee, courier_status, return_status";
-    const [orders, previousOrders, products, variants] = await Promise.all([
+    const [orders, previousOrders, products, variants, abandonedCheckouts] = await Promise.all([
       fetchReportPages(() => {
         let query = supabase
           .from("orders")
@@ -5597,9 +5597,21 @@ app.get("/api/reports/business", async (req, res) => {
         .from("product_variants")
         .select("id, product_id, attributes, weight_kg")
         .eq("org_id", orgId)),
+      fetchReportPages(() => {
+        let query = supabase
+          .from("abandoned_checkouts")
+          .select("id, status, cart")
+          .eq("org_id", orgId);
+        if (request.since) query = query.gte("created_at", request.since);
+        if (request.until) query = query.lt("created_at", request.until);
+        return query;
+      }),
     ]);
 
-    return res.json(buildBusinessReport([...orders, ...previousOrders], request, { products, variants, previousRequest }));
+    return res.json({
+      ...buildBusinessReport([...orders, ...previousOrders], request, { products, variants, previousRequest }),
+      abandoned_facts: buildAbandonedFacts(abandonedCheckouts),
+    });
   } catch (err) {
     return sendError(res, err);
   }
