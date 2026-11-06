@@ -38,6 +38,14 @@ const FULFILLMENT_APPROVED_STATES = new Set([
   "delivered",
   "partial_delivered",
 ]);
+const HOLD_STATES = new Set(["on_hold", "hold"]);
+const ABANDONED_FACT_STATUS = new Map([
+  ["recovered", "confirmed"],
+  ["dismissed", "dismissed"],
+  ["expired", "dismissed"],
+  ["open", "open"],
+  ["contacted", "open"],
+]);
 const PENDING_RETURN_MARKERS = ["request", "pending", "approval", "review"];
 const LANDING_PAGE_PATH_RE = /^\/step\/[a-z0-9]+(?:-[a-z0-9]+)*$/i;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -443,6 +451,26 @@ export function classifyBusinessReportOutcome(order) {
     : "pending";
 }
 
+function cleanLabel(value) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+/** Compact abandoned-checkout rows for the Abandoned orders card. Expired
+ *  checkouts count as dismissed: nobody can act on them any more. */
+export function buildAbandonedFacts(rows) {
+  const facts = [];
+  for (const row of rows || []) {
+    const status = ABANDONED_FACT_STATUS.get(normalizeStatus(row?.status));
+    if (!status) continue;
+    const names = Array.isArray(row.cart)
+      ? row.cart.map((item) => cleanLabel(item?.productName)).filter(Boolean)
+      : [];
+    facts.push({ status, products: [...new Set(names)] });
+  }
+  return facts;
+}
+
 export function buildBusinessReport(orders, request, { products = [], variants = [], previousRequest = null } = {}) {
   const summary = createMetrics();
   const previousSummary = createMetrics();
@@ -451,6 +479,7 @@ export function buildBusinessReport(orders, request, { products = [], variants =
   const { productsById, productsByName, variantsById, variantsByProductId } = createProductLookups(products, variants);
   const missingWeightProducts = new Map();
   const allProducts = new Map();
+  const orderFacts = [];
 
   for (const order of orders || []) {
     const dhakaParts = toDhakaParts(order?.created_at);
@@ -492,6 +521,14 @@ export function buildBusinessReport(orders, request, { products = [], variants =
     }
 
     sourceGroups.set(source, sourceGroup);
+    orderFacts.push({
+      source,
+      products: [...orderProducts.values()].map((product) => product.product_name),
+      courier: cleanLabel(order.courier_name),
+      payment: cleanLabel(order.payment_method),
+      outcome,
+      held: HOLD_STATES.has(normalizeStatus(order.status)),
+    });
     seriesRows.push({
       day: dhakaParts.day,
       hour: dhakaParts.hour,
@@ -524,6 +561,7 @@ export function buildBusinessReport(orders, request, { products = [], variants =
     hourly_profile: buildHourlyProfile(seriesRows),
     sources,
     products: sortProducts(allProducts),
+    order_facts: orderFacts,
     missing_weight_products: [...missingWeightProducts.values()].sort((a, b) => a.name.localeCompare(b.name)),
   };
 }

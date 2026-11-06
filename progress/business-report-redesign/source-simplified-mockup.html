@@ -1,0 +1,257 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Source performance – simplified (mockup)</title>
+<style>
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ink: #111;
+    --sub: rgba(0,0,0,.62);
+    --faint: rgba(0,0,0,.08);
+    --ok: #1F9D63;
+    --hold: #4F7BD9;
+    --bad: #D9483B;
+    --mute: #9AA0A6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0 auto; padding: 32px; max-width: 900px; background: #fff; color: var(--ink);
+    font-family: "Geist", "Geist Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: var(--sub); margin: 0 0 14px; }
+
+  .panel { background: #FAFAF8; border-radius: 14px; padding: 20px 22px; box-shadow: 0 0 0 1px rgba(0,0,0,.05); margin-bottom: 14px; }
+  .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .eyebrow { font-size: 11px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: rgba(0,0,0,.6); margin-bottom: 4px; }
+  h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  .meta { font-size: 12px; color: var(--sub); white-space: nowrap; padding-top: 2px; }
+  .foot { margin-top: 14px; font-size: 12px; color: rgba(0,0,0,.6); }
+
+  /* ---------- filter bar ---------- */
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 14px; margin-bottom: 4px; border-bottom: 1px solid var(--faint); }
+  .seg { display: inline-flex; padding: 2px; border-radius: 8px; background: rgba(0,0,0,.05); margin-right: 6px; }
+  .seg button { border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 500; color: var(--sub);
+    padding: 6px 11px; border-radius: 6px; cursor: pointer; transition: color 150ms ease, background-color 150ms ease, transform 150ms var(--ease-out); }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .fbtn { position: relative; }
+  .fbtn > button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: #fff; font: inherit; font-size: 12px; color: var(--ink);
+    padding: 7px 10px 7px 11px; border-radius: 8px; box-shadow: 0 0 0 1px rgba(0,0,0,.09); cursor: pointer;
+    transition: transform 150ms var(--ease-out), box-shadow 150ms ease; }
+  .fbtn > button .lbl { color: var(--sub); }
+  .fbtn > button.active { box-shadow: 0 0 0 1px rgba(0,0,0,.28); }
+  .fbtn > button.active .lbl { color: var(--ink); }
+  .fbtn > button svg { opacity: .55; }
+  button:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) { .fbtn > button:hover { box-shadow: 0 0 0 1px rgba(0,0,0,.2); } }
+  .clear { border: 0; background: none; font: inherit; font-size: 12px; color: var(--sub); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; padding: 6px 4px; }
+  .clear[hidden] { display: none; }
+
+  .menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; min-width: 220px; background: #fff; border-radius: 10px; padding: 6px;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 10px 30px -8px rgba(0,0,0,.18);
+    transform-origin: top left; transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out); }
+  .menu[data-closed] { opacity: 0; transform: scale(0.97) translateY(-2px); pointer-events: none; }
+  .menu label { display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 6px; font-size: 12.5px; cursor: pointer; }
+  @media (hover: hover) and (pointer: fine) { .menu label:hover { background: rgba(0,0,0,.04); } }
+  .menu input { accent-color: #111; margin: 0; }
+  .menu .count { margin-left: auto; color: var(--sub); font-size: 12px; }
+  .menu .sep { height: 1px; background: var(--faint); margin: 4px 2px; }
+  .menu .mfoot { display: flex; justify-content: space-between; padding: 6px 8px 2px; }
+  .menu .mfoot button { border: 0; background: none; font: inherit; font-size: 12px; color: var(--sub); cursor: pointer; padding: 2px 0; }
+
+  /* ---------- table ---------- */
+  .stage { transition: opacity 160ms ease; }
+  .stage.swap { opacity: .35; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  /* Every column left-aligned with identical padding, so each value starts
+     exactly under its header word. Dots hang into the gutter. */
+  th { font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: rgba(0,0,0,.6);
+    text-align: left; padding: 10px 12px 10px; white-space: nowrap; }
+  td { padding: 12px 12px; text-align: left; border-top: 1px solid var(--faint); }
+  th:first-child, td:first-child { padding-left: 0; }
+  th .dot, td .dot { margin-left: -13px; }
+  td:first-child { font-weight: 500; }
+  td.big { font-size: 15px; font-weight: 600; }
+  td .pct { font-size: 11px; color: rgba(0,0,0,.58); margin-left: 6px; }
+  tr.total td { font-weight: 600; border-top: 1.5px solid rgba(0,0,0,.18); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+  .empty { padding: 28px 0 10px; color: var(--sub); text-align: center; }
+  .note { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--sub); }
+</style>
+</head>
+<body>
+
+<p class="hint">Mockup with sample data. The filters work: try Product, Source, Staff and Area, or switch "View by".</p>
+
+<!-- ===================== SOURCE PERFORMANCE ===================== -->
+<div class="panel">
+  <div class="head">
+    <div><div class="eyebrow">Orders by source</div><h3 id="title">Source performance</h3></div>
+    <div class="meta">Last 7 days</div>
+  </div>
+
+  <div class="filters">
+    <div class="seg" role="group" aria-label="View by">
+      <button aria-pressed="true" data-group="source">By source</button>
+      <button aria-pressed="false" data-group="product">By product</button>
+    </div>
+    <div class="fbtn" data-filter="product"></div>
+    <div class="fbtn" data-filter="source"></div>
+    <div class="fbtn" data-filter="staff"></div>
+    <div class="fbtn" data-filter="area"></div>
+    <button class="clear" id="clear" hidden>Clear filters</button>
+  </div>
+
+  <div class="stage" id="stage"></div>
+  <div class="foot">Got = every order received, including ones still pending. Confirmed = approved by the team. Hold = marked On Hold. Click a row for the full breakdown.</div>
+</div>
+
+<!-- ===================== ABANDONED ===================== -->
+<div class="panel">
+  <div class="head">
+    <div><div class="eyebrow">Website checkouts</div><h3>Abandoned orders</h3></div>
+    <div class="meta" id="abMeta">Last 7 days</div>
+  </div>
+  <div id="abStage"></div>
+  <div class="foot">Uses the same Product and Area filters. Confirmed = the abandoned checkout was turned into a real order.</div>
+</div>
+
+<script>
+/* ---------------- sample data ---------------- */
+const PRODUCTS = ["Mango Pickle", "Beef Kala Bhuna", "Chui Jhal", "Ghee 500g", "Mixed Achar"];
+const SOURCES  = ["Website", "Facebook", "WhatsApp", "Instagram"];
+const STAFF    = ["Rafi", "Nusrat", "Tanvir", "Unassigned"];
+const AREAS    = ["Inside Dhaka", "Outside Dhaka"];
+const STATUSES = ["confirmed", "pending", "hold", "cancelled"];
+
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const pick = (arr, w) => { const r = rnd() * w.reduce((a, b) => a + b, 0); let s = 0; for (let i = 0; i < arr.length; i++) { s += w[i]; if (r < s) return arr[i]; } return arr[arr.length - 1]; };
+
+const ORDERS = Array.from({ length: 96 }, () => ({
+  product: pick(PRODUCTS, [5, 4, 3, 2, 2]),
+  source:  pick(SOURCES,  [5, 4, 1.5, 1]),
+  staff:   pick(STAFF,    [3, 3, 2, 1]),
+  area:    pick(AREAS,    [3, 2]),
+  status:  pick(STATUSES, [5, 3, 1, 2]),
+}));
+const ABANDONED = Array.from({ length: 34 }, () => ({
+  product: pick(PRODUCTS, [5, 4, 3, 2, 2]),
+  area:    pick(AREAS,    [3, 2]),
+  status:  pick(["confirmed", "dismissed", "open"], [3, 4, 3]),
+}));
+
+/* ---------------- state ---------------- */
+const FILTERS = {
+  product: { label: "Product", options: PRODUCTS },
+  source:  { label: "Source",  options: SOURCES },
+  staff:   { label: "Staff",   options: STAFF },
+  area:    { label: "Area",    options: AREAS },
+};
+const state = { group: "source", sel: { product: new Set(), source: new Set(), staff: new Set(), area: new Set() } };
+
+const match = (o, keys) => keys.every(k => !(k in o) || state.sel[k].size === 0 || state.sel[k].has(o[k]));
+const pct = (n, d) => d ? Math.round(n / d * 100) + "%" : "0%";
+const caret = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/* ---------------- filter buttons + menus ---------------- */
+function buildFilter(el) {
+  const key = el.dataset.filter, f = FILTERS[key];
+  el.innerHTML = `<button type="button" aria-haspopup="true" aria-expanded="false"></button>
+    <div class="menu" data-closed role="menu">
+      ${f.options.map(o => `<label><input type="checkbox" value="${o}"> ${o}<span class="count num"></span></label>`).join("")}
+      <div class="sep"></div>
+      <div class="mfoot"><button type="button" data-act="all">Select all</button><button type="button" data-act="none">Clear</button></div>
+    </div>`;
+  const btn = el.querySelector("button"), menu = el.querySelector(".menu");
+  btn.addEventListener("click", e => { e.stopPropagation(); const open = menu.hasAttribute("data-closed"); closeMenus(); if (open) { menu.removeAttribute("data-closed"); btn.setAttribute("aria-expanded", "true"); } });
+  menu.addEventListener("click", e => e.stopPropagation());
+  menu.addEventListener("change", e => { e.target.checked ? state.sel[key].add(e.target.value) : state.sel[key].delete(e.target.value); render(); });
+  menu.querySelector('[data-act="all"]').onclick = () => { f.options.forEach(o => state.sel[key].add(o)); render(); };
+  menu.querySelector('[data-act="none"]').onclick = () => { state.sel[key].clear(); render(); };
+}
+function closeMenus() { document.querySelectorAll(".menu").forEach(m => m.setAttribute("data-closed", "")); document.querySelectorAll(".fbtn > button").forEach(b => b.setAttribute("aria-expanded", "false")); }
+document.addEventListener("click", closeMenus);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenus(); });
+document.querySelectorAll(".fbtn").forEach(buildFilter);
+
+function syncFilterButtons() {
+  document.querySelectorAll(".fbtn").forEach(el => {
+    const key = el.dataset.filter, sel = state.sel[key], btn = el.querySelector("button");
+    const value = sel.size === 0 ? "All" : sel.size === 1 ? [...sel][0] : `${sel.size} selected`;
+    btn.innerHTML = `<span class="lbl">${FILTERS[key].label}:</span> ${value} ${caret}`;
+    btn.classList.toggle("active", sel.size > 0);
+    el.querySelectorAll("input").forEach(i => { i.checked = sel.has(i.value); });
+    // live counts in the menu, respecting the other filters
+    const others = Object.keys(FILTERS).filter(k => k !== key);
+    el.querySelectorAll("label").forEach(l => {
+      const v = l.querySelector("input").value;
+      l.querySelector(".count").textContent = ORDERS.filter(o => o[key] === v && match(o, others)).length;
+    });
+  });
+  document.getElementById("clear").hidden = Object.values(state.sel).every(s => s.size === 0);
+}
+
+/* ---------------- table ---------------- */
+function row(name, rows, cls = "") {
+  const got = rows.length, c = s => rows.filter(o => o.status === s).length;
+  const cell = n => `<td>${n}<span class="pct">${pct(n, got)}</span></td>`;
+  return `<tr class="${cls}"><td>${name}</td><td class="big">${got}</td>${cell(c("confirmed"))}${cell(c("hold"))}${cell(c("cancelled"))}</tr>`;
+}
+function renderTable() {
+  const g = state.group;
+  const rows = ORDERS.filter(o => match(o, Object.keys(FILTERS)));
+  const keys = (g === "source" ? SOURCES : PRODUCTS).filter(k => rows.some(o => o[g] === k))
+    .sort((a, b) => rows.filter(o => o[g] === b).length - rows.filter(o => o[g] === a).length);
+  document.getElementById("title").textContent = g === "source" ? "Source performance" : "Product performance";
+  document.querySelector(".eyebrow").textContent = g === "source" ? "Orders by source" : "Orders by product";
+  if (!rows.length) return `<div class="empty">No orders match these filters.</div>`;
+  return `<table class="num">
+    <thead><tr>
+      <th>${g === "source" ? "Source" : "Product"}</th>
+      <th>Got</th>
+      <th><span class="dot" style="background:var(--ok)"></span>Confirmed</th>
+      <th><span class="dot" style="background:var(--hold)"></span>Hold</th>
+      <th><span class="dot" style="background:var(--bad)"></span>Cancelled</th>
+    </tr></thead>
+    <tbody>
+      ${keys.map(k => row(k, rows.filter(o => o[g] === k))).join("")}
+      ${keys.length > 1 ? row(g === "source" ? "All sources" : "All products", rows, "total") : ""}
+    </tbody></table>`;
+}
+
+/* ---------------- abandoned ---------------- */
+function renderAbandoned() {
+  const sourceSel = state.sel.source;
+  if (sourceSel.size && !sourceSel.has("Website")) return `<div class="empty">Abandoned checkouts only come from the Website. Add Website to the Source filter to see them.</div>`;
+  const rows = ABANDONED.filter(o => match(o, ["product", "area"]));
+  const n = s => rows.filter(o => o.status === s).length, total = rows.length;
+  if (!total) return `<div class="empty">No abandoned checkouts match these filters.</div>`;
+  const r = (dot, label, v) => `<tr><td>${dot ? `<span class="dot" style="background:${dot}"></span>` : ""}${label}</td><td${dot ? "" : ' class="big"'}>${v}</td><td>${pct(v, total)}</td></tr>`;
+  return `<table class="num"><thead><tr><th>Status</th><th>Count</th><th>Share</th></tr></thead><tbody>
+    ${r(null, "Abandoned", total)}
+    ${r("var(--ok)", "Confirmed", n("confirmed"))}
+    ${r("var(--bad)", "Dismissed", n("dismissed"))}
+    ${r("var(--mute)", "Still open", n("open"))}
+  </tbody></table>`;
+}
+
+/* ---------------- render ---------------- */
+let first = true;
+function render() {
+  syncFilterButtons();
+  const stage = document.getElementById("stage");
+  const paint = () => { stage.innerHTML = renderTable(); document.getElementById("abStage").innerHTML = renderAbandoned(); stage.classList.remove("swap"); };
+  if (first) { first = false; return paint(); }
+  stage.classList.add("swap");
+  setTimeout(paint, 90);
+}
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  if (b.getAttribute("aria-pressed") === "true") return;
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  state.group = b.dataset.group; render();
+}));
+document.getElementById("clear").onclick = () => { Object.values(state.sel).forEach(s => s.clear()); render(); };
+render();
+</script>
+</body>
+</html>
