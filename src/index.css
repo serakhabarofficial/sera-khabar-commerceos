@@ -295,6 +295,8 @@
 
   body {
     min-height: 100vh;
+    /* The visible height where supported: 100vh is taller than an iPhone screen while Safari's toolbar shows. */
+    min-height: 100dvh;
     -webkit-text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
     font-family: "Geist Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

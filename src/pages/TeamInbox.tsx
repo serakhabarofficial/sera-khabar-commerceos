@@ -40,6 +40,8 @@ function useVisibleViewport(active: boolean) {
       viewport.removeEventListener("scroll", update);
       root.style.removeProperty("--team-vvh");
       root.style.removeProperty("--team-vvt");
+      // iOS can leave the page panned after the keyboard closes; the list should come back at the top of the screen.
+      window.scrollTo(0, 0);
     };
   }, [active]);
 }
@@ -417,7 +419,7 @@ export default function TeamInbox() {
   );
 
   return (
-    <div data-testid="team-inbox" className="relative flex h-[calc(100dvh-3.5rem-2px)] max-h-[calc(100dvh-3.5rem-2px)] min-h-0 overflow-hidden bg-white text-[#0b0b0a]">
+    <div data-testid="team-inbox" className="relative flex h-[calc(100dvh-3.5rem-2px)] max-h-[calc(100dvh-3.5rem-2px)] min-h-0 overflow-hidden bg-white text-[#0b0b0a] max-md:h-[calc(100dvh-45px)] max-md:max-h-[calc(100dvh-45px)]">
       <nav aria-label="Conversations" className={cn("team-chat-theme w-[340px] shrink-0 overflow-y-auto border-r border-[#ecebe7] px-2 pb-2 pt-3 max-md:w-full max-md:border-r-0 max-md:pb-32 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden lg:w-[380px]", showThreadOnMobile && "max-md:hidden")}>
         <div className="flex items-center justify-between px-2.5 pb-2 pt-1">
           <h2 className="text-[26px] font-bold tracking-tight">Chats</h2>

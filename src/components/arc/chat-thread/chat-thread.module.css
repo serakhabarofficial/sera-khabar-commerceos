@@ -233,7 +233,7 @@
 .field { position: relative; min-width: 0; flex: 1; overflow: hidden; border-radius: 20px; }
 .mirror,
 .textarea {
-  box-sizing: border-box; width: 100%; margin: 0; padding: 9px 6px 9px 16px; border: 0;
+  box-sizing: border-box; width: 100%; margin: 0; padding: 9px 16px; border: 0;
   font: inherit; font-size: 16px; letter-spacing: var(--tracking-body); line-height: 22px;
   overflow-wrap: break-word; white-space: pre-wrap; word-break: break-word;
 }
@@ -241,13 +241,14 @@
 .textarea { position: absolute; inset: 0; height: 100%; display: block; resize: none; overflow-y: auto; background: transparent; color: var(--foreground); outline: none; scrollbar-width: none; }
 .textarea::placeholder { color: var(--text-muted); }
 
+/* Send stands beside the box and is always there: Enter adds a new line, so this is how a message goes out. */
 .send {
-  position: relative; display: grid; width: 32px; height: 32px; flex: none; place-items: center; margin: 0 4px 4px 0; overflow: hidden; padding: 0;
-  border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: default;
+  position: relative; display: grid; width: 40px; height: 40px; flex: none; place-items: center; margin-bottom: 1px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; color: color-mix(in oklab, var(--accent) 38%, var(--surface-muted)); cursor: default;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--duration-standard) var(--ease-standard), color var(--duration-standard) var(--ease-standard), transform var(--duration-instant) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard), transform var(--duration-instant) var(--ease-standard);
 }
-.send[data-ready] { background: var(--accent); color: var(--accent-foreground); cursor: pointer; }
+.send[data-ready] { color: var(--accent); cursor: pointer; }
 .send[data-ready]:active { transform: scale(.92); }
 .sendIcon { display: grid; grid-area: 1 / 1; place-items: center; }
 
@@ -256,6 +257,10 @@
 @media (max-width: 420px) {
   .content { padding-inline: 12px; }
   .stack { max-width: 84%; }
+  /* Tighter, so the box keeps its width next to the icons and Send on a phone. */
+  .composer { padding-inline: 6px; }
+  .inputRow { gap: 2px; }
+  .attach, .send { width: 36px; height: 36px; }
 }
 
 /* Voice messages sit in a bubble of their own: play, a thin bar that fills, the time. */
@@ -282,15 +287,12 @@
 .voiceTime { flex: none; min-width: 2.6em; font-size: var(--text-xs); font-variant-numeric: tabular-nums; opacity: .75; text-align: right; }
 
 /* With nothing typed the send button is a microphone; recording swaps the field for a timer. */
-.send[data-mic] { color: var(--accent); cursor: pointer; }
-.send[data-mic]:active { transform: scale(.92); }
-@media (hover: hover) and (pointer: fine) { .send[data-mic]:hover { background: var(--accent-subtle); } }
 .recorder { display: flex; min-width: 0; flex: 1; align-items: flex-end; gap: 6px; }
 .recordingBox {
   display: flex; min-width: 0; height: 42px; box-sizing: border-box; flex: 1; align-items: center; gap: 10px; padding-left: 16px;
   border: 1px solid var(--border-strong); border-radius: 21px; background: var(--surface);
 }
-.recordingBox > .send { margin: 0 4px 0 auto; }
+.recordingBox > .send { width: 32px; height: 32px; margin: 0 4px 0 auto; background: var(--accent); color: var(--accent-foreground); }
 .recordingDot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--danger); animation: recording 1.4s var(--ease-in-out) infinite; }
 .recordingTime { font-size: var(--text-base); font-variant-numeric: tabular-nums; }
 .recordingLabel { overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
