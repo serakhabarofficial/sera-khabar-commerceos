@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { campaignReceiptPayload, persistCampaignEvent, signCampaignReceipt, verifyCampaignReceipt } from "../../server/campaignEvents.js";
 import { database, handlers, http, orgId, foreignOrg, uuid } from "./campaignHandlerHarness";
 
@@ -18,6 +18,10 @@ const event = {
 };
 
 describe("campaign receipt signatures", () => {
+  // Receipts expire after 30 days, so the server must see the same "now" the receipts were made for.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(now); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it("authenticates bounded event data and preserves the original click timestamp", () => {
     const token = signCampaignReceipt(event, secret);
     expect(verifyCampaignReceipt(token, secret, { now })).toEqual(event);
