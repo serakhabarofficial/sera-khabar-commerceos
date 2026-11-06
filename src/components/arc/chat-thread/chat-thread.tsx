@@ -6,6 +6,7 @@ import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from "motion/react";
 import type { Transition } from "motion/react";
 import { ArrowDown, ArrowUp, ClipboardPaste, FileText, Mic, Paperclip, Pause, Play, RotateCw, SmilePlus, X } from "lucide-react";
+import { PaperPlaneRight } from "@phosphor-icons/react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./chat-thread.module.css";
 
@@ -401,7 +402,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [sent, setSent] = useState(0);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
@@ -414,9 +414,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const clipboard = allowClipboardPaste && hydrated && typeof navigator !== "undefined" && typeof navigator.clipboard?.readText === "function";
   const recorder = useVoiceRecorder(maxVoiceMs, (file, durationMs) => {
     onSend({ text: "", files: [], voice: { file, durationMs } });
-    setSent(count => count + 1);
   }, onVoiceError);
-  // With nothing typed, the send button is the microphone.
+  // The microphone sits with the other actions on the left, and only while nothing is typed.
   const mic = voice && !ready && !disabled;
 
   useImperativeHandle(ref, () => ({ focus: () => areaRef.current?.focus() }), []);
@@ -441,16 +440,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     files.forEach(entry => entry.url && URL.revokeObjectURL(entry.url));
     setFiles([]);
     setText("");
-    setSent(count => count + 1);
     areaRef.current?.focus();
   };
 
-  const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      send();
-    }
-  };
   // Appends on a new line so several customers' messages can be pasted in a row. If the browser refuses, the box is
   // focused so the system's own paste menu is one long-press away.
   const pasteFromClipboard = async () => {
@@ -508,27 +500,22 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </div>
       </div> : <>
       {allowAttachments && <>
-        <button type="button" className={styles.attach} aria-label={t.attach} disabled={disabled} onClick={() => pickerRef.current?.click()}><Paperclip size={18} strokeWidth={1.75} /></button>
+        <button type="button" className={styles.attach} aria-label={t.attach} disabled={disabled} onClick={() => pickerRef.current?.click()}><Paperclip size={22} strokeWidth={2} /></button>
         <input ref={pickerRef} type="file" multiple accept={accept} hidden onChange={event => { add(event.target.files); event.target.value = ""; }} />
       </>}
-      {clipboard && <button type="button" className={styles.attach} aria-label={t.pasteFromClipboard} disabled={disabled} onClick={() => void pasteFromClipboard()}><ClipboardPaste size={18} strokeWidth={1.75} /></button>}
+      {clipboard && <button type="button" className={styles.attach} aria-label={t.pasteFromClipboard} disabled={disabled} onClick={() => void pasteFromClipboard()}><ClipboardPaste size={22} strokeWidth={2} /></button>}
+      {mic && <button type="button" className={styles.attach} aria-label={t.recordVoice} onClick={() => void recorder.start()}><Mic size={22} strokeWidth={2} /></button>}
       <div className={styles.box}>
       <motion.div className={styles.field} style={{ height }}>
         <div ref={mirrorRef} className={styles.mirror} aria-hidden="true">{text}{"\u200b"}</div>
         <textarea ref={areaRef} className={styles.textarea} value={text} rows={1} placeholder={placeholder} disabled={disabled} aria-label={placeholder}
-          onChange={event => setText(event.target.value)} onKeyDown={onKeyDown} onPaste={onPaste} />
+          onChange={event => setText(event.target.value)} onPaste={onPaste} />
       </motion.div>
-      <button type="button" className={styles.send} data-ready={ready || undefined} data-mic={mic || undefined} aria-label={mic ? t.recordVoice : t.send} aria-disabled={!ready && !mic}
-        onClick={() => mic ? void recorder.start() : send()}>
-        <AnimatePresence initial={false} mode="popLayout">
-          <motion.span key={`${sent}-${mic}`} className={styles.sendIcon}
-            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -18, transition: { duration: duration.fast, ease: standard } }}
-            transition={reduced ? { duration: duration.fast } : spring.snappy}>
-            {mic ? <Mic size={17} strokeWidth={1.75} /> : <ArrowUp size={16} strokeWidth={2.25} />}
-          </motion.span>
-        </AnimatePresence>
-      </button>
       </div>
+      {/* Always visible: Enter adds a new line, so this is how a message goes out. */}
+      <button type="button" className={styles.send} data-ready={ready || undefined} aria-label={t.send} aria-disabled={!ready} onClick={send}>
+        <PaperPlaneRight weight="fill" size={24} aria-hidden="true" />
+      </button>
       </>}
     </div>
   </div>;
