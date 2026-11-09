@@ -1,4 +1,5 @@
-import { memo, startTransition, useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { memo, startTransition, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
+import { markScrollRestored } from "@/lib/scrollRestore";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueries, useQuery, useQueryClient, type QueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -1391,11 +1392,12 @@ export default function Dashboard() {
   );
 
   // Back from an order: open the page holding it and scroll it into view, once.
-  const returnOrderId = useRef<string | null>(null);
-  if (returnOrderId.current === null) {
-    try { returnOrderId.current = sessionStorage.getItem("dashboard-return-order") || ""; } catch { returnOrderId.current = ""; }
-  }
-  useEffect(() => {
+  const [returnOrderIdAtOpen] = useState(() => {
+    try { return sessionStorage.getItem("dashboard-return-order") || ""; } catch { return ""; }
+  });
+  const returnOrderId = useRef(returnOrderIdAtOpen);
+  // A layout effect, so the list is never painted at the top first.
+  useLayoutEffect(() => {
     const id = returnOrderId.current;
     if (!id || loading || orders.length === 0) return;
     const done = () => {
@@ -1407,10 +1409,18 @@ export default function Dashboard() {
     if (index < 0) { done(); return; }
     const page = Math.floor(index / orderPageSize);
     if (page !== orderSafePage) { setOrderPage(page); return; }
-    // The list fades in after the page opens, so wait (up to 3s) for the row to appear.
+    const findRow = () => [...document.querySelectorAll("[data-order-row]")].find((element) => element.getAttribute("data-order-row") === id);
+    const ready = findRow();
+    if (ready) {
+      ready.scrollIntoView?.({ block: "center" });
+      markScrollRestored(location.pathname);
+      done();
+      return;
+    }
+    // Rows not mounted yet: wait (up to 3s) for the row to appear.
     let tries = 0;
     const timer = window.setInterval(() => {
-      const row = [...document.querySelectorAll("[data-order-row]")].find((element) => element.getAttribute("data-order-row") === id);
+      const row = findRow();
       tries += 1;
       if (!row && tries < 60) return;
       window.clearInterval(timer);
@@ -1418,7 +1428,7 @@ export default function Dashboard() {
       done();
     }, 50);
     return () => window.clearInterval(timer);
-  }, [dateFilteredOrders, loading, orderPageSize, orderSafePage, orders.length]);
+  }, [dateFilteredOrders, loading, location.pathname, orderPageSize, orderSafePage, orders.length]);
 
   const metricSparklines = useMemo(() => {
     const buckets = analytics?.series?.buckets;
@@ -2172,6 +2182,7 @@ export default function Dashboard() {
               enableOrderIdLinks
               rowClickSelects={fulfillmentTab === "approved"}
               locationOf={isSearching ? searchLocationOf : undefined}
+              revealOrderId={returnOrderIdAtOpen || undefined}
               orderLinkState={
                 fulfillmentTab === "pending"
                   ? { fulfillmentTab, pendingOrderIds }
