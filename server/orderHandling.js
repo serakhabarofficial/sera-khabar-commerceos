@@ -32,10 +32,14 @@ function policy(req) {
   if (/\/activity\/view$/.test(path)) return null;
   // These staff actions can rewrite existing orders indirectly. Reserve the
   // whole bounded workspace before any import/product/warehouse side effect.
-  if (method === "POST" && path === "/api/fetch-shopify-orders") return { implicit: "all" };
-  if (method === "DELETE" && /^\/api\/warehouses\/[^/]+$/.test(path)) return { implicit: "all" };
-  if (method === "POST" && path === "/api/products/bulk-assign-warehouse") return { implicit: "all" };
-  if (method === "PATCH" && /^\/api\/products\/[^/]+$/.test(path) && req.body?.warehouse_id !== undefined) return { implicit: "all" };
+  // Each reserves only the orders it can rewrite, never the whole store: the
+  // store passed 500 orders, so a store-wide claim blocked every product save.
+  if (method === "POST" && path === "/api/fetch-shopify-orders") return { implicit: "shopify" };
+  let warehouseMatch = method === "DELETE" ? path.match(/^\/api\/warehouses\/([^/]+)$/) : null;
+  if (warehouseMatch) return { warehouseProducts: warehouseMatch[1] };
+  if (method === "POST" && path === "/api/products/bulk-assign-warehouse") return { productWarehouse: { productIds: req.body?.product_ids } };
+  warehouseMatch = method === "PATCH" ? path.match(/^\/api\/products\/([^/]+)$/) : null;
+  if (warehouseMatch && req.body?.warehouse_id !== undefined) return { productWarehouse: { productIds: [warehouseMatch[1]], warehouseId: req.body.warehouse_id || null } };
   let match = path.match(/^\/api\/orders\/([^/]+)(?:\/(items|calls|send-sms))?$/);
   if (match && UUID.test(match[1])) return { kind: "order", id: match[1] };
   match = path.match(/^\/api\/abandoned-checkouts\/([^/]+)(?:\/convert)?$/);
@@ -77,8 +81,53 @@ async function lookup(supabase, orgId, table, id, fields) {
   return data;
 }
 
+// Shopify returns its 250 newest orders; real Shopify ids are positive and
+// grow over time, so the newest stored ones are the only orders it can update.
+const SHOPIFY_RECENT = 300;
+
+// Open auto-routed orders holding any of these products: the only orders a
+// product's warehouse change can move (see resyncAutoOrderWarehouses).
+async function openAutoOrdersWithProducts(supabase, orgId, productIds) {
+  const products = [...new Set(productIds)];
+  if (!products.length) return [];
+  const { data: open, error } = await supabase.from("orders")
+    .select("id, sent_to_courier, consignment_id, tracking_code")
+    .eq("org_id", orgId).eq("warehouse_auto", true).is("consignment_id", null).is("tracking_code", null);
+  if (error) throw error;
+  const candidates = (open || []).filter(row => row.sent_to_courier !== true).map(row => row.id);
+  const found = new Set();
+  for (let from = 0; from < candidates.length; from += 100) {
+    const { data: items, error: itemsError } = await supabase.from("order_items")
+      .select("order_id").eq("org_id", orgId).in("product_id", products).in("order_id", candidates.slice(from, from + 100));
+    if (itemsError) throw itemsError;
+    for (const item of items || []) found.add(item.order_id);
+  }
+  return [...found];
+}
+
+function reserveSnapshot(req, kind, ids) {
+  req.orderHandlingIds = ids;
+  return ids.length ? targets(kind, ids) : [];
+}
+
 export async function resolveHandlingTargets(req, supabase, orgId, selected = policy(req)) {
   if (!selected) return null;
+  if (selected.productWarehouse) {
+    const { productIds, warehouseId } = selected.productWarehouse;
+    if (!Array.isArray(productIds) || !productIds.length || productIds.some(id => typeof id !== "string" || !UUID.test(id))) throw problem(400, "Choose valid products.");
+    if (warehouseId !== undefined) {
+      // Saving a price, stock or name resends the same warehouse: nothing moves, so nothing is held.
+      const product = await lookup(supabase, orgId, "products", productIds[0], "warehouse_id");
+      if ((product.warehouse_id || null) === warehouseId) return reserveSnapshot(req, "order", []);
+    }
+    return reserveSnapshot(req, "order", await openAutoOrdersWithProducts(supabase, orgId, productIds));
+  }
+  if (selected.warehouseProducts) {
+    if (!UUID.test(String(selected.warehouseProducts))) return reserveSnapshot(req, "order", []);
+    const { data, error } = await supabase.from("products").select("id").eq("org_id", orgId).eq("warehouse_id", selected.warehouseProducts);
+    if (error) throw error;
+    return reserveSnapshot(req, "order", await openAutoOrdersWithProducts(supabase, orgId, (data || []).map(row => row.id)));
+  }
   if (selected.kind) return targets(selected.kind, selected.ids === undefined ? [selected.id] : selected.ids);
   if (selected.lookup) {
     const row = await lookup(supabase, orgId, selected.lookup, selected.id, "order_id");
@@ -99,6 +148,7 @@ export async function resolveHandlingTargets(req, supabase, orgId, selected = po
   }
   let query = supabase.from("orders").select("id").eq("org_id", orgId);
   if (selected.implicit === "fraud") query = query.order("shopify_order_id", { ascending: false }).limit(15);
+  else if (selected.implicit === "shopify") query = query.gt("shopify_order_id", 0).order("shopify_order_id", { ascending: false }).limit(SHOPIFY_RECENT);
   else {
     if (selected.implicit === "courier" || selected.implicit === "fees") query = query.eq("sent_to_courier", true);
     if (selected.implicit === "fees") query = query.is("courier_fee", null);

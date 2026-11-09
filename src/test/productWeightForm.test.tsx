@@ -191,4 +191,37 @@ describe("product weight and warehouse forms", () => {
       weight_kg: 10,
     });
   });
+  it("edits a variant's real price and saves the difference from the product price", async () => {
+    renderWithQuery(
+      <Routes>
+        <Route path="/products/:id/edit" element={<ProductEdit />} />
+      </Routes>,
+      "/products/product-1/edit",
+    );
+
+    // Product ৳800 with a +100 variant shows its real price, ৳900.
+    const price = await screen.findByRole("spinbutton", { name: "Price for 5 kg" });
+    expect(price).toHaveValue(900);
+    fireEvent.change(price, { target: { value: "740" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save variant 5 kg" }));
+
+    await waitFor(() => expect(requestBody("/api/products/product-1/variants/variant-1", "PATCH")).toMatchObject({ price_adjustment: -60 }));
+  });
+
+  it("adds a variant at the price typed", async () => {
+    renderWithQuery(
+      <Routes>
+        <Route path="/products/:id/edit" element={<ProductEdit />} />
+      </Routes>,
+      "/products/product-1/edit",
+    );
+
+    await screen.findByText("Existing variants");
+    fireEvent.change(screen.getByPlaceholderText("attribute"), { target: { value: "size" } });
+    fireEvent.change(screen.getByPlaceholderText("value"), { target: { value: "2 kg" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Price (৳)" }), { target: { value: "1500" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Add variant$/i }));
+
+    await waitFor(() => expect(requestBody("/api/products/product-1/variants", "POST")).toMatchObject({ price_adjustment: 700 }));
+  });
 });

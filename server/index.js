@@ -15728,13 +15728,20 @@ async function resyncAutoOrderWarehouses(supabase, orgId, productIds, reservedOr
   const ids = [...new Set((Array.isArray(productIds) ? productIds : []).filter(Boolean))];
   if (ids.length === 0) return 0;
 
-  const { data: links, error: linksError } = await supabase
-    .from("order_items")
-    .select("order_id")
-    .eq("org_id", orgId)
-    .in("product_id", ids);
-  if (linksError) throw linksError;
-  const orderIds = [...new Set((links || []).map((row) => row.order_id).filter(id => reserved.has(id)))];
+  // Look only inside the reserved orders: a popular product's full history
+  // can pass the 1,000-row response cap and hide orders that need moving.
+  const links = [];
+  for (const page of chunkIds([...reserved])) {
+    const { data, error: linksError } = await supabase
+      .from("order_items")
+      .select("order_id")
+      .eq("org_id", orgId)
+      .in("product_id", ids)
+      .in("order_id", page);
+    if (linksError) throw linksError;
+    links.push(...(data || []));
+  }
+  const orderIds = [...new Set(links.map((row) => row.order_id))];
   if (orderIds.length === 0) return 0;
 
   let updated = 0;

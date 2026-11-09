@@ -20,7 +20,6 @@ import {
   BUI_TEXTAREA_CLS,
   FormSectionLabel,
   ProductImageManager,
-  variantPriceDisplay,
 } from "./products/shared";
 
 const EDIT_INPUT_CLS =
@@ -30,11 +29,17 @@ function attrLabel(attributes: Record<string, string>) {
   return Object.values(attributes).filter(Boolean).join(" · ");
 }
 
+// Staff type the variant's real price; it is stored as the difference from the
+// product price, which is what the storefront and checkout read.
+const basePrice = (product: Product) => Number(product.selling_price) || 0;
+const priceText = (value: number) => String(Math.round(value * 100) / 100);
+const adjustmentFor = (product: Product, price: string) => (price.trim() === "" ? 0 : (parseFloat(price) || 0) - basePrice(product));
+
 function VariantEditorRow({ product, variant }: { product: Product; variant: ProductVariant }) {
   const qc = useQueryClient();
   const [stock, setStock] = useState(String(variant.stock_quantity));
   const [cog, setCog] = useState(String(variant.cog));
-  const [priceAdj, setPriceAdj] = useState(String(variant.price_adjustment ?? 0));
+  const [price, setPrice] = useState(priceText(basePrice(product) + (Number(variant.price_adjustment) || 0)));
   const [weight, setWeight] = useState(variant.weight_kg == null ? "" : String(variant.weight_kg));
   const [onWebsite, setOnWebsite] = useState(variant.storefront_visible !== false);
   const [saving, setSaving] = useState(false);
@@ -48,7 +53,7 @@ function VariantEditorRow({ product, variant }: { product: Product; variant: Pro
         body: JSON.stringify({
           stock_quantity: Math.max(0, parseInt(stock, 10) || 0),
           cog: parseFloat(cog) || 0,
-          price_adjustment: parseFloat(priceAdj) || 0,
+          price_adjustment: adjustmentFor(product, price),
           weight_kg: weight === "" ? null : Number(weight),
           storefront_visible: onWebsite,
         }),
@@ -80,7 +85,7 @@ function VariantEditorRow({ product, variant }: { product: Product; variant: Pro
   }
 
   return (
-    <div className="grid gap-3 rounded-[14px] border border-black/[0.08] bg-white p-3 md:grid-cols-[1fr_100px_100px_110px_110px_110px_110px_auto] md:items-end">
+    <div className="grid gap-3 rounded-[14px] border border-black/[0.08] bg-white p-3 md:grid-cols-[1fr_120px_100px_110px_110px_110px_auto] md:items-end">
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-widest text-black">Variant</p>
         <p className="mt-1 text-[14px] font-medium text-black">{attrLabel(variant.attributes)}</p>
@@ -89,8 +94,8 @@ function VariantEditorRow({ product, variant }: { product: Product; variant: Pro
         )}
       </div>
       <div>
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-black">Price</p>
-        <p className="h-9 pt-2 font-mono text-[13px] tabular-nums text-black">{variantPriceDisplay(product, { price_adjustment: parseFloat(priceAdj) || 0 })}</p>
+        <label htmlFor={`variant-price-${variant.id}`} className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-black">Price (৳)</label>
+        <input id={`variant-price-${variant.id}`} aria-label={`Price for ${attrLabel(variant.attributes)}`} type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} className={EDIT_INPUT_CLS} />
       </div>
       <div>
         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-black">Stock</label>
@@ -99,10 +104,6 @@ function VariantEditorRow({ product, variant }: { product: Product; variant: Pro
       <div>
         <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-black">COG</label>
         <input type="number" min={0} value={cog} onChange={(e) => setCog(e.target.value)} className={EDIT_INPUT_CLS} />
-      </div>
-      <div>
-        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-black">Price ±</label>
-        <input type="number" value={priceAdj} onChange={(e) => setPriceAdj(e.target.value)} className={EDIT_INPUT_CLS} />
       </div>
       <div>
         <label htmlFor={`variant-weight-${variant.id}`} className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-black">Weight</label>
@@ -128,7 +129,7 @@ function AddVariantForm({ product }: { product: Product }) {
   const [rows, setRows] = useState([{ key: "", value: "" }]);
   const [stock, setStock] = useState("0");
   const [cog, setCog] = useState("0");
-  const [priceAdj, setPriceAdj] = useState("0");
+  const [price, setPrice] = useState(() => priceText(basePrice(product)));
   const [weight, setWeight] = useState("");
   const [onWebsite, setOnWebsite] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -158,7 +159,7 @@ function AddVariantForm({ product }: { product: Product }) {
           attributes,
           stock_quantity: Math.max(0, parseInt(stock, 10) || 0),
           cog: parseFloat(cog) || 0,
-          price_adjustment: parseFloat(priceAdj) || 0,
+          price_adjustment: adjustmentFor(product, price),
           weight_kg: weight === "" ? null : Number(weight),
           storefront_visible: onWebsite,
         }),
@@ -169,7 +170,7 @@ function AddVariantForm({ product }: { product: Product }) {
       setRows([{ key: "", value: "" }]);
       setStock("0");
       setCog("0");
-      setPriceAdj("0");
+      setPrice(priceText(basePrice(product)));
       setWeight("");
       setOnWebsite(true);
       toast.success("Variant added");
@@ -203,7 +204,7 @@ function AddVariantForm({ product }: { product: Product }) {
       <div className="mt-3 grid gap-3 md:grid-cols-[100px_100px_110px_120px_110px_auto] md:items-end">
         <BuiInput label="Stock" type="number" value={stock} onChange={setStock} placeholder="0" />
         <BuiInput label="COG (৳)" type="number" value={cog} onChange={setCog} placeholder="0" />
-        <BuiInput label="Price ±" type="number" value={priceAdj} onChange={setPriceAdj} placeholder="0" />
+        <BuiInput label="Price (৳)" type="number" value={price} onChange={setPrice} placeholder={priceText(basePrice(product))} />
         <BuiInput label="New variant weight (kg)" type="number" value={weight} onChange={setWeight} placeholder="0" />
         <div className="flex h-9 items-center">
           <BuiCheckbox isSelected={onWebsite} onChange={setOnWebsite}>On website</BuiCheckbox>
@@ -221,7 +222,7 @@ function ProductVariantsEditor({ product }: { product: Product }) {
     <div className="mt-4 rounded-[14px] border border-black/[0.08] bg-white p-3">
       <div className="mb-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-black">Existing variants</p>
-        <p className="text-[12px] text-black">Click a product row to manage variant stock, cost, and price adjustments here.</p>
+        <p className="text-[12px] text-black">Set each variant's price, stock, cost and weight here.</p>
       </div>
       <div className="space-y-2">
         {product.variants.length > 0 ? product.variants.map((variant) => (
