@@ -23,6 +23,7 @@ import {
 import {
   FULFILLMENT_QUEUE_TABS,
   OrderStatusSegmentedControl,
+  queueTabLabel,
   type FulfillmentQueueTab,
 } from "@/components/orders/OrderStatusSegmentedControl";
 import { AbandonedCheckoutQueue, DismissedCheckoutList } from "@/components/orders/AbandonedCheckoutQueue";
@@ -86,6 +87,7 @@ import {
 import GlyphMatrix from "@/components/ui/glyph-matrix";
 import { StepSparkline } from "@/components/charts/StepSparkline";
 import {
+  classifyOrderStatus,
   countOrdersByStatus,
   filterOrdersByStatus,
   followUpDetails,
@@ -561,7 +563,22 @@ export default function Dashboard() {
     () => !initialAnalyticsSnapshot?.analytics,
   );
   const [orderPageSize, setOrderPageSize] = useOrderPageSize("dashboard-order-page-size");
-  const [orderPage, setOrderPage] = useState(0);
+  // The page is remembered with its tab, so returning from an order opens the same page.
+  const [orderPage, setOrderPage] = useState(() => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem("dashboard-order-page") || "null") as { tab?: unknown; page?: unknown } | null;
+      return stored?.tab === fulfillmentTab && Number.isInteger(stored.page) && Number(stored.page) > 0 ? Number(stored.page) : 0;
+    } catch {
+      return 0;
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("dashboard-order-page", JSON.stringify({ tab: fulfillmentTab, page: orderPage }));
+    } catch {
+      // Storage unavailable: the page simply starts at 1 next time.
+    }
+  }, [fulfillmentTab, orderPage]);
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { orgName } = useOrgName();
   const liveVisitors = useLiveVisitors();
@@ -1116,13 +1133,30 @@ export default function Dashboard() {
     }
   };
 
+  const changeFulfillmentTab = (nextTab: FulfillmentQueueTab) => {
+    setFulfillmentTab(nextTab);
+    setOrderPage(0);
+    if (nextTab === "abandoned" || nextTab === "board" || !DATE_FILTER_TABS.includes(nextTab)) setOrdersDateRanges({});
+    if (nextTab !== "cancelled") setCancelReasons(new Set());
+    if (nextTab !== "stuck") setFollowUpReasons(new Set());
+    if (nextTab !== "on_hold") { setHoldAttempt(null); setHoldReason(null); }
+    setSelectedAbandonedIds(new Set());
+    if (nextTab === "abandoned") setSelectedOrderIds(new Set());
+  };
+
   const isAbandonedQueue = fulfillmentTab === "abandoned";
   const isBoardQueue = fulfillmentTab === "board";
   const activeOrderStatusFilter: OrderStatusFilter = fulfillmentTab === "abandoned" || fulfillmentTab === "board" ? "all" : fulfillmentTab;
-  const boardCards = useOrderBoard().data?.cards;
+  const boardData = useOrderBoard().data;
+  const boardCards = boardData?.cards;
   const boardCount = boardCards?.length ?? 0;
   // An order on the Board lives only there; it returns to its status tab once it leaves the Board.
   const boardOrderIds = useMemo(() => new Set((boardCards ?? []).map((card) => card.order_id)), [boardCards]);
+  // The Board list each Board order sits in, so search results can say "Board · VIP".
+  const boardListNameByOrder = useMemo(() => {
+    const listNames = new Map((boardData?.lists ?? []).map((list) => [list.id, list.name]));
+    return new Map((boardCards ?? []).map((card) => [card.order_id, listNames.get(card.list_id) ?? ""]));
+  }, [boardCards, boardData?.lists]);
   // Cancelled tab: date range, which date it applies to, and the reasons picked in the breakdown.
   const isCancelledTab = activeOrderStatusFilter === "cancelled";
   const [cancelPreset, setCancelPreset] = useState<CancellationPreset>("30d");
@@ -1175,14 +1209,28 @@ export default function Dashboard() {
     });
     return byTab;
   }, [boardOrderIds, orders, ordersDateRanges, rangeOrdersData, warehouseFilter, warehouseOrders]);
-  const listOrders = (showOrdersDateFilter && rangeOrdersByTab[activeOrderStatusFilter]) || warehouseOrders;
-
   // While searching (e.g. a district or thana), every tab counts only the matching orders.
   const isSearching = debouncedSearch.trim() !== "";
   const searchOrders = useCallback(
     (list: Order[]) => (isSearching ? list.filter((order) => matchesOrderSearch(order, debouncedSearch)) : list),
     [debouncedSearch, isSearching],
   );
+  // Board orders matching the search: All Orders lists them too, so a search finds an order wherever it is.
+  const boardSearchMatches = useMemo(
+    () => (isSearching ? orders.filter((order) => boardOrderIds.has(order.id) && (warehouseFilter === "all" || order.warehouse_id === warehouseFilter) && matchesOrderSearch(order, debouncedSearch)) : []),
+    [boardOrderIds, debouncedSearch, isSearching, orders, warehouseFilter],
+  );
+  const searchingAllOrders = isSearching && fulfillmentTab === "all";
+  const listOrders = useMemo(
+    () => (showOrdersDateFilter && rangeOrdersByTab[activeOrderStatusFilter])
+      || (searchingAllOrders && boardSearchMatches.length > 0 ? [...warehouseOrders, ...boardSearchMatches] : warehouseOrders),
+    [activeOrderStatusFilter, boardSearchMatches, rangeOrdersByTab, searchingAllOrders, showOrdersDateFilter, warehouseOrders],
+  );
+  const searchLocationOf = useCallback((order: Order) => {
+    const boardList = boardListNameByOrder.get(order.id);
+    if (boardList !== undefined) return boardList ? `Board · ${boardList}` : "Board";
+    return queueTabLabel(classifyOrderStatus(order));
+  }, [boardListNameByOrder]);
   const orderStatusCounts = useMemo(
     () => countOrdersByStatus(searchOrders(warehouseOrders)),
     [searchOrders, warehouseOrders],
@@ -1191,13 +1239,14 @@ export default function Dashboard() {
     const counts = warehouseFilter === "all" && totalOrdersCount !== null && !isSearching
       ? { ...orderStatusCounts, all: Math.max(0, totalOrdersCount - boardOrderIds.size) }
       : { ...orderStatusCounts };
+    if (isSearching) counts.all += boardSearchMatches.length;
     // A date tab with a picked range counts only orders placed in that range.
     for (const tab of DATE_FILTER_TABS) {
       const rangeOrders = rangeOrdersByTab[tab];
       if (rangeOrders) counts[tab] = countOrdersByStatus(searchOrders(rangeOrders))[tab];
     }
     return counts;
-  }, [boardOrderIds, isSearching, orderStatusCounts, rangeOrdersByTab, searchOrders, totalOrdersCount, warehouseFilter]);
+  }, [boardOrderIds, boardSearchMatches.length, isSearching, orderStatusCounts, rangeOrdersByTab, searchOrders, totalOrdersCount, warehouseFilter]);
 
   // Full pending + print queues (ignores search text and table pagination) so the
   // order editor can offer Previous/Next navigation through the whole tab.
@@ -1340,6 +1389,36 @@ export default function Dashboard() {
     () => dateFilteredOrders.slice(orderSafePage * orderPageSize, (orderSafePage + 1) * orderPageSize),
     [dateFilteredOrders, orderPageSize, orderSafePage],
   );
+
+  // Back from an order: open the page holding it and scroll it into view, once.
+  const returnOrderId = useRef<string | null>(null);
+  if (returnOrderId.current === null) {
+    try { returnOrderId.current = sessionStorage.getItem("dashboard-return-order") || ""; } catch { returnOrderId.current = ""; }
+  }
+  useEffect(() => {
+    const id = returnOrderId.current;
+    if (!id || loading || orders.length === 0) return;
+    const done = () => {
+      returnOrderId.current = "";
+      try { sessionStorage.removeItem("dashboard-return-order"); } catch { /* storage unavailable */ }
+    };
+    const index = dateFilteredOrders.findIndex((order) => order.id === id);
+    // The order left this tab (e.g. it was confirmed): stay where the list is.
+    if (index < 0) { done(); return; }
+    const page = Math.floor(index / orderPageSize);
+    if (page !== orderSafePage) { setOrderPage(page); return; }
+    // The list fades in after the page opens, so wait (up to 3s) for the row to appear.
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const row = [...document.querySelectorAll("[data-order-row]")].find((element) => element.getAttribute("data-order-row") === id);
+      tries += 1;
+      if (!row && tries < 60) return;
+      window.clearInterval(timer);
+      row?.scrollIntoView?.({ block: "center" });
+      done();
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [dateFilteredOrders, loading, orderPageSize, orderSafePage, orders.length]);
 
   const metricSparklines = useMemo(() => {
     const buckets = analytics?.series?.buckets;
@@ -1864,7 +1943,11 @@ export default function Dashboard() {
               <Input
                 placeholder={isAbandonedQueue ? "Search name, phone, address or cart…" : "Search name, phone, order, courier ID or area…"}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  // Starting a search looks through every tab, so it opens All Orders.
+                  if (!searchQuery.trim() && e.target.value.trim() && fulfillmentTab !== "all") changeFulfillmentTab("all");
+                  setSearchQuery(e.target.value);
+                }}
                 className="h-10 w-full rounded-none border-0 bg-transparent pl-9 text-sm shadow-none placeholder:text-black/35 focus-visible:ring-0 focus-visible:ring-offset-0"
                 data-testid="input-search-orders"
               />
@@ -1923,19 +2006,10 @@ export default function Dashboard() {
           counts={displayedOrderStatusCounts}
           hiddenStatuses={["ready_to_ship"]}
           abandonedCount={abandonedActiveCount}
-          boardCount={boardCount}
+          boardCount={isSearching ? boardSearchMatches.length : boardCount}
           value={fulfillmentTab}
           loading={isAbandonedQueue ? abandonedLoading : loading}
-          onChange={(nextTab) => {
-            setFulfillmentTab(nextTab);
-            setOrderPage(0);
-            if (nextTab === "abandoned" || nextTab === "board" || !DATE_FILTER_TABS.includes(nextTab)) setOrdersDateRanges({});
-            if (nextTab !== "cancelled") setCancelReasons(new Set());
-            if (nextTab !== "stuck") setFollowUpReasons(new Set());
-            if (nextTab !== "on_hold") { setHoldAttempt(null); setHoldReason(null); }
-            setSelectedAbandonedIds(new Set());
-            if (nextTab === "abandoned") setSelectedOrderIds(new Set());
-          }}
+          onChange={changeFulfillmentTab}
         />
 
         {isBoardQueue ? (
@@ -2097,6 +2171,7 @@ export default function Dashboard() {
               onSelectionChange={setSelectedOrderIds}
               enableOrderIdLinks
               rowClickSelects={fulfillmentTab === "approved"}
+              locationOf={isSearching ? searchLocationOf : undefined}
               orderLinkState={
                 fulfillmentTab === "pending"
                   ? { fulfillmentTab, pendingOrderIds }

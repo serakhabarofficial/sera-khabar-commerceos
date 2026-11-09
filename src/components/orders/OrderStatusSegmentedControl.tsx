@@ -69,6 +69,11 @@ const STATUS_PRESENTATION: Record<FulfillmentQueueTab, StatusPresentation> = {
   },
 };
 
+/** The tab's name, e.g. "Print" or "Ready to Transit". */
+export function queueTabLabel(tab: FulfillmentQueueTab): string {
+  return STATUS_PRESENTATION[tab].label;
+}
+
 export const FULFILLMENT_QUEUE_TABS: FulfillmentQueueTab[] = [
   "all",
   "pending",
