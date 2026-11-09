@@ -5,6 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowUpRight, CaretLeft, CaretRight, UserCircle } from "@phosphor-icons/react";
 import { useOrderHandling } from "@/hooks/useOrderHandling";
+import { ORDER_BOARD_KEY, useOrderBoard } from "@/hooks/useOrderBoard";
+import { BOARD_STATUS_LABELS, boardPlacementOf, boardStatusList, isBoardStatus, type BoardStatus } from "@/lib/boardStatus";
+import type { BoardCard, BoardData } from "@/lib/orderBoard";
 import { OrderHandlingNotice, OrderHandlingWorkspace } from "@/components/orders/OrderHandlingNotice";
 import { apiFetch } from "@/lib/api";
 import { syncOrders } from "@/lib/ordersSync";
@@ -166,6 +169,12 @@ export default function OrderDetail() {
   const [editorTab, setEditorTab] = useOrderEditorTab();
   const returnTab = (location.state as { fulfillmentTab?: unknown } | null)?.fulfillmentTab;
   const backState = typeof returnTab === "string" && returnTab ? { fulfillmentTab: returnTab } : undefined;
+  // The Orders list scrolls back to the last order opened here.
+  useEffect(() => {
+    if (!id) return;
+    try { sessionStorage.setItem("dashboard-return-order", id); } catch { /* storage unavailable */ }
+  }, [id]);
+
   function goBack() {
     if (typeof location.state?.from === "string" && location.state.from.startsWith("/customers/")) {
       navigate(location.state.from, { state: location.state.profileNavigationState });
@@ -221,6 +230,8 @@ export default function OrderDetail() {
   const [deliveryOn, setDeliveryOn] = useState(true);
   const [deliveryRate, setDeliveryRate] = useState(DEFAULT_DELIVERY_FEE);
   const [statusDraft, setStatusDraft] = useState<string | null>(null);
+  // VIP / Pre-Order picked in the status panel; undefined follows where the order is on the Board now.
+  const [placementDraft, setPlacementDraft] = useState<BoardStatus | null | undefined>(undefined);
   const [sourceDraft, setSourceDraft] = useState<OrderSource | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [holdDetailsDraft, setHoldDetailsDraft] = useState<OrderHoldMetadata>({
@@ -295,6 +306,7 @@ export default function OrderDetail() {
     setDeliveryRate(savedDeliveryRate > 0 ? savedDeliveryRate : DEFAULT_DELIVERY_FEE);
     setDeliveryOn(savedDeliveryRate > 0);
     setStatusDraft(detailQuery.data.order.status ?? null);
+    setPlacementDraft(undefined);
     setSourceDraft(normalizeOrderSource(detailQuery.data.order.source));
     setNotesDraft(detailQuery.data.order.notes ?? "");
     setHoldDetailsDraft({
@@ -358,6 +370,20 @@ export default function OrderDetail() {
     || holdDetailsDraft.hold_reason_detail !== (order?.hold_reason_detail ?? null)
     || holdDetailsDraft.hold_until_date !== (order?.hold_until_date ?? null);
   const shouldSaveHoldDetails = isOnHoldStatus(statusDraft) && (statusChanged || holdDetailsChanged);
+  const boardQuery = useOrderBoard();
+  const placement = boardPlacementOf(boardQuery.data, id);
+  const targetPlacement = placementDraft === undefined ? placement.status : placementDraft;
+  const placementChanged = targetPlacement !== placement.status;
+  // VIP and Pre-Order keep the order Confirmed; picking one from Pending confirms it.
+  const changeStatus = (next: string) => {
+    if (isBoardStatus(next)) {
+      setPlacementDraft(next);
+      setStatusDraft(isApprovedStatus(order?.status) ? order?.status ?? "confirmed" : "confirmed");
+      return;
+    }
+    setPlacementDraft(null);
+    setStatusDraft(next);
+  };
 
   // Call next steps set the same drafts as the status panel; staff still press Save changes.
   // Orders already with the courier keep their status.
@@ -365,6 +391,7 @@ export default function OrderDetail() {
   const callSteps = {
     canSetStatus: (status: string) => callStatusOptions.has(normalizeBusinessStatus(status)),
     onNextStep: (step: CallNextStep) => {
+      setPlacementDraft(null);
       if (step.kind === "confirm") setStatusDraft("confirmed");
       else if (step.kind === "hold_send_on") {
         setStatusDraft("on_hold");
@@ -439,7 +466,7 @@ export default function OrderDetail() {
     const originalCustomer = customerFromOrder(order);
     const detailsChanged = JSON.stringify(customer) !== JSON.stringify(originalCustomer) || sourceChanged || notesChanged;
     const cartChanged = !cartsMatch(draft, detail.items);
-    if (!detailsChanged && !cartChanged && !overallChanged && !deliveryChanged && !advanceChanged && !proofChanged && !statusChanged && !holdDetailsChanged) {
+    if (!detailsChanged && !cartChanged && !overallChanged && !deliveryChanged && !advanceChanged && !proofChanged && !statusChanged && !holdDetailsChanged && !placementChanged) {
       if (!hasQueueNav) goBack();
       return;
     }
@@ -448,6 +475,8 @@ export default function OrderDetail() {
       return;
     }
     if (requiredAdditionReasonKeys.some((key) => !additionReasons[key])) { setSaveError("Choose a reason for every added product or quantity increase"); return; }
+    const targetList = targetPlacement ? boardStatusList(boardQuery.data?.lists ?? [], targetPlacement) : null;
+    if (targetPlacement && !targetList) { setSaveError(`Add a Board list named ${BOARD_STATUS_LABELS[targetPlacement]} first`); return; }
     if (cancellationRequired && !cancellationReasonCode) { setSaveError("Choose a cancellation reason"); return; }
     if (cancellationRequired && cancellationReasonCode === "other" && !cancellationReasonNote.trim()) { setSaveError("Add a cancellation note for Other"); return; }
     if (shouldSaveHoldDetails) {
@@ -470,6 +499,7 @@ export default function OrderDetail() {
       ...(detailsChanged ? ["customer details"] : []),
       ...(cartChanged ? ["order items"] : []),
       ...((overallChanged || deliveryChanged || advanceChanged || proofChanged || statusChanged || holdDetailsChanged) ? ["totals and status"] : []),
+      ...(placementChanged ? ["board list"] : []),
     ];
     const expectedVersion = order.updated_at || null;
     try {
@@ -556,6 +586,26 @@ export default function OrderDetail() {
         }
       }
 
+      // VIP / Pre-Order: put the card in that list (moving it from another list), or take it off the Board.
+      if (placementChanged) {
+        const card = placement.card;
+        const res = targetList
+          ? card
+            ? await apiFetch(`/api/order-board/cards/${card.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ list_id: targetList.id }) })
+            : await apiFetch("/api/order-board/cards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order_id: id, list_id: targetList.id }) })
+          : await apiFetch(`/api/order-board/cards/${card?.id}`, { method: "DELETE" });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) await failWith("board list", json.error || "Failed to update the Board");
+        const saved = (json as { card?: BoardCard }).card;
+        queryClient.setQueryData<BoardData>(ORDER_BOARD_KEY, (board) => {
+          if (!board) return board;
+          const others = board.cards.filter((entry) => entry.order_id !== id);
+          return { ...board, cards: saved ? [...others, { ...card, ...saved, order: saved.order ?? card?.order ?? null }] : others };
+        });
+        void queryClient.invalidateQueries({ queryKey: ORDER_BOARD_KEY });
+        completedSegments.push("board list");
+      }
+
       queryClient.setQueryData<OrderDetailResponse>([`/api/orders/${id}`], (current) => current ? { ...current, order: currentOrder, items: currentItems } : current);
       queryClient.setQueryData<Order[]>(["/api/orders"], (current) => Array.isArray(current) ? current.map((item) => item.id === id ? { ...item, ...currentOrder } : item) : current);
       setEditingDetail({ ...detail, order: currentOrder, items: currentItems });
@@ -566,6 +616,7 @@ export default function OrderDetail() {
       setDeliveryRate(savedDeliveryRate > 0 ? savedDeliveryRate : DEFAULT_DELIVERY_FEE);
       setDeliveryOn(savedDeliveryRate > 0);
       setStatusDraft(currentOrder.status ?? null);
+      setPlacementDraft(undefined);
       setSourceDraft(normalizeOrderSource(currentOrder.source));
       setNotesDraft(currentOrder.notes ?? "");
       setHoldDetailsDraft({
@@ -675,7 +726,7 @@ export default function OrderDetail() {
                   {/* Two rows: details on top, then Collect and Save side by side so they never drift apart. */}
                   <div className="grid shrink-0 gap-x-5 gap-y-4 border-t border-black/[0.07] pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
                     <OrderPaymentPanel items={draft} totals={totals} canEdit={canEditCart} overallDiscountType={overallType} overallDiscountValue={overallValue} onOverallDiscount={(type, value) => { setOverallType(type); setOverallValue(value); }} onRemoveOverallDiscount={() => { setOverallType(null); setOverallValue(0); }} deliveryOn={deliveryOn} onToggleDelivery={setDeliveryOn} advance={clampedAdvance} onAdvanceChange={setAdvanceDraft} advanceMethod={advanceMethodDraft} advanceReference={advanceReferenceDraft} onAdvanceMethodChange={setAdvanceMethodDraft} onAdvanceReferenceChange={setAdvanceReferenceDraft} />
-                    <OrderSavePanel status={statusDraft} savedStatus={order.status ?? null} onStatusChange={setStatusDraft} holdDetails={holdDetailsDraft} onHoldDetailsChange={setHoldDetailsDraft} cancellationRequired={cancellationRequired} cancellationReasonCode={cancellationReasonCode} cancellationReasonNote={cancellationReasonNote} onCancellationReasonChange={setCancellationReasonCode} onCancellationReasonNoteChange={setCancellationReasonNote} saving={saving} saveDisabled={!canEdit} error={saveError} />
+                    <OrderSavePanel boardStatuses status={targetPlacement ?? statusDraft} savedStatus={order.status ?? null} onStatusChange={changeStatus} holdDetails={holdDetailsDraft} onHoldDetailsChange={setHoldDetailsDraft} cancellationRequired={cancellationRequired} cancellationReasonCode={cancellationReasonCode} cancellationReasonNote={cancellationReasonNote} onCancellationReasonChange={setCancellationReasonCode} onCancellationReasonNoteChange={setCancellationReasonNote} saving={saving} saveDisabled={!canEdit} error={saveError} />
                     <CollectOnDeliveryBar total={totals.finalTotal} advance={clampedAdvance} />
                     <OrderSaveActions saving={saving} saveDisabled={!canEdit} onSave={() => { void save(); }} onCancel={goBack} />
                   </div>

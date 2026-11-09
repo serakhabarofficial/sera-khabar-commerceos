@@ -58,7 +58,7 @@ import {
 import { Spinner } from "@/components/ui/ios-spinner";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { ArrowLeft, ArrowRight, MagnifyingGlass, Warning } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, MagnifyingGlass, PhoneCall, Warning } from "@phosphor-icons/react";
 import { DELIVERY_TIER_STYLES, KNOWN_COURIER_LOGOS, courierLogoFor, courierRows, deliveryTier } from "@/lib/fraudRisk";
 import { fraudLookupQuery, useFraudLookup } from "@/hooks/useFraudCheck";
 import { PopButton } from "@/components/ui/pop-button";
@@ -315,6 +315,17 @@ interface OrdersTableProps {
   enableOrderIdLinks?: boolean;
   /** Confirmed tab: clicking a row selects it, and an Open button under the order id opens it. */
   rowClickSelects?: boolean;
+  /** Search results: where each order is (its tab, or "Board · VIP"), shown under its status. */
+  locationOf?: (order: Order) => string;
+}
+
+function OrderLocationTag({ label }: { label: string }) {
+  const onBoard = label.startsWith("Board");
+  return (
+    <span data-testid="order-location" title={`In ${label}`} className={cn("mt-1 inline-flex max-w-[160px] truncate rounded-full px-2 py-0.5 text-[10px] font-medium", onBoard ? "bg-teal-50 text-teal-700" : "bg-black/[0.05] text-black/65")}>
+      {label}
+    </span>
+  );
 }
 
 const ATTEMPT_BADGE: Record<HoldAttempt, string> = {
@@ -685,7 +696,7 @@ function NotesPopover({ order, onOrderUpdate }: { order: Order; onOrderUpdate?: 
   );
 }
 
-export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, showHoldDetails = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false, rowClickSelects = false }: OrdersTableProps) {
+export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, showHoldDetails = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false, rowClickSelects = false, locationOf }: OrdersTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -1406,7 +1417,13 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
         showCancellationReason={showCancellationReason}
         orderLinkSearch={((tab) => (tab === "pending" || tab === "print" ? `?fulfillmentTab=${tab}` : undefined))((orderLinkState as { fulfillmentTab?: unknown } | undefined)?.fulfillmentTab)}
         renderActions={(order) => (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {locationOf && <OrderLocationTag label={locationOf(order)} />}
+            {showHoldDetails && order.phone && (
+              <a href={`tel:${order.phone.replace(/[^\d+]/g, "")}`} aria-label={`Call ${order.phone}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-emerald-500 px-3 text-[10px] font-semibold uppercase tracking-wide text-white active:scale-[0.97]">
+                <PhoneCall weight="light" className="h-3.5 w-3.5" /> Call
+              </a>
+            )}
             {!order.fraud_checked && (
               <button type="button" onClick={() => handleCheckFraud(order)} className="min-h-10 rounded-xl border border-black/10 px-3 text-[10px] font-semibold uppercase tracking-wide text-black">
                 Check fraud
@@ -1479,6 +1496,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
               return (
                 <Fragment key={order.id}>
                 <TableRow
+                  data-order-row={order.id}
                   tabIndex={0}
                   aria-label={rowClickSelects ? `Select order ${order.order_number}` : `Open order ${order.order_number}`}
                   onMouseEnter={() => prefetchOrder(order.id)}
@@ -1597,8 +1615,19 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                             value={order.phone}
                             size="sm"
                             aria-label={`Copy phone number ${order.phone}`}
-                            className="h-6 w-6 shrink-0 rounded-md text-black/40 hover:bg-black/[0.06] hover:text-black"
+                            className="h-6 w-6 shrink-0 rounded-full text-black/40 hover:bg-black/[0.06] hover:text-black"
                           />
+                        )}
+                        {/* Hold tab: call the customer straight from the row. */}
+                        {showHoldDetails && order.phone && (
+                          <a
+                            href={`tel:${order.phone.replace(/[^\d+]/g, "")}`}
+                            aria-label={`Call ${order.phone}`}
+                            title={`Call ${order.phone}`}
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_1px_2px_rgba(16,185,129,0.35)] transition-[background-color,transform] duration-150 hover:bg-emerald-600 active:scale-[0.92]"
+                          >
+                            <PhoneCall weight="regular" className="h-3.5 w-3.5" />
+                          </a>
                         )}
                       </div>
                       {order.source && (
@@ -1720,6 +1749,7 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
                           </div>
                         </PopoverContent>
                       </Popover>
+                      {locationOf && <div><OrderLocationTag label={locationOf(order)} /></div>}
                       {showHoldDetails && isOnHoldStatus(order.status) && (() => {
                         const days = holdDays(order);
                         const reason = ORDER_HOLD_REASONS.find((option) => option.code === order.hold_reason_code)?.label;

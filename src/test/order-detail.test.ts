@@ -345,7 +345,7 @@ describe("OrderDetail", () => {
     expect(within(catalog).getByTestId("catalog-scroll-region")).toHaveClass("overflow-y-auto");
   });
 
-  it("offers only Pending, Confirmed, On Hold and Cancel order for a pending order", async () => {
+  it("offers Pending, Confirmed, VIP, Pre-Order, On Hold and Cancel order for a pending order", async () => {
     apiFetch.mockImplementation(async (url: string) => {
       if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
       if (url === "/api/orders/order-1") return response({ ...detail, order: { ...order, status: "pending" } });
@@ -356,7 +356,60 @@ describe("OrderDetail", () => {
 
     const group = await screen.findByRole("radiogroup", { name: "Order status" });
     await waitFor(() => expect(within(group).getByRole("radio", { name: "Pending" })).toBeChecked());
-    expect(within(group).getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["Pending", "Confirmed", "On Hold", "Cancel order"]);
+    expect(within(group).getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["Pending", "Confirmed", "VIP", "Pre-Order", "On Hold", "Cancel order"]);
+  });
+
+  const boardLists = [
+    { id: "11111111-1111-4111-8111-111111111111", name: "বিশেষ নির্দেশনা", color: "violet", position: 4 },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Pre-Order", color: "rose", position: 5 },
+    { id: "33333333-3333-4333-8333-333333333333", name: "VIP", color: "violet", position: 6 },
+  ];
+
+  it("confirms a pending order picked as VIP and puts it in the VIP Board list", async () => {
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
+      if (url === "/api/order-board") return response({ lists: boardLists, cards: [] });
+      if (url === "/api/order-board/cards" && init?.method === "POST") return response({ card: { id: "card-1", list_id: boardLists[2].id, order_id: "order-1", note: "", remind_on: null, position: 0, updated_at: "", order: null } });
+      if (url === "/api/orders/order-1" && init?.method === "PATCH") return response({ success: true, order: { ...order, status: JSON.parse(String(init.body)).status } });
+      if (url === "/api/orders/order-1") return response({ ...detail, order: { ...order, status: "pending" } });
+      if (url === "/api/products") return response(products);
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+    renderPage();
+    const user = userEvent.setup();
+    const group = await screen.findByRole("radiogroup", { name: "Order status" });
+    await waitFor(() => expect(within(group).getByRole("radio", { name: "VIP" })).toBeEnabled());
+    await user.click(within(group).getByRole("radio", { name: "VIP" }));
+    expect(within(group).getByRole("radio", { name: "VIP" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      const post = apiFetch.mock.calls.find(([url, init]) => url === "/api/order-board/cards" && init?.method === "POST");
+      expect(JSON.parse(String(post?.[1]?.body))).toEqual({ order_id: "order-1", list_id: boardLists[2].id });
+    });
+    const patch = apiFetch.mock.calls.find(([url, init]) => url === "/api/orders/order-1" && init?.method === "PATCH");
+    expect(JSON.parse(String(patch?.[1]?.body))).toMatchObject({ status: "confirmed" });
+  });
+
+  it("shows a VIP order as VIP and takes it off the Board when set back to Confirmed", async () => {
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("/api/order-handling/")) return response({ status: "handling", holder: { name: "Sadia" }, expires_at: new Date(Date.now() + 300_000).toISOString() });
+      if (url === "/api/order-board") return response({ lists: boardLists, cards: [{ id: "card-9", list_id: boardLists[2].id, order_id: "order-1", note: "", remind_on: null, position: 0, updated_at: "", order: null }] });
+      if (url === "/api/order-board/cards/card-9" && init?.method === "DELETE") return response({ ok: true });
+      if (url === "/api/orders/order-1") return response(detail);
+      if (url === "/api/products") return response(products);
+      throw new Error(`Unexpected API request: ${url}`);
+    });
+    renderPage();
+    const user = userEvent.setup();
+    const group = await screen.findByRole("radiogroup", { name: "Order status" });
+    await waitFor(() => expect(within(group).getByRole("radio", { name: "VIP" })).toBeChecked());
+    await user.click(within(group).getByRole("radio", { name: "Confirmed" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(apiFetch.mock.calls.some(([url, init]) => url === "/api/order-board/cards/card-9" && init?.method === "DELETE")).toBe(true));
+    // The order was already Confirmed, so only the Board changes.
+    expect(apiFetch.mock.calls.some(([url, init]) => url === "/api/orders/order-1" && init?.method === "PATCH")).toBe(false);
   });
 
   it("keeps a Print order's current step visible", async () => {

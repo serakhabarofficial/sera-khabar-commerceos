@@ -3,7 +3,8 @@ import { Select as BuiSelect, SelectItem as BuiSelectItem } from "@/components/b
 import { Spinner } from "@/components/ui/ios-spinner";
 import { OrderHoldFields, type OrderHoldMetadata } from "@/components/orders/OrderHoldFields";
 import { CANCELLATION_DIALOG_REASON_OPTIONS, type CancellationReason } from "@/lib/orderActivity";
-import { displayStatusLabel, isOnHoldStatus, normalizeBusinessStatus, statusOptionsFor } from "@/lib/orderTransitions";
+import { displayStatusLabel, isApprovedStatus, isOnHoldStatus, normalizeBusinessStatus, statusOptionsFor } from "@/lib/orderTransitions";
+import { BOARD_STATUSES, BOARD_STATUS_LABELS, isBoardStatus } from "@/lib/boardStatus";
 
 type OrderSavePanelProps = {
   status: string | null | undefined;
@@ -20,6 +21,8 @@ type OrderSavePanelProps = {
   saving: boolean;
   saveDisabled?: boolean;
   error?: string;
+  /** Offer VIP and Pre-Order, which put the order on that Board list. */
+  boardStatuses?: boolean;
 };
 
 // The editor offers the review decisions only; Print and Ready to Transit are
@@ -35,7 +38,7 @@ function statusLabel(status: string): string {
 }
 
 /** Where the order goes next, plus the reason fields a hold or cancellation needs. */
-export function OrderSavePanel({ status, savedStatus, onStatusChange, holdDetails, onHoldDetailsChange, cancellationRequired, cancellationReasonCode, cancellationReasonNote, onCancellationReasonChange, onCancellationReasonNoteChange, saving, saveDisabled = false, error }: OrderSavePanelProps) {
+export function OrderSavePanel({ status, savedStatus, onStatusChange, holdDetails, onHoldDetailsChange, cancellationRequired, cancellationReasonCode, cancellationReasonNote, onCancellationReasonChange, onCancellationReasonNoteChange, saving, saveDisabled = false, error, boardStatuses = false }: OrderSavePanelProps) {
   // The saved status decides which moves the server will accept.
   const allowed = new Set(statusOptionsFor(savedStatus === undefined ? status : savedStatus).map(normalizeBusinessStatus));
   const current = normalizeBusinessStatus(status);
@@ -43,6 +46,8 @@ export function OrderSavePanel({ status, savedStatus, onStatusChange, holdDetail
   allowed.add(current);
   const steps = [...EDITOR_STEPS, ...LATER_STEPS.filter((step) => step === current || step === saved)];
   const locked = saving || saveDisabled;
+  // A Board status keeps the order Confirmed, so it is open wherever Confirmed is.
+  const boardAllowed = allowed.has("confirmed") || isApprovedStatus(savedStatus === undefined ? status : savedStatus);
   const onHold = isOnHoldStatus(status);
   const cancelled = isCancelled(status);
 
@@ -51,11 +56,11 @@ export function OrderSavePanel({ status, savedStatus, onStatusChange, holdDetail
       <p className="mb-2.5 text-[8px] font-medium uppercase tracking-[0.3em] text-black">Status</p>
       {/* One radio row per status, each as tall as a payment row, so both columns end on the same line. */}
       <div role="radiogroup" aria-label="Order status" className="grid gap-1">
-        {[...steps, "on_hold", "cancelled"].map((option) => {
+        {[...steps, ...(boardStatuses ? BOARD_STATUSES : []), "on_hold", "cancelled"].map((option) => {
           const hold = option === "on_hold";
           const cancel = option === "cancelled";
           const checked = hold ? onHold : cancel ? cancelled : option === current;
-          const unavailable = !hold && !cancel && !allowed.has(option);
+          const unavailable = isBoardStatus(option) ? !boardAllowed && option !== current : !hold && !cancel && !allowed.has(option);
           const tone = checked ? (hold ? "bg-amber-50 font-medium text-amber-800" : cancel ? "bg-red-50 font-medium text-red-700" : "bg-black/[0.07] font-medium text-black") : unavailable ? "text-black/25" : "text-black/60 hover:bg-black/[0.04] hover:text-black";
           const dot = checked ? (hold ? "shadow-[inset_0_0_0_5px_#D97706]" : cancel ? "shadow-[inset_0_0_0_5px_#B91C1C]" : "shadow-[inset_0_0_0_5px_#0A0A0A]") : "shadow-[inset_0_0_0_1.5px_rgba(10,10,10,0.3)]";
           return (
@@ -70,7 +75,7 @@ export function OrderSavePanel({ status, savedStatus, onStatusChange, holdDetail
               className={`flex h-9 min-w-0 items-center gap-2.5 rounded-[10px] px-2.5 text-left text-[13px] transition-[background-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed ${tone}`}
             >
               <span aria-hidden="true" className={`h-4 w-4 shrink-0 rounded-full transition-shadow duration-150 ${dot}`} />
-              <span className="truncate">{hold ? "On Hold" : cancel ? "Cancel order" : statusLabel(option)}</span>
+              <span className="truncate">{hold ? "On Hold" : cancel ? "Cancel order" : isBoardStatus(option) ? BOARD_STATUS_LABELS[option] : statusLabel(option)}</span>
             </button>
           );
         })}

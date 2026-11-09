@@ -36,7 +36,7 @@ vi.mock("@/components/OrdersTable", () => ({
     <div data-testid="dashboard-orders">
       <span data-testid="dashboard-risk-column">{showRiskColumn ? "visible" : "hidden"}</span>
       <span data-testid="dashboard-order-link-state">{JSON.stringify(orderLinkState ?? null)}</span>
-      {orders.map((order) => <span key={order.id}>{order.customer_name}</span>)}
+      {orders.map((order) => <span key={order.id} data-order-row={order.id}>{order.customer_name}</span>)}
     </div>
   ),
 }));
@@ -93,6 +93,8 @@ describe("dashboard order status filter", () => {
   beforeEach(() => {
     sessionStorage.setItem("autosync_done_user-1", "1");
     sessionStorage.removeItem("dashboard-fulfillment-tab");
+    sessionStorage.removeItem("dashboard-order-page");
+    sessionStorage.removeItem("dashboard-return-order");
     localStorage.clear();
     apiFetch.mockReset();
     apiFetch.mockImplementation(async (url: string) => {
@@ -390,6 +392,42 @@ describe("dashboard order status filter", () => {
     });
   });
 
+  it("returns to the opened order's page and scrolls it into view", async () => {
+    const pagedOrders = Array.from({ length: 25 }, (_, index) => ({
+      ...orders[0],
+      id: `pending-${index + 1}`,
+      shopify_order_id: index + 1,
+      order_number: `#${index + 1}`,
+      customer_name: `Dashboard Customer ${index + 1}`,
+    }));
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/orders") return jsonResponse({ orders: pagedOrders });
+      if (url === "/api/products") return jsonResponse({ products: [] });
+      if (url.startsWith("/api/analytics")) {
+        return jsonResponse({ revenue: 0, shipping: 0, adSpend: 0, totalCog: 0, cogCoverage: { set: 0, total: 0 }, profit: 0, fbConfigured: false, usdToBdt: 120, fbError: null });
+      }
+      return jsonResponse({ updated: 0 });
+    });
+    localStorage.setItem("dashboard-order-page-size", "20");
+    sessionStorage.setItem("dashboard-return-order", "pending-23");
+    const scrolled: Element[] = [];
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function record(this: Element) { scrolled.push(this); });
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter>
+            <Dashboard />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(scrolled.map((element) => element.getAttribute("data-order-row"))).toContain("pending-23"));
+      expect(screen.getByTestId("order-pagination-page-input")).toHaveValue("2");
+      expect(sessionStorage.getItem("dashboard-return-order")).toBeNull();
+    } finally {
+      scrollIntoView.mockRestore();
+    }
+  });
+
   it("paginates the filtered dashboard orders with its saved row limit", async () => {
     const user = userEvent.setup();
     const pagedOrders = Array.from({ length: 25 }, (_, index) => ({
@@ -412,7 +450,7 @@ describe("dashboard order status filter", () => {
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-    render(
+    const view = render(
       <QueryClientProvider client={client}>
         <MemoryRouter>
           <Dashboard />
@@ -442,6 +480,18 @@ describe("dashboard order status filter", () => {
     expect(screen.getByTestId("order-pagination-page-input")).toHaveValue("2");
     expect(screen.getByTestId("dashboard-orders")).not.toHaveTextContent("Dashboard Customer 1");
     expect(screen.getByTestId("dashboard-orders")).toHaveTextContent("Dashboard Customer 21");
+
+    // Opening an order and coming back returns to the same page of the same tab.
+    view.unmount();
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[{ pathname: "/", state: { fulfillmentTab: "all" } }]}>
+          <Dashboard />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dashboard-orders")).toHaveTextContent("Dashboard Customer 21"));
+    expect(screen.getByTestId("order-pagination-page-input")).toHaveValue("2");
   });
 
   it("converts an abandoned checkout into a pending order", async () => {

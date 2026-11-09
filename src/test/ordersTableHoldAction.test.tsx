@@ -111,6 +111,13 @@ describe("OrdersTable hold call attempts", () => {
     apiFetch.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
   });
 
+  it("puts a call button beside the phone copy button", () => {
+    renderHeld(held(null));
+    const call = screen.getByRole("link", { name: "Call 01700000001" });
+    expect(call).toHaveAttribute("href", "tel:01700000001");
+    expect(call.previousElementSibling).toBe(screen.getByRole("button", { name: "Copy phone number 01700000001" }));
+  });
+
   it("moves an order from the 1st to the 2nd attempt", async () => {
     const user = userEvent.setup();
     const { onOrderUpdate } = renderHeld(held(null));
