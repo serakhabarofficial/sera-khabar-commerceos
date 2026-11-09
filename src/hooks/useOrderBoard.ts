@@ -97,3 +97,9 @@ export function useOrderBoard() {
 
   return { ...query, addCard, updateCard, removeCard, addList, updateList, removeList, setOrderStatus };
 }
+
+/** Puts a newly made order on a Board list (VIP / Pre-Order) and refreshes the Board. */
+export async function addOrderToBoardList(queryClient: ReturnType<typeof useQueryClient>, orderId: string, listId: string) {
+  await boardRequest<{ card: BoardCard }>("/api/order-board/cards", "POST", { order_id: orderId, list_id: listId });
+  void queryClient.invalidateQueries({ queryKey: ORDER_BOARD_KEY });
+}

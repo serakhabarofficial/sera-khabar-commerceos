@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Warning } from "@phosphor-icons/react";
 import { useOrderHandling } from "@/hooks/useOrderHandling";
+import { addOrderToBoardList, useOrderBoard } from "@/hooks/useOrderBoard";
+import { BOARD_STATUS_LABELS, boardStatusList, isBoardStatus } from "@/lib/boardStatus";
 import { OrderHandlingNotice, OrderHandlingWorkspace } from "@/components/orders/OrderHandlingNotice";
 import { apiFetch } from "@/lib/api";
 import { Button as BuiButton } from "@/components/base/buttons/button";
@@ -53,19 +55,24 @@ type ProductsResponse = { products: CatalogProduct[] };
 // Only the fields the Pending-match and Last orders need from the shared ["/api/orders"] cache.
 type PendingMatchOrder = SyncableOrder & StatusFilterOrder & HistoryEntry & { order_number?: string | null; phone?: string | null };
 
-type MoveTarget = "keep" | "pending" | "on_hold" | "approved";
+// VIP and Pre-Order convert the checkout as Confirmed, then put the order on that Board list.
+type MoveTarget = "keep" | "pending" | "on_hold" | "approved" | "vip" | "pre_order";
 
 const MOVE_OPTIONS: { value: MoveTarget; label: string }[] = [
   { value: "keep", label: "Incomplete" },
   { value: "pending", label: "Pending" },
   { value: "on_hold", label: "On hold" },
   { value: "approved", label: "Confirmed" },
+  { value: "vip", label: "VIP" },
+  { value: "pre_order", label: "Pre-Order" },
 ];
 
 const MOVE_TARGET_LABELS: Record<Exclude<MoveTarget, "keep">, string> = {
   pending: "Pending",
   on_hold: "On Hold",
   approved: "Confirmed",
+  vip: "VIP",
+  pre_order: "Pre-Order",
 };
 
 // The start-up reload throws this when the checkout left the queue, usually
@@ -126,6 +133,7 @@ export default function AbandonedDetail() {
   const [advanceReference, setAdvanceReference] = useState("");
   const [additionReasons, setAdditionReasons] = useState<Record<string, AdditionReason | "">>({});
   const [target, setTarget] = useState<MoveTarget>("keep");
+  const boardQuery = useOrderBoard();
   const [holdDetails, setHoldDetails] = useState<OrderHoldMetadata>(EMPTY_HOLD_DETAILS);
   const [dismissOpen, setDismissOpen] = useState(false);
   const customerPanelRef = useRef<HTMLDivElement>(null);
@@ -425,7 +433,11 @@ export default function AbandonedDetail() {
       });
       if (holdError) { setSaveError(holdError.error); return; }
     }
-    if (target === "approved" && (!customerName || !address)) {
+    const boardTarget = isBoardStatus(target) ? target : null;
+    const boardList = boardTarget ? boardStatusList(boardQuery.data?.lists ?? [], boardTarget) : null;
+    if (boardTarget && !boardQuery.data) { setSaveError("The Board is still loading. Try again in a moment."); return; }
+    if (boardTarget && !boardList) { setSaveError(`Add a Board list named ${BOARD_STATUS_LABELS[boardTarget]} first`); return; }
+    if ((target === "approved" || boardTarget) && (!customerName || !address)) {
       setSaveError("Add the customer name and address before approving");
       return;
     }
@@ -441,7 +453,7 @@ export default function AbandonedDetail() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: target,
+          status: boardTarget ? "approved" : target,
           customer_name: customerName,
           address,
           hold_reason_code: onHold ? holdDetails.hold_reason_code : null,
@@ -468,6 +480,14 @@ export default function AbandonedDetail() {
         return;
       }
       removeFromAbandonedCache();
+      const createdId = (data.order as { id?: string }).id;
+      if (boardTarget && boardList && createdId) {
+        try {
+          await addOrderToBoardList(queryClient, createdId, boardList.id);
+        } catch (error) {
+          toast.error(`Order created as Confirmed, but it could not be added to ${BOARD_STATUS_LABELS[boardTarget]}: ${error instanceof Error ? error.message : "try again from the order"}`);
+        }
+      }
       toast.success(`Order #${(data.order as { order_number: string }).order_number} moved to ${MOVE_TARGET_LABELS[target]}`);
       goBack();
     } catch {
