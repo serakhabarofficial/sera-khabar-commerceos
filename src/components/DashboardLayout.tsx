@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useLayoutEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate, Link } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
+import { consumeScrollRestored } from "@/lib/scrollRestore";
 import { HeaderAlerts } from "./HeaderAlerts";
 import { SidebarProvider, SidebarInset, readSidebarOpenPreference } from "@/components/ui/sidebar";
 import { useOrgName } from "@/hooks/useOrgName";
@@ -85,6 +86,8 @@ export function DashboardLayout() {
     }, [queryClient, user?.id]);
 
     useLayoutEffect(() => {
+        // Orders already scrolled back to the order just opened; keep that spot.
+        if (consumeScrollRestored(location.pathname)) return;
         window.scrollTo(0, 0);
         mainRef.current?.scrollTo?.({ top: 0 });
     }, [location.pathname]);

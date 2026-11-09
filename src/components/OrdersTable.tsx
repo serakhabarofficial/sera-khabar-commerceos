@@ -317,6 +317,8 @@ interface OrdersTableProps {
   rowClickSelects?: boolean;
   /** Search results: where each order is (its tab, or "Board · VIP"), shown under its status. */
   locationOf?: (order: Order) => string;
+  /** Back from this order: render every row down to it at once, so it can be scrolled to before the first paint. */
+  revealOrderId?: string;
 }
 
 function OrderLocationTag({ label }: { label: string }) {
@@ -696,7 +698,7 @@ function NotesPopover({ order, onOrderUpdate }: { order: Order; onOrderUpdate?: 
   );
 }
 
-export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, showHoldDetails = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false, rowClickSelects = false, locationOf }: OrdersTableProps) {
+export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, onOrderUpdate, isPrintView = false, showRiskColumn = true, showCancellationReason = false, showHoldDetails = false, selectedIds: controlledSelectedIds, onSelectionChange, orderLinkState, enableOrderIdLinks = false, rowClickSelects = false, locationOf, revealOrderId }: OrdersTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -724,7 +726,13 @@ export function OrdersTable({ orders, selectionOrders, loading, onStatusUpdate, 
   const displayOrders = steadfastRun && activeSteadfastFilter
     ? ((ids) => bulkSelectionOrders.filter((order) => ids.has(order.id)))(steadfastGroupIds(steadfastRun, activeSteadfastFilter))
     : orders;
-  const renderedRowCount = useProgressiveCount(displayOrders.length, { enabled: !isPrintView });
+  // Rows past the first 20 normally follow after the page's entrance; returning to an order renders down to it at once.
+  // A dozen rows below it too, so the order can sit in the middle of the screen.
+  const [initialRowCount] = useState(() => {
+    const index = revealOrderId ? displayOrders.findIndex((order) => order.id === revealOrderId) : -1;
+    return index < 0 ? 20 : Math.max(20, index + 13);
+  });
+  const renderedRowCount = useProgressiveCount(displayOrders.length, { enabled: !isPrintView, initial: initialRowCount });
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const [sendingPathaoIds, setSendingPathaoIds] = useState<Set<string>>(new Set());
