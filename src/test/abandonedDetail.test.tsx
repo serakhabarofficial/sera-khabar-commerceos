@@ -355,6 +355,48 @@ describe("AbandonedDetail", () => {
       expect(JSON.parse(calls[0][1]?.body ?? "{}").status).toBe("approved");
     });
 
+    it("converts as Confirmed and puts the order in the VIP Board list", async () => {
+      mockMutations(() => jsonResponse({ order: { id: "11111111-1111-4111-8111-111111111111", order_number: "1042" } }));
+      const base = apiFetch.getMockImplementation()!;
+      apiFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+        if (url === "/api/order-board") return jsonResponse({ lists: [{ id: "l-pre", name: "Pre-Order" }, { id: "l-vip", name: "VIP" }], cards: [] });
+        if (url === "/api/order-board/cards") return jsonResponse({ card: { id: "c1" } });
+        return base(url, init);
+      });
+      const user = userEvent.setup();
+      renderDetail();
+      expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
+      await waitFor(() => expect(apiFetch.mock.calls.some(([url]) => url === "/api/order-board")).toBe(true));
+
+      await user.click(screen.getByRole("radio", { name: "VIP" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+      expect(await screen.findByTestId("dashboard-home")).toBeInTheDocument();
+      const convert = (apiFetch.mock.calls as Call[]).find(([url]) => url === "/api/abandoned-checkouts/draft-1/convert");
+      expect(JSON.parse(convert?.[1]?.body ?? "{}").status).toBe("approved");
+      const card = (apiFetch.mock.calls as Call[]).find(([url]) => url === "/api/order-board/cards");
+      expect(JSON.parse(card?.[1]?.body ?? "{}")).toEqual({ order_id: "11111111-1111-4111-8111-111111111111", list_id: "l-vip" });
+    });
+
+    it("blocks Pre-Order when the Board has no Pre-Order list", async () => {
+      mockMutations();
+      const base = apiFetch.getMockImplementation()!;
+      apiFetch.mockImplementation(async (url: string, init?: { method?: string }) => {
+        if (url === "/api/order-board") return jsonResponse({ lists: [{ id: "l-vip", name: "VIP" }], cards: [] });
+        return base(url, init);
+      });
+      const user = userEvent.setup();
+      renderDetail();
+      expect((await screen.findAllByText("Abandoned Customer")).length).toBeGreaterThan(0);
+      await waitFor(() => expect(apiFetch.mock.calls.some(([url]) => url === "/api/order-board")).toBe(true));
+
+      await user.click(screen.getByRole("radio", { name: "Pre-Order" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+      expect(await screen.findByText("Add a Board list named Pre-Order first")).toBeInTheDocument();
+      expect(mutationCalls().length).toBe(0);
+    });
+
     it("saves edits then converts to Pending, in that order", async () => {
       mockMutations();
       const user = userEvent.setup();

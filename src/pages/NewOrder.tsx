@@ -35,6 +35,8 @@ import { useAuth } from "@/hooks/useAuth";
 import type { OrderSource } from "@/lib/orderSource";
 import { blurOnWheel } from "@/lib/numberInput";
 import { customerPrefillFromState } from "@/lib/customerProfile";
+import { addOrderToBoardList, useOrderBoard } from "@/hooks/useOrderBoard";
+import { BOARD_STATUSES, BOARD_STATUS_LABELS, boardStatusList, type BoardStatus } from "@/lib/boardStatus";
 
 type Line = OrderEditorItem;
 
@@ -122,6 +124,9 @@ export default function NewOrder() {
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState<OrderSource>("manual_other");
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  // VIP / Pre-Order: the order is still created Confirmed, then put on that Board list.
+  const [boardStatus, setBoardStatus] = useState<BoardStatus | null>(null);
+  const boardQuery = useOrderBoard();
 
   useEffect(() => {
     if (!assignedTo && user?.id) setAssignedTo(user.id);
@@ -306,6 +311,16 @@ export default function NewOrder() {
       return;
     }
 
+    const boardList = boardStatus ? boardStatusList(boardQuery.data?.lists ?? [], boardStatus) : null;
+    if (boardStatus && !boardQuery.data) {
+      toast.error("The Board is still loading. Try again in a moment.");
+      return;
+    }
+    if (boardStatus && !boardList) {
+      toast.error(`Add a Board list named ${BOARD_STATUS_LABELS[boardStatus]} first`);
+      return;
+    }
+
     setCreating(true);
     try {
       const response = await apiFetch("/api/orders", {
@@ -336,6 +351,14 @@ export default function NewOrder() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Failed to create order");
+      const createdId = (data as { order?: { id?: string } }).order?.id;
+      if (boardStatus && boardList && createdId) {
+        try {
+          await addOrderToBoardList(queryClient, createdId, boardList.id);
+        } catch (error) {
+          toast.error(`Order created, but it could not be added to ${BOARD_STATUS_LABELS[boardStatus]}: ${error instanceof Error ? error.message : "try again from the order"}`);
+        }
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       toast.custom(() => <DarkToast className="flex items-center gap-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15"><CheckCircle weight="light" size={20} className="text-emerald-400" /></div><div><span className="block text-[10px] font-semibold uppercase tracking-widest text-white/50">Order created</span><span className="text-sm font-semibold text-white">{customerName || "Order"}</span></div></DarkToast>, { fit: true });
@@ -359,7 +382,7 @@ export default function NewOrder() {
       <div data-testid="new-order-toolbar" className="sticky top-0 z-30 flex shrink-0 flex-wrap items-center gap-3 bg-[#FAFAF8]/95 py-2 backdrop-blur-sm">
         <BuiButton variant="ghost" size="small" iconOnly leadingIcon={ArrowLeft} aria-label="Back" onClick={() => navigate(returnTo, { state: location.state?.profileNavigationState })} />
         <h1 className="truncate text-[28px] font-medium tracking-tight text-black">New order</h1>
-        <span className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[11px] font-medium text-black/60">Created as Confirmed</span>
+        <span className="rounded-full bg-black/[0.05] px-2.5 py-1 text-[11px] font-medium text-black/60">Created as {boardStatus ? BOARD_STATUS_LABELS[boardStatus] : "Confirmed"}</span>
       </div>
 
       <div data-testid="new-order-workspace" className="grid min-h-0 grid-cols-1 gap-3 xl:h-[calc(100dvh-8.75rem)] xl:min-h-[600px] xl:grid-cols-[380px_minmax(0,1fr)]">
@@ -444,15 +467,39 @@ export default function NewOrder() {
             <OrderPaymentPanel items={lines} totals={totals} canEdit={!creating} overallDiscountType={overallType} overallDiscountValue={overallValue} onOverallDiscount={(type, value) => { setOverallType(type); setOverallValue(value); }} onRemoveOverallDiscount={() => { setOverallType(null); setOverallValue(0); }} deliveryOn={deliveryOn} onToggleDelivery={setDeliveryOn} advance={Math.min(advance, total)} onAdvanceChange={setAdvance} advanceMethod={advanceMethod} advanceReference={advanceReference} onAdvanceMethodChange={setAdvanceMethod} onAdvanceReferenceChange={setAdvanceReference} />
             <section aria-label="Order settings" className="grid min-w-0 content-start gap-3">
               <p className="text-[8px] font-medium uppercase tracking-[0.3em] text-black">Order settings</p>
-              <label className={labelClass}>Order source<OrderSourceSelect value={source} onChange={setSource} disabled={creating} /></label>
-              <label className={labelClass}>Telesales staff<StaffSelect value={assignedTo} onChange={setAssignedTo} disabled={creating} /></label>
+              <div className={labelClass}>
+                Status
+                {/* One compact segmented control; VIP and Pre-Order are still created Confirmed. */}
+                <div role="radiogroup" aria-label="Order status" className="grid grid-cols-3 gap-0.5 rounded-[10px] bg-black/[0.05] p-0.5">
+                  {([null, ...BOARD_STATUSES] as (BoardStatus | null)[]).map((option) => {
+                    const checked = boardStatus === option;
+                    return (
+                      <button
+                        key={option ?? "confirmed"}
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        disabled={creating}
+                        onClick={() => setBoardStatus(option)}
+                        className={`h-8 min-w-0 truncate rounded-[8px] px-2 text-[12.5px] normal-case tracking-normal transition-[background-color,color,box-shadow,transform] duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${checked ? "bg-white font-medium text-black shadow-[0_1px_2px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.04)]" : "font-normal text-black/55 hover:text-black"}`}
+                      >
+                        {option ? BOARD_STATUS_LABELS[option] : "Confirmed"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-2 gap-y-3">
+                <label className={labelClass}>Order source<div className="min-w-0 font-normal normal-case tracking-normal"><OrderSourceSelect value={source} onChange={setSource} disabled={creating} /></div></label>
+                <label className={labelClass}>Telesales staff<div className="min-w-0 font-normal normal-case tracking-normal"><StaffSelect value={assignedTo} onChange={setAssignedTo} disabled={creating} /></div></label>
+              </div>
               <label className={labelClass}>
                 Payment method
                 <Select value={paymentMethod} onValueChange={setPaymentMethod}><SelectTrigger aria-label="Payment method" className="h-10 rounded-lg border-0 bg-white text-[13px] normal-case tracking-normal shadow-none ring-1 ring-inset ring-black/[0.08]"><SelectValue /></SelectTrigger><SelectContent>{PAYMENT_METHODS.map((method) => <SelectItem key={method.value} value={method.value}>{method.label}</SelectItem>)}</SelectContent></Select>
               </label>
               <label className={labelClass}>
                 Internal note
-                <input aria-label="Internal note" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional, for the team" className={fieldClass} />
+                <textarea aria-label="Internal note" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional, for the team" rows={2} className={`${fieldClass} h-auto resize-none py-2 leading-relaxed`} />
               </label>
             </section>
             <CollectOnDeliveryBar total={total} advance={Math.min(advance, total)} />

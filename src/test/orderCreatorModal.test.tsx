@@ -270,6 +270,43 @@ describe("NewOrder", () => {
     });
   });
 
+  it("creates a Pre-Order as Confirmed and puts it in the Pre-Order Board list", async () => {
+    const user = userEvent.setup();
+    apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === "/api/products") return { ok: true, json: async () => ({ products: [{ id: "honey", name: "Sundarbans Honey", selling_price: 850, variants: [], images: [] }] }) };
+      if (url === "/api/order-board") return { ok: true, json: async () => ({ lists: [{ id: "l-vip", name: "VIP" }, { id: "l-pre", name: "Pre-Order" }], cards: [] }) };
+      if (url === "/api/order-board/cards" && init?.method === "POST") return { ok: true, json: async () => ({ card: { id: "card-1" } }) };
+      if (url === "/api/orders" && init?.method === "POST") return { ok: true, json: async () => ({ order: { id: "order-1" } }) };
+      return { ok: true, json: async () => ({}) };
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/orders/new"]}>
+          <NewOrder />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const group = screen.getByRole("radiogroup", { name: "Order status" });
+    expect(within(group).getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["Confirmed", "VIP", "Pre-Order"]);
+    await user.click(within(group).getByRole("radio", { name: "Pre-Order" }));
+    expect(screen.getByText("Created as Pre-Order")).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Customer name" }), "Rahim Uddin");
+    await user.type(screen.getByRole("textbox", { name: "Phone" }), "01712345678");
+    await user.type(screen.getByRole("textbox", { name: "Delivery address" }), "Dhanmondi, Dhaka");
+    await addFromSearch(user, "Sundarbans Honey");
+    await waitFor(() => expect(client.getQueryData(["/api/order-board"])).toBeDefined());
+    await user.click(screen.getByRole("button", { name: /create order/i }));
+
+    await waitFor(() => {
+      const card = apiFetch.mock.calls.find(([requestUrl]) => requestUrl === "/api/order-board/cards");
+      expect(JSON.parse(String(card?.[1]?.body))).toEqual({ order_id: "order-1", list_id: "l-pre" });
+    });
+    const order = apiFetch.mock.calls.find(([requestUrl, requestInit]) => requestUrl === "/api/orders" && requestInit?.method === "POST");
+    expect(JSON.parse(String(order?.[1]?.body)).status).toBe("confirmed");
+  });
+
   it("adds a product from the search list straight into the cart", async () => {
     const user = userEvent.setup();
     apiFetch.mockResolvedValue({
