@@ -9030,9 +9030,13 @@ app.get("/api/order-board", async (req, res) => {
       }
     }
 
-    const { data: cards, error: cardError } = await supabase.from("order_board_cards").select(BOARD_CARD_FIELDS).eq("org_id", orgId).order("position", { ascending: true });
-    if (cardError) throw cardError;
-    return res.json({ lists: lists || [], cards: await withBoardOrders(supabase, orgId, cards || []) });
+    // Paged: PostgREST returns at most 1000 rows per request, so a board with
+    // more cards lost the rest, and their orders vanished from every tab.
+    const cards = (await fetchReportPages(
+      () => supabase.from("order_board_cards").select(BOARD_CARD_FIELDS).eq("org_id", orgId),
+      { pageSize: 1000 },
+    )).sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || String(a.id).localeCompare(String(b.id)));
+    return res.json({ lists: lists || [], cards: await withBoardOrders(supabase, orgId, cards) });
   } catch (e) {
     return sendError(res, e);
   }
