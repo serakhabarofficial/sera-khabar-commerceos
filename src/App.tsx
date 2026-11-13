@@ -97,6 +97,21 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ReportsRoute({ children }: { children: React.ReactNode }) {
+  const { canViewReports, loading } = useUserRole();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner size="lg" className="text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!canViewReports) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
@@ -131,7 +146,7 @@ const AppRoutes = () => (
       <Route path="/team-inbox" element={<TeamInbox />} />
       <Route path="/overview" element={<Overview />} />
       <Route path="/reports/staff" element={<StaffPerformance />} />
-      <Route path="/reports/business" element={<AdminRoute><BusinessReport /></AdminRoute>} />
+      <Route path="/reports/business" element={<ReportsRoute><BusinessReport /></ReportsRoute>} />
       <Route path="/reports/activity" element={<ActivityLog />} />
       <Route path="/campaign-links" element={<CampaignLinks />} />
       <Route path="/campaign-links/:id" element={<CampaignLinkDetail />} />

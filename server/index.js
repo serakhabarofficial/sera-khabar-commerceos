@@ -1228,7 +1228,7 @@ async function getCurrentUserContext(token) {
   const supabase = getServiceSupabase();
   const { data: roleRow, error } = await supabase
     .from("user_roles")
-    .select("org_id, role")
+    .select("org_id, role, can_view_reports")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .is("suspended_at", null)
@@ -1250,7 +1250,24 @@ async function getCurrentUserContext(token) {
     isAdmin: role === "admin",
     isTeamMember: role === "team_member",
     hasRole: !!roleRow,
+    canViewReports: role === "admin" || roleRow?.can_view_reports === true,
   };
+}
+
+// Admins, and team members an admin gave report access, can open the Business
+// Report and the Staff Performance team totals.
+async function canViewReports(supabase, orgId, userId, role) {
+  if (role === "admin") return true;
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("can_view_reports")
+    .eq("user_id", userId)
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .is("suspended_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.can_view_reports === true;
 }
 
 app.get("/api/me", async (req, res) => {
@@ -5562,7 +5579,7 @@ app.get("/api/reports/business", async (req, res) => {
 
     const supabase = getServiceSupabase();
     const { orgId, role } = await getUserOrg(supabase, user.id);
-    if (role !== "admin") return res.status(403).json({ error: "Admin only" });
+    if (!(await canViewReports(supabase, orgId, user.id, role))) return res.status(403).json({ error: "Admin only" });
 
     const request = resolveBusinessReportRequest({
       from: req.query.from,
@@ -7530,25 +7547,28 @@ app.get("/api/orders", async (req, res) => {
       // are harmless: the client merges by id.
       const overlapSince = new Date(Date.parse(changedSince) - 120 * 1000).toISOString();
 
-      let changedOrdersQuery = supabase
-        .from("orders")
-        .select("id, updated_at")
-        .eq("org_id", orgId)
-        .gt("updated_at", overlapSince);
-      if (warehouseFilter) {
-        changedOrdersQuery = changedOrdersQuery.eq("warehouse_id", warehouseFilter);
-      }
-      const { data: changedOrderRows, error: changedOrdersError } = await changedOrdersQuery;
-      if (changedOrdersError) throw changedOrdersError;
+      // Both reads are paged: PostgREST returns at most 1000 rows per request,
+      // so a bulk move of more than 1000 orders lost the rest, and the cursor
+      // then skipped past them until the next full reload.
+      const changedOrderRows = await fetchReportPages(() => {
+        let changedOrdersQuery = supabase
+          .from("orders")
+          .select("id, updated_at")
+          .eq("org_id", orgId)
+          .gt("updated_at", overlapSince);
+        if (warehouseFilter) {
+          changedOrdersQuery = changedOrdersQuery.eq("warehouse_id", warehouseFilter);
+        }
+        return changedOrdersQuery;
+      }, { pageSize: 1000 });
 
       // order_items.updated_at defaults to now() on insert and is bumped by a
       // BEFORE UPDATE trigger, so it covers both new and edited items.
-      const { data: changedItemRows, error: changedItemsError } = await supabase
+      const changedItemRows = await fetchReportPages(() => supabase
         .from("order_items")
-        .select("order_id, updated_at")
+        .select("id, order_id, updated_at")
         .eq("org_id", orgId)
-        .gt("updated_at", overlapSince);
-      if (changedItemsError) throw changedItemsError;
+        .gt("updated_at", overlapSince), { pageSize: 1000 });
 
       const changedIds = [...new Set([
         ...(changedOrderRows || []).map((row) => row.id),

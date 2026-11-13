@@ -176,7 +176,7 @@ function SnapshotCard({
 
 export default function StaffPerformance() {
   const reduceMotion = useReducedMotion();
-  const { isAdmin } = useUserRole();
+  const { canViewReports } = useUserRole();
   const defaultRange = useMemo<DateRange>(() => {
     const today = dhakaToday();
     return { from: today, to: today };
@@ -279,16 +279,16 @@ export default function StaffPerformance() {
           </div>
         </header>
 
-        {/* Team totals are admin-only, blurred for staff like the dashboard P&L. */}
+        {/* Team totals are for admins and members given report access; blurred for other staff. */}
         <div className="relative">
-        {!isAdmin && (
+        {!canViewReports && (
           <div data-testid="staff-performance-summary-locked" className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" className="text-black/20">
               <path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/>
             </svg>
           </div>
         )}
-        <div aria-hidden={!isAdmin || undefined} className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-5", !isAdmin && "blur-[8px] pointer-events-none select-none")}>
+        <div aria-hidden={!canViewReports || undefined} className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-5", !canViewReports && "blur-[8px] pointer-events-none select-none")}>
           <SnapshotCard
             label="Confirmed value"
             value={formatTaka(snapshot.confirmedValue)}
