@@ -6,17 +6,17 @@ const appSource = readFileSync(resolve(process.cwd(), "src/App.tsx"), "utf8");
 const sidebarSource = readFileSync(resolve(process.cwd(), "src/components/AppSidebar.tsx"), "utf8");
 
 describe("Business Report navigation", () => {
-  it("lazy-loads the route behind AdminRoute", () => {
+  it("lazy-loads the route behind ReportsRoute", () => {
     // Dashboard pages are declared (and preloaded) in src/dashboardPages.ts.
     expect(readFileSync(resolve(process.cwd(), "src/dashboardPages.ts"), "utf8")).toContain('export const BusinessReport = lazyPage(() => import("./pages/BusinessReport"))');
-    expect(appSource).toContain('<Route path="/reports/business" element={<AdminRoute><BusinessReport /></AdminRoute>} />');
+    expect(appSource).toContain('<Route path="/reports/business" element={<ReportsRoute><BusinessReport /></ReportsRoute>} />');
   });
 
-  it("places an admin-only Business Report item in Reports", () => {
+  it("places a report-access-only Business Report item in Reports", () => {
     expect(sidebarSource).toMatch(/const reports: NavSection = \{[\s\S]*?label: "Reports"/);
     expect(sidebarSource).toContain('id: "business-report"');
     expect(sidebarSource).toContain('title: "Business Report"');
     expect(sidebarSource).toContain('link: "/reports/business"');
-    expect(sidebarSource).toContain("disabled: !isAdmin");
+    expect(sidebarSource).toContain("disabled: !canViewReports");
   });
 });

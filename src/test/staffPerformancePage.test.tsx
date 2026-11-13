@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
 const roleState = vi.hoisted(() => ({ isAdmin: true }));
-vi.mock("@/hooks/useUserRole", () => ({ useUserRole: () => ({ isAdmin: roleState.isAdmin, role: roleState.isAdmin ? "admin" : "team_member" }) }));
+vi.mock("@/hooks/useUserRole", () => ({ useUserRole: () => ({ isAdmin: roleState.isAdmin, canViewReports: roleState.isAdmin, role: roleState.isAdmin ? "admin" : "team_member" }) }));
 vi.mock("@/components/DateRangePicker", () => ({
   DateRangePicker: ({ onChange }: { onChange: (range: { from: Date; to: Date } | null) => void }) => (
     <button type="button" onClick={() => onChange(null)}>All time</button>

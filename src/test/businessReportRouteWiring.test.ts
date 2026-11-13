@@ -15,14 +15,14 @@ function sectionBetween(startMarker: string, endMarker: string) {
 describe("GET /api/reports/business", () => {
   const route = () => sectionBetween('app.get("/api/reports/business"', "// ─── Analytics");
 
-  it("authenticates, resolves the fixed workspace, and rejects non-admin callers", () => {
+  it("authenticates, resolves the fixed workspace, and rejects callers without report access", () => {
     const section = route();
 
     expect(section).toContain("const token = getToken(req)");
     expect(section).toContain("getUser(token)");
     expect(section).toMatch(/status\(401\)/);
     expect(section).toContain("getUserOrg(supabase, user.id)");
-    expect(section).toContain('role !== "admin"');
+    expect(section).toContain("await canViewReports(supabase, orgId, user.id, role)");
     expect(section).toMatch(/status\(403\)/);
   });
 

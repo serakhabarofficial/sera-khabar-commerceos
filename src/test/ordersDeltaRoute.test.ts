@@ -34,7 +34,7 @@ describe("GET /api/orders delta sync", () => {
   it("selects updated_at on the rows the cursor is derived from", () => {
     const route = ordersListHandler();
     expect(route).toContain('.select("id, updated_at")');
-    expect(route).toContain('.select("order_id, updated_at")');
+    expect(route).toContain('.select("id, order_id, updated_at")');
     expect(route).toMatch(/from\("order_items"\)\.select\("order_id, [^"]*updated_at[^"]*"\)\.in\("order_id", idBatch\)/);
   });
 
@@ -47,9 +47,15 @@ describe("GET /api/orders delta sync", () => {
 
   it("finds changed orders and changed items by updated_at within the workspace", () => {
     const route = ordersListHandler();
-    const itemsChange = route.slice(route.indexOf('.select("order_id, updated_at")'));
+    const itemsChange = route.slice(route.indexOf('.select("id, order_id, updated_at")'));
     expect(itemsChange).toContain('.eq("org_id", orgId)');
     expect(itemsChange).toContain('.gt("updated_at", overlapSince)');
+  });
+
+  it("pages the changed orders and changed items past PostgREST's 1000-row cap", () => {
+    const route = ordersListHandler();
+    const delta = route.slice(route.indexOf("if (changedSinceParam)"), route.indexOf("const changedIds"));
+    expect((delta.match(/await fetchReportPages\(/g) || []).length).toBe(2);
   });
 
   it("counts the workspace orders with a head count on the delta path", () => {

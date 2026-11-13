@@ -15,6 +15,8 @@ export type MeResponse = {
   isAdmin: boolean;
   isTeamMember: boolean;
   hasRole: boolean;
+  // Admin, or a team member an admin gave report access.
+  canViewReports?: boolean;
 };
 
 export function useMe() {
