@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3.0] - 2026-11-14
+
+### Added
+
+- Website orders that contain only the গুড় কম্বো (গুড়ের পাঁচ রূপ | Five Varieties of Date Palm Jaggery) ship free, in any quantity. When the combo is ordered with any other product, the normal ৳100 delivery charge applies. Held orders approved later follow the same rule.
+
 ## [0.2.2.0] - 2026-11-07
 
 ### Changed
