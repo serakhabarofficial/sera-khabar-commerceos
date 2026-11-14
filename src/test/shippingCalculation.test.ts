@@ -229,3 +229,29 @@ describe("cartHasFreeDeliveryProduct — গুড় কম্বো", () => {
     ])).toBe(false);
   });
 });
+
+describe("cartHasFreeDeliveryProduct — ঝোলা গুড় কম্বো", () => {
+  const fiveCombo = { productId: "934a49dc-e8ff-48ac-bf87-18d8ed69f8e8", productName: "গুড়ের পাঁচ রূপ | Five Varieties of Date Palm Jaggery" };
+  const jholaCombo = { productId: "82982e2f-cacd-4377-86f2-03a13cfbc449", productName: "ঝোলা গুড় কম্বো | Liquid Date Jaggery Combo" };
+
+  it("ships free when the cart holds only the ঝোলা combo", () => {
+    expect(cartHasFreeDeliveryProduct([jholaCombo])).toBe(true);
+  });
+
+  it("ships free when the cart holds both combos and nothing else", () => {
+    expect(cartHasFreeDeliveryProduct([fiveCombo, jholaCombo])).toBe(true);
+  });
+
+  it("matches the ঝোলা combo by name when the id is missing", () => {
+    expect(cartHasFreeDeliveryProduct([{ productName: jholaCombo.productName }])).toBe(true);
+  });
+
+  it("charges delivery for the plain ১ কেজি ঝোলা গুড়", () => {
+    expect(cartHasFreeDeliveryProduct([{ productId: "245c778e-1f3d-4797-82f1-f26425d6fdb4", productName: "খেজুরের ঝোলা গুড় | Liquid Date Jaggery" }])).toBe(false);
+    expect(cartHasFreeDeliveryProduct([{ productName: "খেজুরের ঝোলা গুড় | Liquid Date Jaggery" }])).toBe(false);
+  });
+
+  it("charges delivery when the ঝোলা combo is mixed with a non-combo product", () => {
+    expect(cartHasFreeDeliveryProduct([jholaCombo, { productId: "other-id", productName: "গোল পাটালি | Round Patali Jaggery" }])).toBe(false);
+  });
+});
