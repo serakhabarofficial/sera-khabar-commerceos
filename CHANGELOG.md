@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.4.0] - 2026-11-14
+
+### Added
+
+- The ঝোলা গুড় কম্বো (Liquid Date Jaggery Combo, ৩ কেজি) also ships free when combos are the whole order. An order of either combo, or both, in any quantity, has ৳0 delivery; with any other product the normal ৳100 applies.
+
 ## [0.2.3.0] - 2026-11-14
 
 ### Added

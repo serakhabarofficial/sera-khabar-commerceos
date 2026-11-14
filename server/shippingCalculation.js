@@ -71,10 +71,17 @@ export const FREE_DELIVERY_PRODUCT_IDS = [
 export const FREE_DELIVERY_PRODUCT_SLUGS = ["black-seed-flower-honey", "litchi-flower-honey", "kalojira-mixed"];
 const FREE_DELIVERY_PRODUCT_NAME_FRAGMENTS = ["কালোজিরা ফুলের মধু", "লিচু ফুলের মধু", "কালোজিরা মিক্সড"];
 
-// গুড় কম্বো promo (2026-11-14): the combo ships free only when it is the whole
-// order, in any quantity. With any other product, normal delivery applies.
-export const FREE_DELIVERY_SOLO_PRODUCT_IDS = ["934a49dc-e8ff-48ac-bf87-18d8ed69f8e8"];
-const FREE_DELIVERY_SOLO_PRODUCT_NAME_FRAGMENTS = ["গুড়ের পাঁচ রূপ", "Five Varieties of Date Palm Jaggery"];
+// গুড় কম্বো promo (2026-11-14): the combos ship free only when combos are the
+// whole order (either combo or both, any quantity). With any other product,
+// normal delivery applies.
+export const FREE_DELIVERY_SOLO_PRODUCT_IDS = [
+  "934a49dc-e8ff-48ac-bf87-18d8ed69f8e8", // গুড়ের পাঁচ রূপ (২.৫ কেজি)
+  "82982e2f-cacd-4377-86f2-03a13cfbc449", // ঝোলা গুড় কম্বো (৩ কেজি)
+];
+const FREE_DELIVERY_SOLO_PRODUCT_NAME_FRAGMENTS = [
+  "গুড়ের পাঁচ রূপ", "Five Varieties of Date Palm Jaggery",
+  "ঝোলা গুড় কম্বো", "Liquid Date Jaggery Combo",
+];
 
 function isFreeDeliverySoloProduct(item) {
   if (!item || typeof item !== "object") return false;
@@ -85,7 +92,7 @@ function isFreeDeliverySoloProduct(item) {
 
 /**
  * @param {Array<{productId?: unknown, productName?: unknown}> | null | undefined} orderItems
- * @returns {boolean} true when any item is a free-delivery product, or every item is the গুড় কম্বো.
+ * @returns {boolean} true when any item is a free-delivery product, or every item is a গুড় কম্বো.
  */
 export function cartHasFreeDeliveryProduct(orderItems) {
   if (!Array.isArray(orderItems) || orderItems.length === 0) return false;
