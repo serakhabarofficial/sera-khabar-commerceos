@@ -206,3 +206,26 @@ describe("cartHasFreeDeliveryProduct", () => {
     expect(cartHasFreeDeliveryProduct(undefined)).toBe(false);
   });
 });
+
+describe("cartHasFreeDeliveryProduct — গুড় কম্বো", () => {
+  const combo = { productId: "934a49dc-e8ff-48ac-bf87-18d8ed69f8e8", productName: "গুড়ের পাঁচ রূপ | Five Varieties of Date Palm Jaggery" };
+
+  it("ships free when the cart holds only the combo", () => {
+    expect(cartHasFreeDeliveryProduct([combo])).toBe(true);
+  });
+
+  it("ships free for several combos and nothing else", () => {
+    expect(cartHasFreeDeliveryProduct([{ ...combo, quantity: 3 }])).toBe(true);
+  });
+
+  it("matches the combo by name when the id is missing", () => {
+    expect(cartHasFreeDeliveryProduct([{ productName: combo.productName }])).toBe(true);
+  });
+
+  it("charges delivery when the combo is mixed with another গুড়", () => {
+    expect(cartHasFreeDeliveryProduct([
+      combo,
+      { productId: "other-id", productName: "গোল পাটালি | Round Patali Jaggery" },
+    ])).toBe(false);
+  });
+});

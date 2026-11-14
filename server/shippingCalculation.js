@@ -71,12 +71,25 @@ export const FREE_DELIVERY_PRODUCT_IDS = [
 export const FREE_DELIVERY_PRODUCT_SLUGS = ["black-seed-flower-honey", "litchi-flower-honey", "kalojira-mixed"];
 const FREE_DELIVERY_PRODUCT_NAME_FRAGMENTS = ["কালোজিরা ফুলের মধু", "লিচু ফুলের মধু", "কালোজিরা মিক্সড"];
 
+// গুড় কম্বো promo (2026-11-14): the combo ships free only when it is the whole
+// order, in any quantity. With any other product, normal delivery applies.
+export const FREE_DELIVERY_SOLO_PRODUCT_IDS = ["934a49dc-e8ff-48ac-bf87-18d8ed69f8e8"];
+const FREE_DELIVERY_SOLO_PRODUCT_NAME_FRAGMENTS = ["গুড়ের পাঁচ রূপ", "Five Varieties of Date Palm Jaggery"];
+
+function isFreeDeliverySoloProduct(item) {
+  if (!item || typeof item !== "object") return false;
+  if (item.productId != null) return FREE_DELIVERY_SOLO_PRODUCT_IDS.includes(String(item.productId));
+  const name = String(item.productName ?? "");
+  return Boolean(name) && FREE_DELIVERY_SOLO_PRODUCT_NAME_FRAGMENTS.some((fragment) => name.includes(fragment));
+}
+
 /**
  * @param {Array<{productId?: unknown, productName?: unknown}> | null | undefined} orderItems
- * @returns {boolean} true when any item is the free-delivery product.
+ * @returns {boolean} true when any item is a free-delivery product, or every item is the গুড় কম্বো.
  */
 export function cartHasFreeDeliveryProduct(orderItems) {
   if (!Array.isArray(orderItems) || orderItems.length === 0) return false;
+  if (orderItems.every(isFreeDeliverySoloProduct)) return true;
   return orderItems.some((item) => {
     if (!item || typeof item !== "object") return false;
     if (item.productId != null && FREE_DELIVERY_PRODUCT_IDS.includes(String(item.productId))) return true;
